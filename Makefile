@@ -24,6 +24,14 @@ run-example: ## Run the basic usage example
 check-config: ## Check configuration file
 	cargo run --bin check_config
 
+sync: ## Start sync service
+	cargo run --bin cli -- sync all
+
+sync-dry-run: ## Test sync service without connecting to snapchain
+	@echo "Dry run mode - sync service would start here"
+	@echo "Configuration check:"
+	@cargo run --bin check_config
+
 migrate: ## Run database migrations
 	@if [ ! -f "config.toml" ] && [ ! -f "config.example.toml" ]; then \
 		echo "Error: No config file found"; \

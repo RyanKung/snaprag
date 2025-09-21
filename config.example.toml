@@ -20,7 +20,7 @@ vector_index_lists = 100
 
 # Snapchain Synchronization Configuration
 [sync]
-snapchain_endpoint = "http://localhost:3383"
+snapchain_endpoint = "http://localhost:3381"
 enable_realtime_sync = true
 enable_historical_sync = false
 historical_sync_from_event_id = 0

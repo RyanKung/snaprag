@@ -185,6 +185,58 @@ make bench         # Run benchmarks
 
 ## Usage
 
+### CLI Commands
+
+SnapRAG provides a comprehensive CLI tool for managing data synchronization and database operations:
+
+#### Data Synchronization
+
+```bash
+# Run all sync (historical + real-time)
+cargo run --bin cli sync all
+
+# Run historical sync only (sync all past data)
+cargo run --bin cli sync historical
+
+# Run real-time sync only (monitor new data)
+cargo run --bin cli sync realtime
+
+# Show sync status and statistics
+cargo run --bin cli sync status
+```
+
+#### Data Management
+
+```bash
+# List FIDs from database
+cargo run --bin cli list fid --limit 50
+
+# List user profiles
+cargo run --bin cli list profiles --limit 20
+
+# List casts
+cargo run --bin cli list casts --limit 100
+
+# List follow relationships
+cargo run --bin cli list follows --limit 50
+
+# Clear all synchronized data (with confirmation)
+cargo run --bin cli clear
+
+# Clear all data without confirmation (force)
+cargo run --bin cli clear --force
+```
+
+#### Database Operations
+
+```bash
+# Run database migrations
+cargo run --bin migrate
+
+# Check configuration
+cargo run --bin check_config
+```
+
 ### Creating a User Profile
 
 ```rust

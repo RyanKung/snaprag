@@ -28,22 +28,33 @@ pub struct PerformanceConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncConfig {
+    pub snapchain_endpoint: String,
+    pub enable_realtime_sync: bool,
+    pub enable_historical_sync: bool,
+    pub historical_sync_from_event_id: u64,
+    pub batch_size: u32,
+    pub sync_interval_ms: u64,
+    pub shard_ids: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
     pub logging: LoggingConfig,
     pub embeddings: EmbeddingsConfig,
     pub performance: PerformanceConfig,
+    pub sync: SyncConfig,
 }
 
 impl AppConfig {
     /// Load configuration from a TOML file
     pub fn from_file<P: AsRef<Path>>(path: P) -> crate::Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| crate::SnapRagError::Io(e))?;
-        
-        let config: AppConfig = toml::from_str(&content)
-            .map_err(|e| crate::SnapRagError::TomlParsing(e))?;
-        
+        let content = std::fs::read_to_string(path).map_err(|e| crate::SnapRagError::Io(e))?;
+
+        let config: AppConfig =
+            toml::from_str(&content).map_err(|e| crate::SnapRagError::TomlParsing(e))?;
+
         Ok(config)
     }
 
@@ -53,12 +64,14 @@ impl AppConfig {
         if Path::new("config.toml").exists() {
             Self::from_file("config.toml")
         } else if Path::new("config.example.toml").exists() {
-            println!("Warning: Using config.example.toml. Please create config.toml for production use.");
+            println!(
+                "Warning: Using config.example.toml. Please create config.toml for production use."
+            );
             Self::from_file("config.example.toml")
         } else {
             Err(crate::SnapRagError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                "No config file found. Please create config.toml or config.example.toml"
+                "No config file found. Please create config.toml or config.example.toml",
             )))
         }
     }
@@ -102,6 +115,41 @@ impl AppConfig {
     pub fn vector_index_lists(&self) -> usize {
         self.performance.vector_index_lists
     }
+
+    /// Get snapchain endpoint
+    pub fn snapchain_endpoint(&self) -> &str {
+        &self.sync.snapchain_endpoint
+    }
+
+    /// Check if real-time sync is enabled
+    pub fn realtime_sync_enabled(&self) -> bool {
+        self.sync.enable_realtime_sync
+    }
+
+    /// Check if historical sync is enabled
+    pub fn historical_sync_enabled(&self) -> bool {
+        self.sync.enable_historical_sync
+    }
+
+    /// Get historical sync start event ID
+    pub fn historical_sync_from_event_id(&self) -> u64 {
+        self.sync.historical_sync_from_event_id
+    }
+
+    /// Get sync batch size
+    pub fn sync_batch_size(&self) -> u32 {
+        self.sync.batch_size
+    }
+
+    /// Get sync interval in milliseconds
+    pub fn sync_interval_ms(&self) -> u64 {
+        self.sync.sync_interval_ms
+    }
+
+    /// Get shard IDs to sync
+    pub fn shard_ids(&self) -> &Vec<u32> {
+        &self.sync.shard_ids
+    }
 }
 
 impl Default for AppConfig {
@@ -124,6 +172,15 @@ impl Default for AppConfig {
             performance: PerformanceConfig {
                 enable_vector_indexes: true,
                 vector_index_lists: 100,
+            },
+            sync: SyncConfig {
+                snapchain_endpoint: "http://localhost:3383".to_string(),
+                enable_realtime_sync: true,
+                enable_historical_sync: false,
+                historical_sync_from_event_id: 0,
+                batch_size: 100,
+                sync_interval_ms: 1000,
+                shard_ids: vec![0, 1, 2],
             },
         }
     }

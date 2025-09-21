@@ -8,18 +8,18 @@ use uuid::Uuid;
 #[repr(i32)]
 pub enum UserDataType {
     None = 0,
-    Pfp = 1,                    // Profile Picture
-    Display = 2,                // Display Name
-    Bio = 3,                    // Bio
-    Url = 5,                    // URL
-    Username = 6,               // Username
-    Location = 7,               // Location
-    Twitter = 8,                // Twitter username
-    Github = 9,                 // GitHub username
-    Banner = 10,                // Banner image
+    Pfp = 1,                     // Profile Picture
+    Display = 2,                 // Display Name
+    Bio = 3,                     // Bio
+    Url = 5,                     // URL
+    Username = 6,                // Username
+    Location = 7,                // Location
+    Twitter = 8,                 // Twitter username
+    Github = 9,                  // GitHub username
+    Banner = 10,                 // Banner image
     PrimaryAddressEthereum = 11, // Primary Ethereum address
     PrimaryAddressSolana = 12,   // Primary Solana address
-    ProfileToken = 13,          // Profile token (CAIP-19 format)
+    ProfileToken = 13,           // Profile token (CAIP-19 format)
 }
 
 impl From<i16> for UserDataType {
@@ -47,9 +47,9 @@ impl From<i16> for UserDataType {
 #[repr(i32)]
 pub enum UsernameType {
     None = 0,
-    Fname = 1,      // Farcaster name
-    EnsL1 = 2,      // ENS L1
-    Basename = 3,   // Basename
+    Fname = 1,    // Farcaster name
+    EnsL1 = 2,    // ENS L1
+    Basename = 3, // Basename
 }
 
 impl From<i32> for UsernameType {
@@ -170,6 +170,7 @@ pub struct UserProfileTrend {
 /// Create user profile request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateUserProfileRequest {
+    pub id: uuid::Uuid,
     pub fid: i64,
     pub username: Option<String>,
     pub display_name: Option<String>,
@@ -183,8 +184,8 @@ pub struct CreateUserProfileRequest {
     pub primary_address_ethereum: Option<String>,
     pub primary_address_solana: Option<String>,
     pub profile_token: Option<String>,
-    pub message_hash: Vec<u8>,
-    pub timestamp: i64,
+    pub created_at: i64,
+    pub message_hash: Option<Vec<u8>>,
 }
 
 /// Update user profile request
@@ -217,4 +218,25 @@ pub struct ProfileSnapshotQuery {
     pub end_timestamp: Option<i64>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+}
+
+/// Record user data change request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordUserDataChangeRequest {
+    pub fid: i64,
+    pub data_type: UserDataType,
+    pub old_value: Option<String>,
+    pub new_value: String,
+    pub message_hash: Vec<u8>,
+    pub timestamp: i64,
+}
+
+/// Record user activity request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordUserActivityRequest {
+    pub fid: i64,
+    pub activity_type: String,
+    pub activity_data: serde_json::Value,
+    pub timestamp: i64,
+    pub message_hash: Option<Vec<u8>>,
 }

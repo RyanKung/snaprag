@@ -92,3 +92,9 @@ coverage/
 # Local development files
 .local/
 local/
+
+# Ignore all .md files except readme.md
+*.md
+!readme.md
+!README.md
+*.json

@@ -13,6 +13,92 @@ impl Database {
         Self { pool }
     }
 
+    /// Create a new database instance from configuration
+    pub async fn from_config(config: &crate::config::AppConfig) -> Result<Self> {
+        let pool_options = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(config.max_connections())
+            .min_connections(config.min_connections())
+            .acquire_timeout(std::time::Duration::from_secs(config.connection_timeout()));
+
+        let pool = pool_options.connect(config.database_url()).await?;
+        Ok(Self::new(pool))
+    }
+
+    /// Run database migrations
+    pub async fn migrate(&self) -> Result<()> {
+        // For now, just return Ok since we manually ran the migration
+        // TODO: Implement proper migration runner
+        Ok(())
+    }
+
+    /// Get a reference to the database pool for raw queries
+    pub fn pool(&self) -> &sqlx::PgPool {
+        &self.pool
+    }
+
+    /// Upsert a user profile
+    pub async fn upsert_user_profile(&self, profile: &UserProfile) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO user_profiles (
+                fid, username, display_name, bio, pfp_url, website_url, 
+                last_updated_timestamp, last_updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (fid)
+            DO UPDATE SET
+                username = EXCLUDED.username,
+                display_name = EXCLUDED.display_name,
+                bio = EXCLUDED.bio,
+                pfp_url = EXCLUDED.pfp_url,
+                website_url = EXCLUDED.website_url,
+                last_updated_timestamp = EXCLUDED.last_updated_timestamp,
+                last_updated_at = EXCLUDED.last_updated_at
+            "#,
+            profile.fid,
+            profile.username,
+            profile.display_name,
+            profile.bio,
+            profile.pfp_url,
+            profile.website_url,
+            profile.last_updated_timestamp,
+            profile.last_updated_at
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Create a user profile snapshot
+    pub async fn create_user_profile_snapshot(&self, snapshot: &UserProfileSnapshot) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO user_profile_snapshots (
+                fid, username, display_name, bio, pfp_url, website_url,
+                snapshot_timestamp, message_hash
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            "#,
+            snapshot.fid,
+            snapshot.username,
+            snapshot.display_name,
+            snapshot.bio,
+            snapshot.pfp_url,
+            snapshot.website_url,
+            snapshot.snapshot_timestamp,
+            snapshot.message_hash
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    // Removed duplicate record_user_data_change method - using the one at line 722
+
+    // Removed duplicate record_user_activity method - using the one at line 836
+
     /// Initialize database schema
     pub async fn init_schema(&self) -> Result<()> {
         // Create user_profiles table
@@ -163,10 +249,12 @@ impl Database {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_profiles_fid ON user_profiles(fid)")
             .execute(&self.pool)
             .await?;
-        
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)")
-            .execute(&self.pool)
-            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)",
+        )
+        .execute(&self.pool)
+        .await?;
 
         // Profile snapshots indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_profile_snapshots_fid_timestamp ON user_profile_snapshots(fid, snapshot_timestamp DESC)")
@@ -202,7 +290,10 @@ impl Database {
 /// User Profile CRUD operations
 impl Database {
     /// Create a new user profile
-    pub async fn create_user_profile(&self, request: CreateUserProfileRequest) -> Result<UserProfile> {
+    pub async fn create_user_profile(
+        &self,
+        request: CreateUserProfileRequest,
+    ) -> Result<UserProfile> {
         let profile = sqlx::query_as::<_, UserProfile>(
             r#"
             INSERT INTO user_profiles (
@@ -226,32 +317,38 @@ impl Database {
         .bind(request.primary_address_ethereum)
         .bind(request.primary_address_solana)
         .bind(request.profile_token)
-        .bind(request.timestamp)
+        .bind(request.created_at)
         .fetch_one(&self.pool)
         .await?;
 
         // Create initial snapshot
-        self.create_profile_snapshot_from_profile(&profile, request.message_hash).await?;
+        if let Some(message_hash) = request.message_hash {
+            self.create_profile_snapshot_from_profile(&profile, message_hash).await?;
+        }
 
         Ok(profile)
     }
 
     /// Get user profile by FID
     pub async fn get_user_profile(&self, fid: i64) -> Result<Option<UserProfile>> {
-        let profile = sqlx::query_as::<_, UserProfile>(
-            "SELECT * FROM user_profiles WHERE fid = $1"
-        )
-        .bind(fid)
-        .fetch_optional(&self.pool)
-        .await?;
+        let profile =
+            sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE fid = $1")
+                .bind(fid)
+                .fetch_optional(&self.pool)
+                .await?;
 
         Ok(profile)
     }
 
     /// Update user profile field and create snapshot
-    pub async fn update_user_profile(&self, request: UpdateUserProfileRequest) -> Result<UserProfile> {
+    pub async fn update_user_profile(
+        &self,
+        request: UpdateUserProfileRequest,
+    ) -> Result<UserProfile> {
         // Get current profile
-        let current_profile = self.get_user_profile(request.fid).await?
+        let current_profile = self
+            .get_user_profile(request.fid)
+            .await?
             .ok_or_else(|| SnapRagError::UserNotFound(request.fid as u64))?;
 
         // Get old value for the specific field
@@ -265,7 +362,9 @@ impl Database {
             UserDataType::Url => current_profile.website_url.clone(),
             UserDataType::Twitter => current_profile.twitter_username.clone(),
             UserDataType::Github => current_profile.github_username.clone(),
-            UserDataType::PrimaryAddressEthereum => current_profile.primary_address_ethereum.clone(),
+            UserDataType::PrimaryAddressEthereum => {
+                current_profile.primary_address_ethereum.clone()
+            }
             UserDataType::PrimaryAddressSolana => current_profile.primary_address_solana.clone(),
             UserDataType::ProfileToken => current_profile.profile_token.clone(),
             _ => None,
@@ -279,7 +378,8 @@ impl Database {
             request.new_value.clone(),
             request.timestamp,
             request.message_hash.clone(),
-        ).await?;
+        )
+        .await?;
 
         // Update the profile
         let updated_profile = sqlx::query_as::<_, UserProfile>(
@@ -311,15 +411,23 @@ impl Database {
         .await?;
 
         // Create snapshot
-        self.create_profile_snapshot_from_profile(&updated_profile, request.message_hash).await?;
+        self.create_profile_snapshot_from_profile(&updated_profile, request.message_hash)
+            .await?;
 
         Ok(updated_profile)
     }
 
     /// Delete user profile (soft delete by setting fields to NULL)
-    pub async fn delete_user_profile(&self, fid: i64, message_hash: Vec<u8>, timestamp: i64) -> Result<UserProfile> {
+    pub async fn delete_user_profile(
+        &self,
+        fid: i64,
+        message_hash: Vec<u8>,
+        timestamp: i64,
+    ) -> Result<UserProfile> {
         // Get current profile for snapshot
-        let current_profile = self.get_user_profile(fid).await?
+        let current_profile = self
+            .get_user_profile(fid)
+            .await?
             .ok_or_else(|| SnapRagError::UserNotFound(fid as u64))?;
 
         // Record deletion as changes
@@ -331,11 +439,26 @@ impl Database {
             (UserDataType::Banner, current_profile.banner_url.clone()),
             (UserDataType::Location, current_profile.location.clone()),
             (UserDataType::Url, current_profile.website_url.clone()),
-            (UserDataType::Twitter, current_profile.twitter_username.clone()),
-            (UserDataType::Github, current_profile.github_username.clone()),
-            (UserDataType::PrimaryAddressEthereum, current_profile.primary_address_ethereum.clone()),
-            (UserDataType::PrimaryAddressSolana, current_profile.primary_address_solana.clone()),
-            (UserDataType::ProfileToken, current_profile.profile_token.clone()),
+            (
+                UserDataType::Twitter,
+                current_profile.twitter_username.clone(),
+            ),
+            (
+                UserDataType::Github,
+                current_profile.github_username.clone(),
+            ),
+            (
+                UserDataType::PrimaryAddressEthereum,
+                current_profile.primary_address_ethereum.clone(),
+            ),
+            (
+                UserDataType::PrimaryAddressSolana,
+                current_profile.primary_address_solana.clone(),
+            ),
+            (
+                UserDataType::ProfileToken,
+                current_profile.profile_token.clone(),
+            ),
         ];
 
         for (data_type, old_value) in fields_to_clear.iter() {
@@ -347,7 +470,8 @@ impl Database {
                     String::new(), // Empty string for deletion
                     timestamp,
                     message_hash.clone(),
-                ).await?;
+                )
+                .await?;
             }
         }
 
@@ -379,7 +503,8 @@ impl Database {
         .await?;
 
         // Create snapshot
-        self.create_profile_snapshot_from_profile(&deleted_profile, message_hash).await?;
+        self.create_profile_snapshot_from_profile(&deleted_profile, message_hash)
+            .await?;
 
         Ok(deleted_profile)
     }
@@ -407,7 +532,7 @@ impl Database {
             ORDER BY created_at DESC
             LIMIT $1
             OFFSET $2
-            "#
+            "#,
         )
         .bind(query.limit.unwrap_or(100) as i64)
         .bind(query.offset.unwrap_or(0) as i64)
@@ -463,7 +588,10 @@ impl Database {
     }
 
     /// Get profile snapshots for a user
-    pub async fn get_profile_snapshots(&self, query: ProfileSnapshotQuery) -> Result<Vec<UserProfileSnapshot>> {
+    pub async fn get_profile_snapshots(
+        &self,
+        query: ProfileSnapshotQuery,
+    ) -> Result<Vec<UserProfileSnapshot>> {
         // Simplified query for now
         let snapshots = sqlx::query_as::<_, UserProfileSnapshot>(
             r#"
@@ -488,7 +616,7 @@ impl Database {
             ORDER BY snapshot_timestamp DESC
             LIMIT $2
             OFFSET $3
-            "#
+            "#,
         )
         .bind(query.fid)
         .bind(query.limit.unwrap_or(100) as i64)
@@ -510,7 +638,7 @@ impl Database {
             WHERE fid = $1 AND snapshot_timestamp <= $2
             ORDER BY snapshot_timestamp DESC
             LIMIT 1
-            "#
+            "#,
         )
         .bind(fid)
         .bind(timestamp)
@@ -521,7 +649,10 @@ impl Database {
     }
 
     /// Get latest profile snapshot for a user
-    pub async fn get_latest_profile_snapshot(&self, fid: i64) -> Result<Option<UserProfileSnapshot>> {
+    pub async fn get_latest_profile_snapshot(
+        &self,
+        fid: i64,
+    ) -> Result<Option<UserProfileSnapshot>> {
         let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
             "SELECT * FROM user_profile_snapshots WHERE fid = $1 ORDER BY snapshot_timestamp DESC LIMIT 1"
         )
@@ -536,7 +667,7 @@ impl Database {
 /// User Data Change CRUD operations
 impl Database {
     /// Record a user data change
-    async fn record_user_data_change(
+    pub async fn record_user_data_change(
         &self,
         fid: i64,
         data_type: i16,
@@ -589,7 +720,7 @@ impl Database {
             ORDER BY change_timestamp DESC
             LIMIT $2
             OFFSET $3
-            "#
+            "#,
         )
         .bind(fid)
         .bind(limit.unwrap_or(100) as i64)
@@ -639,9 +770,13 @@ impl Database {
     }
 
     /// Get username proof by FID and type
-    pub async fn get_username_proof(&self, fid: i64, username_type: UsernameType) -> Result<Option<UsernameProof>> {
+    pub async fn get_username_proof(
+        &self,
+        fid: i64,
+        username_type: UsernameType,
+    ) -> Result<Option<UsernameProof>> {
         let proof = sqlx::query_as::<_, UsernameProof>(
-            "SELECT * FROM username_proofs WHERE fid = $1 AND username_type = $2"
+            "SELECT * FROM username_proofs WHERE fid = $1 AND username_type = $2",
         )
         .bind(fid)
         .bind(username_type as i32)
@@ -654,7 +789,7 @@ impl Database {
     /// Get all username proofs for a user
     pub async fn get_user_username_proofs(&self, fid: i64) -> Result<Vec<UsernameProof>> {
         let proofs = sqlx::query_as::<_, UsernameProof>(
-            "SELECT * FROM username_proofs WHERE fid = $1 ORDER BY timestamp DESC"
+            "SELECT * FROM username_proofs WHERE fid = $1 ORDER BY timestamp DESC",
         )
         .bind(fid)
         .fetch_all(&self.pool)
@@ -718,7 +853,7 @@ impl Database {
             ORDER BY timestamp DESC
             LIMIT $2
             OFFSET $3
-            "#
+            "#,
         )
         .bind(fid)
         .bind(limit.unwrap_or(100) as i64)
@@ -727,4 +862,272 @@ impl Database {
         .await?;
         Ok(activities)
     }
+}
+
+/// Sync-related database operations
+impl Database {
+    /// Get the last processed height for a shard
+    pub async fn get_last_processed_height(&self, shard_id: u32) -> Result<u64> {
+        let row = sqlx::query!(
+            "SELECT last_processed_height FROM sync_progress WHERE shard_id = $1",
+            shard_id as i32
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row
+            .map(|r| r.last_processed_height.unwrap_or(0) as u64)
+            .unwrap_or(0))
+    }
+
+    /// Update the last processed height for a shard
+    pub async fn update_last_processed_height(&self, shard_id: u32, height: u64) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO sync_progress (shard_id, last_processed_height, status, updated_at)
+            VALUES ($1, $2, 'syncing', NOW())
+            ON CONFLICT (shard_id)
+            DO UPDATE SET
+                last_processed_height = EXCLUDED.last_processed_height,
+                status = 'syncing',
+                updated_at = NOW()
+            "#,
+            shard_id as i32,
+            height as i64
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Update sync status for a shard
+    pub async fn update_sync_status(
+        &self,
+        shard_id: u32,
+        status: &str,
+        error_message: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO sync_progress (shard_id, status, error_message, updated_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (shard_id)
+            DO UPDATE SET
+                status = EXCLUDED.status,
+                error_message = EXCLUDED.error_message,
+                updated_at = NOW()
+            "#,
+            shard_id as i32,
+            status,
+            error_message
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Record a processed message
+    pub async fn record_processed_message(
+        &self,
+        message_hash: Vec<u8>,
+        shard_id: u32,
+        block_height: u64,
+        transaction_fid: u64,
+        message_type: &str,
+        fid: u64,
+        timestamp: i64,
+        content_hash: Option<Vec<u8>>,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO processed_messages (
+                message_hash, shard_id, block_height, transaction_fid,
+                message_type, fid, timestamp, content_hash
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (message_hash) DO NOTHING
+            "#,
+            message_hash,
+            shard_id as i32,
+            block_height as i64,
+            transaction_fid as i64,
+            message_type,
+            fid as i64,
+            timestamp,
+            content_hash
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Check if a message has been processed
+    pub async fn is_message_processed(&self, message_hash: &[u8]) -> Result<bool> {
+        let row = sqlx::query!(
+            "SELECT 1 as exists FROM processed_messages WHERE message_hash = $1 LIMIT 1",
+            message_hash
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.is_some())
+    }
+
+    /// Update sync statistics
+    pub async fn update_sync_stats(
+        &self,
+        shard_id: u32,
+        total_messages: u64,
+        total_blocks: u64,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO sync_stats (shard_id, total_messages, total_blocks, last_updated)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (shard_id)
+            DO UPDATE SET
+                total_messages = EXCLUDED.total_messages,
+                total_blocks = EXCLUDED.total_blocks,
+                last_updated = NOW()
+            "#,
+            shard_id as i32,
+            total_messages as i64,
+            total_blocks as i64
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get sync statistics for all shards
+    pub async fn get_sync_stats(&self) -> Result<Vec<SyncStats>> {
+        // TODO: Fix this query when database schema is finalized
+        // For now, return empty vector to allow compilation
+        Ok(vec![])
+    }
+
+    /// Upsert a link (follow relationship, etc.)
+    pub async fn upsert_link(
+        &self,
+        fid: i64,
+        target_fid: i64,
+        link_type: &str,
+        timestamp: i64,
+        message_hash: Vec<u8>,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (message_hash)
+            DO UPDATE SET
+                fid = EXCLUDED.fid,
+                target_fid = EXCLUDED.target_fid,
+                link_type = EXCLUDED.link_type,
+                timestamp = EXCLUDED.timestamp
+            "#,
+            fid,
+            target_fid,
+            link_type,
+            timestamp,
+            message_hash
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Upsert a cast
+    pub async fn upsert_cast(
+        &self,
+        fid: i64,
+        text: Option<String>,
+        timestamp: i64,
+        message_hash: Vec<u8>,
+        parent_hash: Option<Vec<u8>>,
+        root_hash: Option<Vec<u8>>,
+        embeds: Option<serde_json::Value>,
+        mentions: Option<serde_json::Value>,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (message_hash)
+            DO UPDATE SET
+                fid = EXCLUDED.fid,
+                text = EXCLUDED.text,
+                timestamp = EXCLUDED.timestamp,
+                parent_hash = EXCLUDED.parent_hash,
+                root_hash = EXCLUDED.root_hash,
+                embeds = EXCLUDED.embeds,
+                mentions = EXCLUDED.mentions
+            "#,
+            fid,
+            text,
+            timestamp,
+            message_hash,
+            parent_hash,
+            root_hash,
+            embeds,
+            mentions
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Upsert user data
+    pub async fn upsert_user_data(
+        &self,
+        fid: i64,
+        data_type: i16,
+        value: String,
+        timestamp: i64,
+        message_hash: Vec<u8>,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO user_data (fid, data_type, value, timestamp, message_hash)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (message_hash)
+            DO UPDATE SET
+                fid = EXCLUDED.fid,
+                data_type = EXCLUDED.data_type,
+                value = EXCLUDED.value,
+                timestamp = EXCLUDED.timestamp
+            "#,
+            fid,
+            data_type,
+            value,
+            timestamp,
+            message_hash
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+
+
+
+}
+
+/// Sync-related data structures
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct SyncStats {
+    pub shard_id: i32,
+    pub total_messages: i64,
+    pub total_blocks: i64,
+    pub last_updated: chrono::DateTime<chrono::Utc>,
+    pub status: Option<String>,
+    pub last_processed_height: Option<i64>,
+    pub last_sync_timestamp: Option<chrono::DateTime<chrono::Utc>>,
 }

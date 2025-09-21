@@ -8,16 +8,22 @@ use sqlx::PgPool;
 async fn main() -> Result<()> {
     // Load configuration from config.toml
     let config = AppConfig::load()?;
-    
+
     println!("📋 Loaded configuration:");
-    println!("  Database URL: {}", mask_database_url(&config.database_url()));
+    println!(
+        "  Database URL: {}",
+        mask_database_url(&config.database_url())
+    );
     println!("  Max connections: {}", config.max_connections());
     println!("  Embedding dimension: {}", config.embedding_dimension());
-    println!("  Vector indexes enabled: {}", config.vector_indexes_enabled());
+    println!(
+        "  Vector indexes enabled: {}",
+        config.vector_indexes_enabled()
+    );
 
     // Create database connection pool with config
     let pool = PgPool::connect(&config.database_url()).await?;
-        
+
     let db = Database::new(pool);
 
     // Initialize database schema
@@ -35,6 +41,7 @@ async fn example_usage(db: &Database) -> Result<()> {
 
     // Create a user profile
     let create_request = CreateUserProfileRequest {
+        id: uuid::Uuid::new_v4(),
         fid: 12345,
         username: Some("alice".to_string()),
         display_name: Some("Alice Smith".to_string()),
@@ -48,8 +55,8 @@ async fn example_usage(db: &Database) -> Result<()> {
         primary_address_ethereum: Some("0x1234567890123456789012345678901234567890".to_string()),
         primary_address_solana: None,
         profile_token: None,
-        message_hash: vec![1, 2, 3, 4, 5],
-        timestamp: 1640995200, // 2022-01-01 00:00:00 UTC
+        message_hash: Some(vec![1, 2, 3, 4, 5]),
+        created_at: 1640995200, // 2022-01-01 00:00:00 UTC
     };
 
     let profile = db.create_user_profile(create_request).await?;
@@ -80,31 +87,37 @@ async fn example_usage(db: &Database) -> Result<()> {
     println!("Found {} profile snapshots", snapshots.len());
 
     // Get user data changes
-    let changes = db.get_user_data_changes(12345, Some(UserDataType::Bio as i16), Some(10), None).await?;
+    let changes = db
+        .get_user_data_changes(12345, Some(UserDataType::Bio as i16), Some(10), None)
+        .await?;
     println!("Found {} bio changes", changes.len());
 
     // Create username proof
-    let proof = db.upsert_username_proof(
-        12345,
-        "alice".to_string(),
-        UsernameType::Fname,
-        "0x1234567890123456789012345678901234567890".to_string(),
-        vec![11, 12, 13, 14, 15],
-        1640995200,
-    ).await?;
+    let proof = db
+        .upsert_username_proof(
+            12345,
+            "alice".to_string(),
+            UsernameType::Fname,
+            "0x1234567890123456789012345678901234567890".to_string(),
+            vec![11, 12, 13, 14, 15],
+            1640995200,
+        )
+        .await?;
     println!("Created username proof: {:?}", proof);
 
     // Record user activity
-    let activity = db.record_user_activity(
-        12345,
-        "cast".to_string(),
-        Some(serde_json::json!({
-            "text": "Hello, Farcaster!",
-            "mentions": [67890]
-        })),
-        1640995200,
-        Some(vec![16, 17, 18, 19, 20]),
-    ).await?;
+    let activity = db
+        .record_user_activity(
+            12345,
+            "cast".to_string(),
+            Some(serde_json::json!({
+                "text": "Hello, Farcaster!",
+                "mentions": [67890]
+            })),
+            1640995200,
+            Some(vec![16, 17, 18, 19, 20]),
+        )
+        .await?;
     println!("Recorded user activity: {:?}", activity);
 
     // Query user profiles
@@ -129,7 +142,8 @@ async fn example_usage(db: &Database) -> Result<()> {
 fn mask_database_url(url: &str) -> String {
     if let Ok(parsed) = url::Url::parse(url) {
         if let Some(host) = parsed.host_str() {
-            format!("{}://{}@{}:{}", 
+            format!(
+                "{}://{}@{}:{}",
                 parsed.scheme(),
                 parsed.username(),
                 host,

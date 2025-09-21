@@ -8,18 +8,24 @@ async fn main() -> Result<()> {
     // Load configuration from config.toml
     let config = AppConfig::load()?;
     
+    // Initialize logging with configuration
+    snaprag::logging::init_logging_with_config(Some(&config))?;
+
     println!("🔄 Running database migrations...");
-    println!("📋 Database URL: {}", mask_database_url(&config.database_url()));
+    println!(
+        "📋 Database URL: {}",
+        mask_database_url(&config.database_url())
+    );
 
     // Create database connection pool with config
     let pool = PgPool::connect(&config.database_url()).await?;
-        
+
     let db = Database::new(pool);
 
     // Initialize database schema
     db.init_schema().await?;
     println!("✅ Database migrations completed successfully!");
-    
+
     Ok(())
 }
 
@@ -27,7 +33,8 @@ async fn main() -> Result<()> {
 fn mask_database_url(url: &str) -> String {
     if let Ok(parsed) = url::Url::parse(url) {
         if let Some(host) = parsed.host_str() {
-            format!("{}://{}@{}:{}", 
+            format!(
+                "{}://{}@{}:{}",
                 parsed.scheme(),
                 parsed.username(),
                 host,
