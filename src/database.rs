@@ -1,0 +1,730 @@
+use crate::models::*;
+use crate::{Result, SnapRagError};
+use sqlx::PgPool;
+
+/// Database connection pool wrapper
+#[derive(Debug, Clone)]
+pub struct Database {
+    pool: PgPool,
+}
+
+impl Database {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    /// Initialize database schema
+    pub async fn init_schema(&self) -> Result<()> {
+        // Create user_profiles table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                fid BIGINT UNIQUE NOT NULL,
+                username VARCHAR(255),
+                display_name VARCHAR(255),
+                bio TEXT,
+                pfp_url TEXT,
+                banner_url TEXT,
+                location VARCHAR(255),
+                website_url TEXT,
+                twitter_username VARCHAR(255),
+                github_username VARCHAR(255),
+                primary_address_ethereum VARCHAR(42),
+                primary_address_solana VARCHAR(44),
+                profile_token VARCHAR(255),
+                profile_embedding VECTOR(1536),
+                bio_embedding VECTOR(1536),
+                interests_embedding VECTOR(1536),
+                last_updated_timestamp BIGINT NOT NULL,
+                last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create user_profile_snapshots table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_profile_snapshots (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                fid BIGINT NOT NULL,
+                snapshot_timestamp BIGINT NOT NULL,
+                message_hash BYTEA NOT NULL,
+                username VARCHAR(255),
+                display_name VARCHAR(255),
+                bio TEXT,
+                pfp_url TEXT,
+                banner_url TEXT,
+                location VARCHAR(255),
+                website_url TEXT,
+                twitter_username VARCHAR(255),
+                github_username VARCHAR(255),
+                primary_address_ethereum VARCHAR(42),
+                primary_address_solana VARCHAR(44),
+                profile_token VARCHAR(255),
+                profile_embedding VECTOR(1536),
+                bio_embedding VECTOR(1536),
+                interests_embedding VECTOR(1536),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                UNIQUE(fid, snapshot_timestamp)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create user_data_changes table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_data_changes (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                fid BIGINT NOT NULL,
+                data_type SMALLINT NOT NULL,
+                old_value TEXT,
+                new_value TEXT NOT NULL,
+                change_timestamp BIGINT NOT NULL,
+                message_hash BYTEA NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create username_proofs table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS username_proofs (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                fid BIGINT NOT NULL,
+                username VARCHAR(255) NOT NULL,
+                username_type SMALLINT NOT NULL,
+                owner_address VARCHAR(42) NOT NULL,
+                signature BYTEA NOT NULL,
+                timestamp BIGINT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                UNIQUE(fid, username_type)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create user_activity_timeline table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_activity_timeline (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                fid BIGINT NOT NULL,
+                activity_type VARCHAR(50) NOT NULL,
+                activity_data JSONB,
+                timestamp BIGINT NOT NULL,
+                message_hash BYTEA,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create user_profile_trends table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_profile_trends (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                fid BIGINT NOT NULL,
+                trend_period VARCHAR(20) NOT NULL,
+                trend_date DATE NOT NULL,
+                profile_changes_count INTEGER DEFAULT 0,
+                bio_changes_count INTEGER DEFAULT 0,
+                username_changes_count INTEGER DEFAULT 0,
+                activity_score FLOAT DEFAULT 0.0,
+                engagement_score FLOAT DEFAULT 0.0,
+                profile_embedding VECTOR(1536),
+                bio_embedding VECTOR(1536),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                UNIQUE(fid, trend_period, trend_date)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indexes
+        self.create_indexes().await?;
+
+        Ok(())
+    }
+
+    async fn create_indexes(&self) -> Result<()> {
+        // User profiles indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_profiles_fid ON user_profiles(fid)")
+            .execute(&self.pool)
+            .await?;
+        
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)")
+            .execute(&self.pool)
+            .await?;
+
+        // Profile snapshots indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_profile_snapshots_fid_timestamp ON user_profile_snapshots(fid, snapshot_timestamp DESC)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_profile_snapshots_timestamp ON user_profile_snapshots(snapshot_timestamp DESC)")
+            .execute(&self.pool)
+            .await?;
+
+        // User data changes indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_data_changes_fid_type ON user_data_changes(fid, data_type, change_timestamp DESC)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_data_changes_timestamp ON user_data_changes(change_timestamp DESC)")
+            .execute(&self.pool)
+            .await?;
+
+        // Activity timeline indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_activity_timeline_fid_timestamp ON user_activity_timeline(fid, timestamp DESC)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_activity_timeline_type_timestamp ON user_activity_timeline(activity_type, timestamp DESC)")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+}
+
+/// User Profile CRUD operations
+impl Database {
+    /// Create a new user profile
+    pub async fn create_user_profile(&self, request: CreateUserProfileRequest) -> Result<UserProfile> {
+        let profile = sqlx::query_as::<_, UserProfile>(
+            r#"
+            INSERT INTO user_profiles (
+                fid, username, display_name, bio, pfp_url, banner_url, location,
+                website_url, twitter_username, github_username, primary_address_ethereum,
+                primary_address_solana, profile_token, last_updated_timestamp
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            RETURNING *
+            "#,
+        )
+        .bind(request.fid)
+        .bind(request.username)
+        .bind(request.display_name)
+        .bind(request.bio)
+        .bind(request.pfp_url)
+        .bind(request.banner_url)
+        .bind(request.location)
+        .bind(request.website_url)
+        .bind(request.twitter_username)
+        .bind(request.github_username)
+        .bind(request.primary_address_ethereum)
+        .bind(request.primary_address_solana)
+        .bind(request.profile_token)
+        .bind(request.timestamp)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Create initial snapshot
+        self.create_profile_snapshot_from_profile(&profile, request.message_hash).await?;
+
+        Ok(profile)
+    }
+
+    /// Get user profile by FID
+    pub async fn get_user_profile(&self, fid: i64) -> Result<Option<UserProfile>> {
+        let profile = sqlx::query_as::<_, UserProfile>(
+            "SELECT * FROM user_profiles WHERE fid = $1"
+        )
+        .bind(fid)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(profile)
+    }
+
+    /// Update user profile field and create snapshot
+    pub async fn update_user_profile(&self, request: UpdateUserProfileRequest) -> Result<UserProfile> {
+        // Get current profile
+        let current_profile = self.get_user_profile(request.fid).await?
+            .ok_or_else(|| SnapRagError::UserNotFound(request.fid as u64))?;
+
+        // Get old value for the specific field
+        let old_value = match request.data_type {
+            UserDataType::Username => current_profile.username.clone(),
+            UserDataType::Display => current_profile.display_name.clone(),
+            UserDataType::Bio => current_profile.bio.clone(),
+            UserDataType::Pfp => current_profile.pfp_url.clone(),
+            UserDataType::Banner => current_profile.banner_url.clone(),
+            UserDataType::Location => current_profile.location.clone(),
+            UserDataType::Url => current_profile.website_url.clone(),
+            UserDataType::Twitter => current_profile.twitter_username.clone(),
+            UserDataType::Github => current_profile.github_username.clone(),
+            UserDataType::PrimaryAddressEthereum => current_profile.primary_address_ethereum.clone(),
+            UserDataType::PrimaryAddressSolana => current_profile.primary_address_solana.clone(),
+            UserDataType::ProfileToken => current_profile.profile_token.clone(),
+            _ => None,
+        };
+
+        // Record the change
+        self.record_user_data_change(
+            request.fid,
+            request.data_type as i16,
+            old_value,
+            request.new_value.clone(),
+            request.timestamp,
+            request.message_hash.clone(),
+        ).await?;
+
+        // Update the profile
+        let updated_profile = sqlx::query_as::<_, UserProfile>(
+            r#"
+            UPDATE user_profiles SET
+                username = CASE WHEN $2 = 6 THEN $3 ELSE username END,
+                display_name = CASE WHEN $2 = 2 THEN $3 ELSE display_name END,
+                bio = CASE WHEN $2 = 3 THEN $3 ELSE bio END,
+                pfp_url = CASE WHEN $2 = 1 THEN $3 ELSE pfp_url END,
+                banner_url = CASE WHEN $2 = 10 THEN $3 ELSE banner_url END,
+                location = CASE WHEN $2 = 7 THEN $3 ELSE location END,
+                website_url = CASE WHEN $2 = 5 THEN $3 ELSE website_url END,
+                twitter_username = CASE WHEN $2 = 8 THEN $3 ELSE twitter_username END,
+                github_username = CASE WHEN $2 = 9 THEN $3 ELSE github_username END,
+                primary_address_ethereum = CASE WHEN $2 = 11 THEN $3 ELSE primary_address_ethereum END,
+                primary_address_solana = CASE WHEN $2 = 12 THEN $3 ELSE primary_address_solana END,
+                profile_token = CASE WHEN $2 = 13 THEN $3 ELSE profile_token END,
+                last_updated_timestamp = $4,
+                last_updated_at = NOW()
+            WHERE fid = $1
+            RETURNING *
+            "#,
+        )
+        .bind(request.fid)
+        .bind(request.data_type as i16)
+        .bind(request.new_value)
+        .bind(request.timestamp)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Create snapshot
+        self.create_profile_snapshot_from_profile(&updated_profile, request.message_hash).await?;
+
+        Ok(updated_profile)
+    }
+
+    /// Delete user profile (soft delete by setting fields to NULL)
+    pub async fn delete_user_profile(&self, fid: i64, message_hash: Vec<u8>, timestamp: i64) -> Result<UserProfile> {
+        // Get current profile for snapshot
+        let current_profile = self.get_user_profile(fid).await?
+            .ok_or_else(|| SnapRagError::UserNotFound(fid as u64))?;
+
+        // Record deletion as changes
+        let fields_to_clear = [
+            (UserDataType::Username, current_profile.username.clone()),
+            (UserDataType::Display, current_profile.display_name.clone()),
+            (UserDataType::Bio, current_profile.bio.clone()),
+            (UserDataType::Pfp, current_profile.pfp_url.clone()),
+            (UserDataType::Banner, current_profile.banner_url.clone()),
+            (UserDataType::Location, current_profile.location.clone()),
+            (UserDataType::Url, current_profile.website_url.clone()),
+            (UserDataType::Twitter, current_profile.twitter_username.clone()),
+            (UserDataType::Github, current_profile.github_username.clone()),
+            (UserDataType::PrimaryAddressEthereum, current_profile.primary_address_ethereum.clone()),
+            (UserDataType::PrimaryAddressSolana, current_profile.primary_address_solana.clone()),
+            (UserDataType::ProfileToken, current_profile.profile_token.clone()),
+        ];
+
+        for (data_type, old_value) in fields_to_clear.iter() {
+            if old_value.is_some() {
+                self.record_user_data_change(
+                    fid,
+                    *data_type as i16,
+                    old_value.clone(),
+                    String::new(), // Empty string for deletion
+                    timestamp,
+                    message_hash.clone(),
+                ).await?;
+            }
+        }
+
+        // Clear all profile fields
+        let deleted_profile = sqlx::query_as::<_, UserProfile>(
+            r#"
+            UPDATE user_profiles SET
+                username = NULL,
+                display_name = NULL,
+                bio = NULL,
+                pfp_url = NULL,
+                banner_url = NULL,
+                location = NULL,
+                website_url = NULL,
+                twitter_username = NULL,
+                github_username = NULL,
+                primary_address_ethereum = NULL,
+                primary_address_solana = NULL,
+                profile_token = NULL,
+                last_updated_timestamp = $2,
+                last_updated_at = NOW()
+            WHERE fid = $1
+            RETURNING *
+            "#,
+        )
+        .bind(fid)
+        .bind(timestamp)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Create snapshot
+        self.create_profile_snapshot_from_profile(&deleted_profile, message_hash).await?;
+
+        Ok(deleted_profile)
+    }
+
+    /// List user profiles with filters
+    pub async fn list_user_profiles(&self, query: UserProfileQuery) -> Result<Vec<UserProfile>> {
+        // Simplified query for now - in production you'd want more sophisticated filtering
+        let profiles = sqlx::query_as::<_, UserProfile>(
+            r#"
+            SELECT 
+                fid,
+                username,
+                display_name,
+                bio,
+                pfp_url,
+                profile_url,
+                location,
+                twitter_username,
+                github_username,
+                banner_url,
+                primary_addresses,
+                created_at,
+                updated_at
+            FROM user_profiles 
+            ORDER BY created_at DESC
+            LIMIT $1
+            OFFSET $2
+            "#
+        )
+        .bind(query.limit.unwrap_or(100) as i64)
+        .bind(query.offset.unwrap_or(0) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(profiles)
+    }
+}
+
+/// User Profile Snapshot CRUD operations
+impl Database {
+    /// Create profile snapshot from current profile
+    async fn create_profile_snapshot_from_profile(
+        &self,
+        profile: &UserProfile,
+        message_hash: Vec<u8>,
+    ) -> Result<UserProfileSnapshot> {
+        let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
+            r#"
+            INSERT INTO user_profile_snapshots (
+                fid, snapshot_timestamp, message_hash, username, display_name, bio,
+                pfp_url, banner_url, location, website_url, twitter_username,
+                github_username, primary_address_ethereum, primary_address_solana,
+                profile_token, profile_embedding, bio_embedding, interests_embedding
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+            )
+            RETURNING *
+            "#,
+        )
+        .bind(profile.fid)
+        .bind(profile.last_updated_timestamp)
+        .bind(message_hash)
+        .bind(&profile.username)
+        .bind(&profile.display_name)
+        .bind(&profile.bio)
+        .bind(&profile.pfp_url)
+        .bind(&profile.banner_url)
+        .bind(&profile.location)
+        .bind(&profile.website_url)
+        .bind(&profile.twitter_username)
+        .bind(&profile.github_username)
+        .bind(&profile.primary_address_ethereum)
+        .bind(&profile.primary_address_solana)
+        .bind(&profile.profile_token)
+        .bind(&profile.profile_embedding)
+        .bind(&profile.bio_embedding)
+        .bind(&profile.interests_embedding)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(snapshot)
+    }
+
+    /// Get profile snapshots for a user
+    pub async fn get_profile_snapshots(&self, query: ProfileSnapshotQuery) -> Result<Vec<UserProfileSnapshot>> {
+        // Simplified query for now
+        let snapshots = sqlx::query_as::<_, UserProfileSnapshot>(
+            r#"
+            SELECT 
+                id,
+                fid,
+                snapshot_timestamp,
+                message_hash,
+                username,
+                display_name,
+                bio,
+                pfp_url,
+                profile_url,
+                location,
+                twitter_username,
+                github_username,
+                banner_url,
+                primary_addresses,
+                created_at
+            FROM user_profile_snapshots 
+            WHERE fid = $1
+            ORDER BY snapshot_timestamp DESC
+            LIMIT $2
+            OFFSET $3
+            "#
+        )
+        .bind(query.fid)
+        .bind(query.limit.unwrap_or(100) as i64)
+        .bind(query.offset.unwrap_or(0) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(snapshots)
+    }
+
+    /// Get profile snapshot at specific timestamp
+    pub async fn get_profile_snapshot_at_timestamp(
+        &self,
+        fid: i64,
+        timestamp: i64,
+    ) -> Result<Option<UserProfileSnapshot>> {
+        let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
+            r#"
+            SELECT * FROM user_profile_snapshots
+            WHERE fid = $1 AND snapshot_timestamp <= $2
+            ORDER BY snapshot_timestamp DESC
+            LIMIT 1
+            "#
+        )
+        .bind(fid)
+        .bind(timestamp)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(snapshot)
+    }
+
+    /// Get latest profile snapshot for a user
+    pub async fn get_latest_profile_snapshot(&self, fid: i64) -> Result<Option<UserProfileSnapshot>> {
+        let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
+            "SELECT * FROM user_profile_snapshots WHERE fid = $1 ORDER BY snapshot_timestamp DESC LIMIT 1"
+        )
+        .bind(fid)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(snapshot)
+    }
+}
+
+/// User Data Change CRUD operations
+impl Database {
+    /// Record a user data change
+    async fn record_user_data_change(
+        &self,
+        fid: i64,
+        data_type: i16,
+        old_value: Option<String>,
+        new_value: String,
+        timestamp: i64,
+        message_hash: Vec<u8>,
+    ) -> Result<UserDataChange> {
+        let change = sqlx::query_as::<_, UserDataChange>(
+            r#"
+            INSERT INTO user_data_changes (fid, data_type, old_value, new_value, change_timestamp, message_hash)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            "#
+        )
+        .bind(fid)
+        .bind(data_type)
+        .bind(old_value)
+        .bind(new_value)
+        .bind(timestamp)
+        .bind(message_hash)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(change)
+    }
+
+    /// Get user data changes
+    pub async fn get_user_data_changes(
+        &self,
+        fid: i64,
+        _data_type: Option<i16>,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<UserDataChange>> {
+        // Simplified query for now
+        let changes = sqlx::query_as::<_, UserDataChange>(
+            r#"
+            SELECT 
+                id,
+                fid,
+                data_type,
+                old_value,
+                new_value,
+                change_timestamp,
+                message_hash,
+                created_at
+            FROM user_data_changes 
+            WHERE fid = $1
+            ORDER BY change_timestamp DESC
+            LIMIT $2
+            OFFSET $3
+            "#
+        )
+        .bind(fid)
+        .bind(limit.unwrap_or(100) as i64)
+        .bind(offset.unwrap_or(0) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(changes)
+    }
+}
+
+/// Username Proof CRUD operations
+impl Database {
+    /// Create or update username proof
+    pub async fn upsert_username_proof(
+        &self,
+        fid: i64,
+        username: String,
+        username_type: UsernameType,
+        owner_address: String,
+        signature: Vec<u8>,
+        timestamp: i64,
+    ) -> Result<UsernameProof> {
+        let proof = sqlx::query_as::<_, UsernameProof>(
+            r#"
+            INSERT INTO username_proofs (fid, username, username_type, owner_address, signature, timestamp)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (fid, username_type)
+            DO UPDATE SET
+                username = EXCLUDED.username,
+                owner_address = EXCLUDED.owner_address,
+                signature = EXCLUDED.signature,
+                timestamp = EXCLUDED.timestamp,
+                created_at = NOW()
+            RETURNING *
+            "#
+        )
+        .bind(fid)
+        .bind(username)
+        .bind(username_type as i32)
+        .bind(owner_address)
+        .bind(signature)
+        .bind(timestamp)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(proof)
+    }
+
+    /// Get username proof by FID and type
+    pub async fn get_username_proof(&self, fid: i64, username_type: UsernameType) -> Result<Option<UsernameProof>> {
+        let proof = sqlx::query_as::<_, UsernameProof>(
+            "SELECT * FROM username_proofs WHERE fid = $1 AND username_type = $2"
+        )
+        .bind(fid)
+        .bind(username_type as i32)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(proof)
+    }
+
+    /// Get all username proofs for a user
+    pub async fn get_user_username_proofs(&self, fid: i64) -> Result<Vec<UsernameProof>> {
+        let proofs = sqlx::query_as::<_, UsernameProof>(
+            "SELECT * FROM username_proofs WHERE fid = $1 ORDER BY timestamp DESC"
+        )
+        .bind(fid)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(proofs)
+    }
+}
+
+/// User Activity Timeline CRUD operations
+impl Database {
+    /// Record user activity
+    pub async fn record_user_activity(
+        &self,
+        fid: i64,
+        activity_type: String,
+        activity_data: Option<serde_json::Value>,
+        timestamp: i64,
+        message_hash: Option<Vec<u8>>,
+    ) -> Result<UserActivityTimeline> {
+        let activity = sqlx::query_as::<_, UserActivityTimeline>(
+            r#"
+            INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+            "#
+        )
+        .bind(fid)
+        .bind(activity_type)
+        .bind(activity_data)
+        .bind(timestamp)
+        .bind(message_hash)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(activity)
+    }
+
+    /// Get user activity timeline
+    pub async fn get_user_activity_timeline(
+        &self,
+        fid: i64,
+        _activity_type: Option<String>,
+        _start_timestamp: Option<i64>,
+        _end_timestamp: Option<i64>,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<UserActivityTimeline>> {
+        // Simplified query for now
+        let activities = sqlx::query_as::<_, UserActivityTimeline>(
+            r#"
+            SELECT 
+                id,
+                fid,
+                activity_type,
+                activity_data,
+                timestamp,
+                created_at
+            FROM user_activity_timeline 
+            WHERE fid = $1
+            ORDER BY timestamp DESC
+            LIMIT $2
+            OFFSET $3
+            "#
+        )
+        .bind(fid)
+        .bind(limit.unwrap_or(100) as i64)
+        .bind(offset.unwrap_or(0) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(activities)
+    }
+}

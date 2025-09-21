@@ -1,0 +1,6 @@
+[submodule "snapchain"]
+	path = snapchain
+	url = https://github.com/farcasterxyz/snapchain.git
+[submodule "labels/labels"]
+	path = labels/labels
+	url = https://github.com/merkle-team/labels.git

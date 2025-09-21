@@ -1,0 +1,32 @@
+# SnapRAG Configuration
+
+[database]
+url = "postgresql://username:password@your-db-host:5432/your-database"
+max_connections = 20
+min_connections = 5
+connection_timeout = 30
+
+[logging]
+level = "info"
+backtrace = true
+
+[embeddings]
+dimension = 1536
+model = "text-embedding-ada-002"
+
+[performance]
+enable_vector_indexes = true
+vector_index_lists = 100
+
+# Snapchain Synchronization Configuration
+[sync]
+snapchain_endpoint = "http://localhost:3383"
+enable_realtime_sync = true
+enable_historical_sync = false
+historical_sync_from_event_id = 0
+batch_size = 100
+sync_interval_ms = 1000
+# Shard IDs to sync:
+# 0 = Block shard (coordinator, contains shard witnesses and global state)
+# 1,2 = User shards (contain actual user transactions and messages)
+shard_ids = [0, 1, 2]

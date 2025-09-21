@@ -1,0 +1,94 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+config.yaml
+config.toml
+
+# Rust build artifacts
+/target/
+**/target/
+Cargo.lock
+*.pdb
+
+# Rust IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+log/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+/temp/
+
+# Node.js (for documentation site)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+.vuepress/dist
+
+# Coverage reports
+coverage/
+*.lcov
+.nyc_output
+
+# IDE and editor files
+*.sublime-project
+*.sublime-workspace
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Docker
+.dockerignore
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Test artifacts
+test-results/
+coverage/
+*.prof
+
+# Generated files
+*.generated.*
+**/generated/
+
+# Local development files
+.local/
+local/
