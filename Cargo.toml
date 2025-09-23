@@ -34,3 +34,11 @@ prost = "0.12"
 protobuf-codegen-pure = "2.28"
 tonic-build = "0.10"
 
+[lints.rust]
+# Ignore warnings from generated protobuf code
+unused_lifetimes = "allow"
+elided-lifetimes-in-paths = "allow"
+unused_imports = "allow"
+unused_variables = "allow"
+dead_code = "allow"
+
