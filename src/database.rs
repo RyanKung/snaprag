@@ -323,7 +323,8 @@ impl Database {
 
         // Create initial snapshot
         if let Some(message_hash) = request.message_hash {
-            self.create_profile_snapshot_from_profile(&profile, message_hash).await?;
+            self.create_profile_snapshot_from_profile(&profile, message_hash)
+                .await?;
         }
 
         Ok(profile)
@@ -550,6 +551,9 @@ impl Database {
         profile: &UserProfile,
         message_hash: Vec<u8>,
     ) -> Result<UserProfileSnapshot> {
+        // Use a slightly different timestamp to avoid conflicts
+        let snapshot_timestamp = profile.last_updated_timestamp + 1;
+        
         let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
             r#"
             INSERT INTO user_profile_snapshots (
@@ -564,7 +568,7 @@ impl Database {
             "#,
         )
         .bind(profile.fid)
-        .bind(profile.last_updated_timestamp)
+        .bind(snapshot_timestamp)
         .bind(message_hash)
         .bind(&profile.username)
         .bind(&profile.display_name)
@@ -1114,10 +1118,6 @@ impl Database {
 
         Ok(())
     }
-
-
-
-
 }
 
 /// Sync-related data structures

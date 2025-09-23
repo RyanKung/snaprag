@@ -16,7 +16,7 @@ test: ## Run tests
 
 
 run: ## Run the application
-	cargo run --bin snaprag
+	cargo run
 
 run-example: ## Run the basic usage example
 	cargo run --example basic_usage
@@ -25,7 +25,7 @@ check-config: ## Check configuration file
 	cargo run --bin check_config
 
 sync: ## Start sync service
-	cargo run --bin cli -- sync all
+	cargo run -- sync all
 
 sync-dry-run: ## Test sync service without connecting to snapchain
 	@echo "Dry run mode - sync service would start here"

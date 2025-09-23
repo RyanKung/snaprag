@@ -193,38 +193,38 @@ SnapRAG provides a comprehensive CLI tool for managing data synchronization and 
 
 ```bash
 # Run all sync (historical + real-time)
-cargo run --bin cli sync all
+cargo run sync all
 
 # Run historical sync only (sync all past data)
-cargo run --bin cli sync historical
+cargo run sync historical
 
 # Run real-time sync only (monitor new data)
-cargo run --bin cli sync realtime
+cargo run sync realtime
 
 # Show sync status and statistics
-cargo run --bin cli sync status
+cargo run sync status
 ```
 
 #### Data Management
 
 ```bash
 # List FIDs from database
-cargo run --bin cli list fid --limit 50
+cargo run list fid --limit 50
 
 # List user profiles
-cargo run --bin cli list profiles --limit 20
+cargo run list profiles --limit 20
 
 # List casts
-cargo run --bin cli list casts --limit 100
+cargo run list casts --limit 100
 
 # List follow relationships
-cargo run --bin cli list follows --limit 50
+cargo run list follows --limit 50
 
 # Clear all synchronized data (with confirmation)
-cargo run --bin cli clear
+cargo run clear
 
 # Clear all data without confirmation (force)
-cargo run --bin cli clear --force
+cargo run clear --force
 ```
 
 #### Database Operations

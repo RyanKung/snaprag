@@ -1,6 +1,8 @@
 pub mod config;
 pub mod database;
 pub mod errors;
+pub mod generated;
+pub mod grpc_client;
 pub mod logging;
 pub mod models;
 pub mod sync;

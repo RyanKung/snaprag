@@ -93,8 +93,35 @@ coverage/
 .local/
 local/
 
-# Ignore all .md files except readme.md
+# Temporary documentation and analysis files
 *.md
-!readme.md
 !README.md
+!readme.md
+*.txt
 *.json
+
+# Temporary scripts and analysis files
+temp_*.sh
+temp_*.py
+temp_*.js
+temp_*.ts
+debug_*.sh
+debug_*.py
+test_*.sh
+test_*.py
+analysis_*.md
+analysis_*.txt
+timeline_*.md
+timeline_*.txt
+summary_*.md
+summary_*.txt
+
+# AI-generated temporary files
+ai_*.md
+ai_*.txt
+assistant_*.md
+assistant_*.txt
+
+# Submodules (should not be managed by git)
+snapchain/
+labels/labels/

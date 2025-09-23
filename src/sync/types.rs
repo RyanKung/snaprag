@@ -6,8 +6,10 @@ use std::collections::HashMap;
 /// Sync configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncConfig {
-    /// Snapchain node endpoint
-    pub snapchain_endpoint: String,
+    /// Snapchain HTTP endpoint
+    pub snapchain_http_endpoint: String,
+    /// Snapchain gRPC endpoint
+    pub snapchain_grpc_endpoint: String,
     /// Shard IDs to sync (0 = block shard, 1+ = user shards)
     pub shard_ids: Vec<u32>,
     /// Starting block height for sync (None = from genesis)
@@ -25,7 +27,8 @@ pub struct SyncConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            snapchain_endpoint: "http://localhost:3383".to_string(),
+            snapchain_http_endpoint: "http://localhost:3381".to_string(),
+            snapchain_grpc_endpoint: "http://localhost:3383".to_string(),
             shard_ids: vec![0, 1, 2], // Block shard (0) + user shards (1, 2)
             start_block_height: None,
             batch_size: 100,
@@ -40,7 +43,8 @@ impl SyncConfig {
     /// Create SyncConfig from AppConfig
     pub fn from_app_config(app_config: &crate::AppConfig) -> Self {
         Self {
-            snapchain_endpoint: app_config.snapchain_endpoint().to_string(),
+            snapchain_http_endpoint: app_config.snapchain_http_endpoint().to_string(),
+            snapchain_grpc_endpoint: app_config.snapchain_grpc_endpoint().to_string(),
             shard_ids: app_config.shard_ids().clone(),
             start_block_height: None,
             batch_size: app_config.sync_batch_size(),
