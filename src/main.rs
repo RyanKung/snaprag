@@ -39,8 +39,6 @@ enum Commands {
     /// Synchronization commands
     #[command(subcommand)]
     Sync(SyncCommands),
-    /// Run example usage (original main.rs functionality)
-    Example,
     /// Show current configuration
     Config,
 }
@@ -49,8 +47,8 @@ enum Commands {
 enum SyncCommands {
     /// Run all sync (historical + real-time)
     All,
-    /// Run historical sync only
-    Historical,
+    /// Start synchronization
+    Start,
     /// Run real-time sync only
     Realtime,
     /// Show sync status and statistics
@@ -108,9 +106,6 @@ async fn main() -> Result<()> {
         }
         Commands::Sync(sync_command) => {
             handle_sync_command(&db, sync_command).await?;
-        }
-        Commands::Example => {
-            handle_example_command(&db).await?;
         }
         Commands::Config => {
             handle_config_command(&config).await?;
@@ -243,8 +238,8 @@ async fn handle_sync_command(db: &Database, sync_command: SyncCommands) -> Resul
             let sync_service = SyncService::new(&config, db_arc).await?;
             sync_service.start().await?;
         }
-        SyncCommands::Historical => {
-            println!("📚 Starting historical synchronization...");
+        SyncCommands::Start => {
+            println!("🚀 Starting synchronization...");
             let sync_service = SyncService::new(&config, db_arc).await?;
             // For now, just start the service which does historical sync by default
             sync_service.start().await?;
@@ -274,109 +269,6 @@ async fn handle_sync_command(db: &Database, sync_command: SyncCommands) -> Resul
     Ok(())
 }
 
-async fn handle_example_command(db: &Database) -> Result<()> {
-    println!("🚀 Running example usage...");
-
-    use snaprag::models::*;
-
-    // Create a user profile
-    let create_request = CreateUserProfileRequest {
-        id: uuid::Uuid::new_v4(),
-        fid: 12345,
-        username: Some("alice".to_string()),
-        display_name: Some("Alice Smith".to_string()),
-        bio: Some("Blockchain enthusiast and developer".to_string()),
-        pfp_url: Some("https://example.com/avatar.jpg".to_string()),
-        banner_url: None,
-        location: Some("San Francisco, CA".to_string()),
-        website_url: Some("https://alice.dev".to_string()),
-        twitter_username: Some("alice_dev".to_string()),
-        github_username: Some("alice-github".to_string()),
-        primary_address_ethereum: Some("0x1234567890123456789012345678901234567890".to_string()),
-        primary_address_solana: None,
-        profile_token: None,
-        message_hash: Some(vec![1, 2, 3, 4, 5]),
-        created_at: 1640995200, // 2022-01-01 00:00:00 UTC
-    };
-
-    let profile = db.create_user_profile(create_request).await?;
-    println!("✅ Created user profile: {:?}", profile);
-
-    // Update user profile
-    let update_request = UpdateUserProfileRequest {
-        fid: 12345,
-        data_type: UserDataType::Bio,
-        new_value: "Senior blockchain developer and DeFi researcher".to_string(),
-        message_hash: vec![6, 7, 8, 9, 10],
-        timestamp: 1640995800, // 10 minutes later
-    };
-
-    let updated_profile = db.update_user_profile(update_request).await?;
-    println!("✅ Updated user profile: {:?}", updated_profile);
-
-    // Get profile snapshots
-    let snapshot_query = ProfileSnapshotQuery {
-        fid: 12345,
-        start_timestamp: None,
-        end_timestamp: None,
-        limit: Some(10),
-        offset: None,
-    };
-
-    let snapshots = db.get_profile_snapshots(snapshot_query).await?;
-    println!("✅ Found {} profile snapshots", snapshots.len());
-
-    // Get user data changes
-    let changes = db
-        .get_user_data_changes(12345, Some(UserDataType::Bio as i16), Some(10), None)
-        .await?;
-    println!("✅ Found {} bio changes", changes.len());
-
-    // Create username proof
-    let proof = db
-        .upsert_username_proof(
-            12345,
-            "alice".to_string(),
-            UsernameType::Fname,
-            "0x1234567890123456789012345678901234567890".to_string(),
-            vec![11, 12, 13, 14, 15],
-            1640995200,
-        )
-        .await?;
-    println!("✅ Created username proof: {:?}", proof);
-
-    // Record user activity
-    let activity = db
-        .record_user_activity(
-            12345,
-            "cast".to_string(),
-            Some(serde_json::json!({
-                "text": "Hello, Farcaster!",
-                "mentions": [67890]
-            })),
-            1640995200,
-            Some(vec![16, 17, 18, 19, 20]),
-        )
-        .await?;
-    println!("✅ Recorded user activity: {:?}", activity);
-
-    // Query user profiles
-    let query = UserProfileQuery {
-        fid: None,
-        username: Some("alice".to_string()),
-        display_name: None,
-        limit: Some(10),
-        offset: None,
-        start_timestamp: None,
-        end_timestamp: None,
-    };
-
-    let profiles = db.list_user_profiles(query).await?;
-    println!("✅ Found {} profiles matching query", profiles.len());
-
-    println!("🎉 Example usage completed successfully!");
-    Ok(())
-}
 
 async fn handle_config_command(config: &AppConfig) -> Result<()> {
     println!("📋 SnapRAG Configuration:");
