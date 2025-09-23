@@ -23,7 +23,7 @@ impl SyncService {
     pub async fn new(app_config: &AppConfig, database: Arc<Database>) -> Result<Self> {
         let sync_config = SyncConfig::from_app_config(app_config);
         let client = SnapchainClient::from_config(app_config).await?;
-        
+
         // Load or create initial sync state
         let state = Arc::new(RwLock::new(SyncState::new()));
 
@@ -31,7 +31,7 @@ impl SyncService {
         let mut state_manager = SyncStateManager::new("snaprag_sync_state.json");
         state_manager.load()?;
         let state_manager = Arc::new(RwLock::new(state_manager));
-        
+
         Ok(Self {
             config: sync_config,
             client,
@@ -64,7 +64,7 @@ impl SyncService {
     /// Start full historical data synchronization from genesis
     async fn start_full_historical_sync(&self) -> Result<()> {
         info!("Starting full historical data sync from genesis...");
-        
+
         // Update status
         {
             let mut state_manager = self.state_manager.write().await;
@@ -73,9 +73,12 @@ impl SyncService {
 
         // Get node info to understand the data structure
         let info = self.client.get_info().await?;
-        info!("Node info: version={}, num_shards={}, total_messages={}", 
-              info.version, info.num_shards, 
-              info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0));
+        info!(
+            "Node info: version={}, num_shards={}, total_messages={}",
+            info.version,
+            info.num_shards,
+            info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0)
+        );
 
         // Discover all FIDs first to understand the scope
         info!("Discovering all FIDs for historical sync...");
@@ -98,15 +101,17 @@ impl SyncService {
             state_manager.update_status("HistoricalSyncCompleted")?;
         }
 
-        info!("Full historical sync completed! Processed {} unique FIDs", all_fids.len());
+        info!(
+            "Full historical sync completed! Processed {} unique FIDs",
+            all_fids.len()
+        );
         Ok(())
     }
-
 
     /// Start full real-time synchronization for all new data
     async fn start_full_realtime_sync(&self) -> Result<()> {
         info!("Starting full real-time sync for all new data...");
-        
+
         // Update status
         {
             let mut state_manager = self.state_manager.write().await;
@@ -115,8 +120,11 @@ impl SyncService {
 
         // Get node info to understand current state
         let info = self.client.get_info().await?;
-        info!("Starting real-time sync: {} shards, {} total messages", 
-              info.num_shards, info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0));
+        info!(
+            "Starting real-time sync: {} shards, {} total messages",
+            info.num_shards,
+            info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0)
+        );
 
         // Discover all FIDs for comprehensive monitoring
         info!("Discovering all FIDs for comprehensive real-time monitoring...");
@@ -131,8 +139,14 @@ impl SyncService {
             let config = self.config.clone();
 
             tokio::spawn(async move {
-                if let Err(e) = Self::monitor_shard_realtime(shard_id, client, database, state_manager, config).await {
-                    error!("Error monitoring shard {} for real-time updates: {}", shard_id, e);
+                if let Err(e) =
+                    Self::monitor_shard_realtime(shard_id, client, database, state_manager, config)
+                        .await
+                {
+                    error!(
+                        "Error monitoring shard {} for real-time updates: {}",
+                        shard_id, e
+                    );
                 }
             });
         }
@@ -141,7 +155,10 @@ impl SyncService {
         // Limit concurrent FID monitoring to prevent resource exhaustion
         const MAX_CONCURRENT_FIDS: usize = 200;
         let fids_to_monitor = if all_fids.len() > MAX_CONCURRENT_FIDS {
-            info!("Limiting FID monitoring to first {} FIDs to prevent resource exhaustion", MAX_CONCURRENT_FIDS);
+            info!(
+                "Limiting FID monitoring to first {} FIDs to prevent resource exhaustion",
+                MAX_CONCURRENT_FIDS
+            );
             all_fids.into_iter().take(MAX_CONCURRENT_FIDS).collect()
         } else {
             all_fids
@@ -152,14 +169,17 @@ impl SyncService {
             let _database = self.database.clone();
             let _state_manager = self.state_manager.clone();
             let _config = self.config.clone();
-            
+
             // FID monitoring removed - using shard-based monitoring instead
         }
 
         // Keep the service running and print status periodically
         let mut status_counter = 0;
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_millis(self.config.sync_interval_ms)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(
+                self.config.sync_interval_ms,
+            ))
+            .await;
 
             // Print status every 30 iterations (every 30 seconds with default interval)
             status_counter += 1;
@@ -199,7 +219,10 @@ impl SyncService {
                 Ok(response) => {
                     if !response.shard_chunks.is_empty() {
                         let chunk_count = response.shard_chunks.len();
-                        info!("Shard {}: found {} new chunks at height {}", shard_id, chunk_count, last_processed_height);
+                        info!(
+                            "Shard {}: found {} new chunks at height {}",
+                            shard_id, chunk_count, last_processed_height
+                        );
 
                         for _chunk in response.shard_chunks {
                             // Shard chunk processing removed - simplified sync service
@@ -208,9 +231,15 @@ impl SyncService {
                                     info!("Shard {}: processed chunk successfully", shard_id);
                                 }
                                 Err(err) => {
-                                    error!("Failed to process chunk in shard {}: {}", shard_id, err);
+                                    error!(
+                                        "Failed to process chunk in shard {}: {}",
+                                        shard_id, err
+                                    );
                                     let mut sm = state_manager.write().await;
-                                    sm.add_error(format!("Shard {} chunk processing error: {}", shard_id, err))?;
+                                    sm.add_error(format!(
+                                        "Shard {} chunk processing error: {}",
+                                        shard_id, err
+                                    ))?;
                                 }
                             }
                         }
@@ -224,7 +253,10 @@ impl SyncService {
                     }
                 }
                 Err(err) => {
-                    error!("Failed to check for new chunks in shard {}: {}", shard_id, err);
+                    error!(
+                        "Failed to check for new chunks in shard {}: {}",
+                        shard_id, err
+                    );
                     let mut sm = state_manager.write().await;
                     sm.add_error(format!("Shard {} real-time sync error: {}", shard_id, err))?;
                 }
@@ -234,11 +266,10 @@ impl SyncService {
         }
     }
 
-
     /// Sync full historical data for a specific shard
     async fn sync_shard_full_historical(&self, shard_id: u32) -> Result<()> {
         info!("Starting full historical sync for shard {}", shard_id);
-        
+
         // Get last processed height for this shard
         let mut last_height = {
             let state_manager = self.state_manager.read().await;
@@ -262,14 +293,17 @@ impl SyncService {
             match self.client.get_shard_chunks(request).await {
                 Ok(response) => {
                     if response.shard_chunks.is_empty() {
-                        info!("Shard {}: no more chunks at height {}, sync complete", shard_id, last_height);
-                break;
-            }
+                        info!(
+                            "Shard {}: no more chunks at height {}, sync complete",
+                            shard_id, last_height
+                        );
+                        break;
+                    }
 
                     let chunk_count = response.shard_chunks.len();
                     total_blocks += chunk_count as u64;
 
-            // Process each chunk
+                    // Process each chunk
                     for _chunk in response.shard_chunks {
                         // Shard chunk processing removed - simplified sync service
                         match Ok::<(), crate::SnapRagError>(()) {
@@ -279,12 +313,15 @@ impl SyncService {
                             Err(err) => {
                                 error!("Failed processing shard {} chunk: {}", shard_id, err);
                                 let mut state_manager = self.state_manager.write().await;
-                                state_manager.add_error(format!("Shard {} chunk processing error: {}", shard_id, err))?;
+                                state_manager.add_error(format!(
+                                    "Shard {} chunk processing error: {}",
+                                    shard_id, err
+                                ))?;
                             }
                         }
                     }
-                
-                // Update progress
+
+                    // Update progress
                     last_height += chunk_count as u64;
                     {
                         let mut state_manager = self.state_manager.write().await;
@@ -293,17 +330,25 @@ impl SyncService {
                         state_manager.increment_blocks_processed(shard_id, total_blocks)?;
                     }
 
-                    info!("Shard {}: processed {} chunks, total messages: {}, height: {}", 
-                          shard_id, chunk_count, total_messages, last_height);
+                    info!(
+                        "Shard {}: processed {} chunks, total messages: {}, height: {}",
+                        shard_id, chunk_count, total_messages, last_height
+                    );
 
                     // Small delay to prevent overwhelming the node
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 }
                 Err(err) => {
-                    error!("Failed to get shard chunks for shard {} at height {}: {}", shard_id, last_height, err);
+                    error!(
+                        "Failed to get shard chunks for shard {} at height {}: {}",
+                        shard_id, last_height, err
+                    );
                     let mut state_manager = self.state_manager.write().await;
-                    state_manager.add_error(format!("Shard {} chunk fetch error at height {}: {}", shard_id, last_height, err))?;
-                    
+                    state_manager.add_error(format!(
+                        "Shard {} chunk fetch error at height {}: {}",
+                        shard_id, last_height, err
+                    ))?;
+
                     // Wait before retrying
                     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                     continue;
@@ -311,16 +356,12 @@ impl SyncService {
             }
         }
 
-        info!("Shard {} sync completed: {} messages, {} blocks", shard_id, total_messages, total_blocks);
+        info!(
+            "Shard {} sync completed: {} messages, {} blocks",
+            shard_id, total_messages, total_blocks
+        );
         Ok(())
     }
 
-
-
-
     // All unused methods have been removed
 }
-
-
-
-

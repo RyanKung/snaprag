@@ -28,8 +28,7 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
         EnvFilter::new(&format!("{},snaprag={}", level, level))
     } else {
         // Fallback to environment variable or default
-        EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("info,snaprag=debug"))
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,snaprag=debug"))
     };
 
     // Set up file appender for all logs
@@ -69,8 +68,11 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
     } else {
         "info"
     };
-    
-    tracing::info!("Logging initialized with level: {} - console and file output enabled", level);
+
+    tracing::info!(
+        "Logging initialized with level: {} - console and file output enabled",
+        level
+    );
     tracing::info!("Log files will be saved to: logs/snaprag.log.YYYY-MM-DD");
 
     // Store the guard to prevent it from being dropped
@@ -122,7 +124,10 @@ pub fn init_logging_with_level(level: &str) -> Result<()> {
         .with(file_layer)
         .init();
 
-    tracing::info!("Logging initialized with level: {} - console and file output enabled", level);
+    tracing::info!(
+        "Logging initialized with level: {} - console and file output enabled",
+        level
+    );
     tracing::info!("Log files will be saved to: logs/snaprag.log.YYYY-MM-DD");
 
     // Store the guard to prevent it from being dropped

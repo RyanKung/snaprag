@@ -28,9 +28,7 @@ pub enum SnapRagError {
     #[error("Invalid URI: {0}")]
     InvalidUri(#[from] http::uri::InvalidUri),
 
-    #[error("Tonic transport error: {0}")]
-    TonicTransport(#[from] tonic::transport::Error),
-
+    // Removed tonic dependency - only using protobuf for serialization
     #[error("HTTP request error: {0}")]
     Reqwest(#[from] reqwest::Error),
 

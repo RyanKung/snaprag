@@ -4,6 +4,7 @@ use crate::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+// Removed tonic dependency - only using protobuf for serialization
 
 // Import generated protobuf types (these would be generated from .proto files)
 // For now, we'll use placeholder types until we generate the actual protobuf bindings
@@ -224,6 +225,13 @@ pub struct SnapchainClient {
     base_url: String,
 }
 
+/// Snapchain protobuf client for serialization/deserialization
+#[derive(Debug, Clone)]
+pub struct SnapchainProtobufClient {
+    // This client is for protobuf serialization/deserialization only
+    // No network communication - just data processing
+}
+
 impl SnapchainClient {
     /// Create a new Snapchain client
     pub async fn new(endpoint: &str) -> Result<Self> {
@@ -235,14 +243,14 @@ impl SnapchainClient {
 
     /// Create a new Snapchain client from AppConfig
     pub async fn from_config(config: &crate::AppConfig) -> Result<Self> {
-        Self::new(config.snapchain_endpoint()).await
+        Self::new(config.snapchain_http_endpoint()).await
     }
 
     /// Get node information
     pub async fn get_info(&self) -> Result<proto::GetInfoResponse> {
         let url = format!("{}/v1/info", self.base_url);
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(crate::errors::SnapRagError::Custom(format!(
                 "Failed to get info: HTTP {}",
@@ -251,12 +259,16 @@ impl SnapchainClient {
         }
 
         let info: InfoResponse = response.json().await?;
-        
+
         Ok(proto::GetInfoResponse {
             version: info.version.unwrap_or_else(|| "unknown".to_string()),
             db_stats: Some(proto::DbStats {
                 num_messages: info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0),
-                num_fid_registrations: info.db_stats.as_ref().map(|s| s.num_fid_registrations).unwrap_or(0),
+                num_fid_registrations: info
+                    .db_stats
+                    .as_ref()
+                    .map(|s| s.num_fid_registrations)
+                    .unwrap_or(0),
                 approx_size: info.db_stats.as_ref().map(|s| s.approx_size).unwrap_or(0),
             }),
             peer_id: info.peer_id.unwrap_or_else(|| "unknown".to_string()),
@@ -340,7 +352,7 @@ impl SnapchainClient {
         }
 
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(crate::errors::SnapRagError::Custom(format!(
                 "Failed to get links by target FID: HTTP {}",
@@ -370,7 +382,7 @@ impl SnapchainClient {
         }
 
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(crate::errors::SnapRagError::Custom(format!(
                 "Failed to get casts by FID: HTTP {}",
@@ -395,7 +407,7 @@ impl SnapchainClient {
         }
 
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(crate::errors::SnapRagError::Custom(format!(
                 "Failed to get user data by FID: HTTP {}",
@@ -415,7 +427,7 @@ impl SnapchainClient {
         page_token: Option<&str>,
     ) -> Result<proto::FidsResponse> {
         let mut url = format!("{}/v1/fids", self.base_url);
-        
+
         // Add query parameters
         let mut params = vec![format!("shard_id={}", shard_id)];
         if let Some(size) = page_size {
@@ -430,11 +442,12 @@ impl SnapchainClient {
         }
 
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(crate::errors::SnapRagError::Custom(format!(
                 "Failed to get FIDs for shard {}: HTTP {}",
-                shard_id, response.status()
+                shard_id,
+                response.status()
             )));
         }
 
@@ -445,22 +458,24 @@ impl SnapchainClient {
     /// Get all FIDs across all shards (for comprehensive sync)
     pub async fn get_all_fids(&self) -> Result<Vec<u64>> {
         let mut all_fids = std::collections::HashSet::new();
-        
+
         // Get node info to determine number of shards
         let info = self.get_info().await?;
-        
+
         // Collect FIDs from user shards (skip shard 0 which is the block shard)
         for shard_id in 1..info.num_shards {
             let mut page_token: Option<String> = None;
-            
+
             loop {
-                let response = self.get_fids_by_shard(shard_id, Some(1000), page_token.as_deref()).await?;
-                
+                let response = self
+                    .get_fids_by_shard(shard_id, Some(1000), page_token.as_deref())
+                    .await?;
+
                 // Add FIDs to our set
                 for fid in response.fids {
                     all_fids.insert(fid);
                 }
-                
+
                 // Check if there are more pages
                 page_token = response.next_page_token.clone();
                 if page_token.is_none() {
@@ -468,11 +483,15 @@ impl SnapchainClient {
                 }
             }
         }
-        
+
         let mut fids_vec: Vec<u64> = all_fids.into_iter().collect();
         fids_vec.sort();
-        
-        tracing::info!("Discovered {} unique FIDs across {} shards", fids_vec.len(), info.num_shards);
+
+        tracing::info!(
+            "Discovered {} unique FIDs across {} shards",
+            fids_vec.len(),
+            info.num_shards
+        );
         Ok(fids_vec)
     }
 }
@@ -539,4 +558,30 @@ pub struct FarcasterMessageData {
     pub network: String,
     #[serde(flatten)]
     pub body: HashMap<String, serde_json::Value>,
+}
+
+impl SnapchainProtobufClient {
+    /// Create a new protobuf client
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    /// Create a new protobuf client from AppConfig
+    pub fn from_config(_config: &crate::AppConfig) -> Self {
+        Self::new()
+    }
+
+    /// Serialize data to protobuf format
+    pub fn serialize<T: protobuf::Message>(&self, message: &T) -> Result<Vec<u8>> {
+        message.write_to_bytes().map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to serialize protobuf: {}", e))
+        })
+    }
+
+    /// Deserialize data from protobuf format
+    pub fn deserialize<T: protobuf::Message>(&self, data: &[u8]) -> Result<T> {
+        T::parse_from_bytes(data).map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to deserialize protobuf: {}", e))
+        })
+    }
 }

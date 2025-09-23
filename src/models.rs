@@ -85,6 +85,9 @@ pub struct UserProfile {
     pub interests_embedding: Option<Vec<f32>>,
     pub last_updated_timestamp: i64,
     pub last_updated_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
 }
 
 /// User profile snapshot (historical state)
@@ -110,6 +113,9 @@ pub struct UserProfileSnapshot {
     pub bio_embedding: Option<Vec<f32>>,
     pub interests_embedding: Option<Vec<f32>>,
     pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
 }
 
 /// User data change record
@@ -123,6 +129,9 @@ pub struct UserDataChange {
     pub change_timestamp: i64,
     pub message_hash: Vec<u8>,
     pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
 }
 
 /// Username proof record
@@ -136,6 +145,9 @@ pub struct UsernameProof {
     pub signature: Vec<u8>,
     pub timestamp: i64,
     pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
 }
 
 /// User activity timeline record
@@ -148,6 +160,9 @@ pub struct UserActivityTimeline {
     pub timestamp: i64,
     pub message_hash: Option<Vec<u8>>,
     pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
 }
 
 /// User profile trend record
@@ -165,6 +180,91 @@ pub struct UserProfileTrend {
     pub profile_embedding: Option<Vec<f32>>,
     pub bio_embedding: Option<Vec<f32>>,
     pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+}
+
+/// Cast message record
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Cast {
+    pub id: Uuid,
+    pub fid: i64,
+    pub text: Option<String>,
+    pub timestamp: i64,
+    pub message_hash: Vec<u8>,
+    pub parent_hash: Option<Vec<u8>>,
+    pub root_hash: Option<Vec<u8>>,
+    pub embeds: Option<serde_json::Value>,
+    pub mentions: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
+}
+
+/// Link relationship record
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Link {
+    pub id: Uuid,
+    pub fid: i64,
+    pub target_fid: i64,
+    pub link_type: String,
+    pub timestamp: i64,
+    pub message_hash: Vec<u8>,
+    pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
+}
+
+/// User data record
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserData {
+    pub id: Uuid,
+    pub fid: i64,
+    pub data_type: i16,
+    pub value: String,
+    pub timestamp: i64,
+    pub message_hash: Vec<u8>,
+    pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
+}
+
+/// User activity record
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserActivity {
+    pub id: Uuid,
+    pub fid: i64,
+    pub activity_type: String,
+    pub activity_data: Option<String>,
+    pub timestamp: i64,
+    pub message_hash: Option<Vec<u8>>,
+    pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
+}
+
+/// Shard and block information for tracking data provenance
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShardBlockInfo {
+    pub shard_id: u32,
+    pub block_height: u64,
+    pub transaction_fid: u64,
+    pub timestamp: u64,
+}
+
+impl ShardBlockInfo {
+    pub fn new(shard_id: u32, block_height: u64, transaction_fid: u64, timestamp: u64) -> Self {
+        Self {
+            shard_id,
+            block_height,
+            transaction_fid,
+            timestamp,
+        }
+    }
 }
 
 /// Create user profile request

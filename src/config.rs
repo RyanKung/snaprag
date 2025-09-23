@@ -29,7 +29,8 @@ pub struct PerformanceConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncConfig {
-    pub snapchain_endpoint: String,
+    pub snapchain_http_endpoint: String,
+    pub snapchain_grpc_endpoint: String,
     pub enable_realtime_sync: bool,
     pub enable_historical_sync: bool,
     pub historical_sync_from_event_id: u64,
@@ -116,9 +117,14 @@ impl AppConfig {
         self.performance.vector_index_lists
     }
 
-    /// Get snapchain endpoint
-    pub fn snapchain_endpoint(&self) -> &str {
-        &self.sync.snapchain_endpoint
+    /// Get snapchain HTTP endpoint
+    pub fn snapchain_http_endpoint(&self) -> &str {
+        &self.sync.snapchain_http_endpoint
+    }
+
+    /// Get snapchain gRPC endpoint
+    pub fn snapchain_grpc_endpoint(&self) -> &str {
+        &self.sync.snapchain_grpc_endpoint
     }
 
     /// Check if real-time sync is enabled
@@ -174,7 +180,8 @@ impl Default for AppConfig {
                 vector_index_lists: 100,
             },
             sync: SyncConfig {
-                snapchain_endpoint: "http://localhost:3383".to_string(),
+                snapchain_http_endpoint: "http://localhost:3383".to_string(),
+                snapchain_grpc_endpoint: "http://localhost:3384".to_string(),
                 enable_realtime_sync: true,
                 enable_historical_sync: false,
                 historical_sync_from_event_id: 0,

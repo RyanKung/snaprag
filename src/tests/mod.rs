@@ -1,4 +1,5 @@
 pub mod database_tests;
+pub mod grpc_shard_chunks_test;
 
 use crate::config::AppConfig;
 use crate::database::Database;
@@ -29,24 +30,33 @@ pub async fn cleanup_test_data(database: &Database, test_fid: i64) -> Result<()>
         .await?;
 
     // Clean up user activity timeline
-    sqlx::query!("DELETE FROM user_activity_timeline WHERE fid = $1", test_fid)
-        .execute(database.pool())
-        .await?;
+    sqlx::query!(
+        "DELETE FROM user_activity_timeline WHERE fid = $1",
+        test_fid
+    )
+    .execute(database.pool())
+    .await?;
 
     Ok(())
 }
 
 /// Test helper to verify data exists in database
 pub async fn verify_user_profile_exists(database: &Database, fid: i64) -> Result<bool> {
-    let result = sqlx::query!("SELECT COUNT(*) as count FROM user_profiles WHERE fid = $1", fid)
-        .fetch_one(database.pool())
-        .await?;
-    
+    let result = sqlx::query!(
+        "SELECT COUNT(*) as count FROM user_profiles WHERE fid = $1",
+        fid
+    )
+    .fetch_one(database.pool())
+    .await?;
+
     Ok(result.count.unwrap_or(0) > 0)
 }
 
 /// Test helper to get user profile data
-pub async fn get_user_profile_data(database: &Database, fid: i64) -> Result<Option<(String, String, String)>> {
+pub async fn get_user_profile_data(
+    database: &Database,
+    fid: i64,
+) -> Result<Option<(String, String, String)>> {
     let result = sqlx::query!(
         "SELECT username, display_name, bio FROM user_profiles WHERE fid = $1",
         fid

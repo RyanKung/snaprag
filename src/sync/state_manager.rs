@@ -62,8 +62,8 @@ impl SyncStateManager {
     pub fn load(&mut self) -> Result<()> {
         if Path::new(&self.state_file_path).exists() {
             let content = fs::read_to_string(&self.state_file_path)?;
-            self.state = serde_json::from_str(&content)
-                .unwrap_or_else(|_| PersistentSyncState::default());
+            self.state =
+                serde_json::from_str(&content).unwrap_or_else(|_| PersistentSyncState::default());
             tracing::info!("Loaded sync state from {}", self.state_file_path);
         } else {
             tracing::info!("No existing sync state found, starting fresh");
@@ -115,24 +115,40 @@ impl SyncStateManager {
 
     /// Get last processed height for a shard
     pub fn get_last_processed_height(&self, shard_id: u32) -> u64 {
-        self.state.last_processed_heights.get(&shard_id).copied().unwrap_or(0)
+        self.state
+            .last_processed_heights
+            .get(&shard_id)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// Increment processed messages for a shard
     pub fn increment_messages_processed(&mut self, shard_id: u32, count: u64) -> Result<()> {
-        let current = self.state.total_messages_processed.get(&shard_id).copied().unwrap_or(0);
-        self.state.total_messages_processed.insert(shard_id, current + count);
+        let current = self
+            .state
+            .total_messages_processed
+            .get(&shard_id)
+            .copied()
+            .unwrap_or(0);
+        self.state
+            .total_messages_processed
+            .insert(shard_id, current + count);
         self.save()
     }
 
     /// Increment processed blocks for a shard
     pub fn increment_blocks_processed(&mut self, shard_id: u32, count: u64) -> Result<()> {
-        let current = self.state.total_blocks_processed.get(&shard_id).copied().unwrap_or(0);
-        self.state.total_blocks_processed.insert(shard_id, current + count);
+        let current = self
+            .state
+            .total_blocks_processed
+            .get(&shard_id)
+            .copied()
+            .unwrap_or(0);
+        self.state
+            .total_blocks_processed
+            .insert(shard_id, current + count);
         self.save()
     }
-
-
 
     /// Add error message
     pub fn add_error(&mut self, error: String) -> Result<()> {

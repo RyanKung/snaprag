@@ -1,7 +1,10 @@
 use super::*;
-use crate::models::{CreateUserProfileRequest, UpdateUserProfileRequest, UserDataType, UserProfile, RecordUserDataChangeRequest, RecordUserActivityRequest};
-use crate::Result;
 use crate::errors::SnapRagError;
+use crate::models::{
+    CreateUserProfileRequest, RecordUserActivityRequest, RecordUserDataChangeRequest,
+    UpdateUserProfileRequest, UserDataType, UserProfile,
+};
+use crate::Result;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -62,6 +65,7 @@ async fn test_user_profile_update() -> Result<()> {
     cleanup_test_data(&database, test_fid).await?;
 
     // Create initial profile
+    let initial_timestamp = chrono::Utc::now().timestamp();
     let initial_request = CreateUserProfileRequest {
         id: Uuid::new_v4(),
         fid: test_fid,
@@ -77,19 +81,20 @@ async fn test_user_profile_update() -> Result<()> {
         primary_address_ethereum: None,
         primary_address_solana: None,
         profile_token: None,
-        created_at: chrono::Utc::now().timestamp(),
+        created_at: initial_timestamp,
         message_hash: Some(vec![1, 2, 3, 4, 5]),
     };
 
     database.create_user_profile(initial_request).await?;
 
-    // Update the profile
+    // Update the profile with a different timestamp
+    let update_timestamp = initial_timestamp + 1; // Ensure different timestamp
     let update_request = UpdateUserProfileRequest {
         fid: test_fid,
         data_type: UserDataType::Display,
         new_value: "Updated Display Name".to_string(),
         message_hash: vec![6, 7, 8, 9, 10],
-        timestamp: chrono::Utc::now().timestamp(),
+        timestamp: update_timestamp,
     };
 
     database.update_user_profile(update_request).await?;
@@ -134,6 +139,9 @@ async fn test_user_profile_upsert() -> Result<()> {
         primary_address_solana: None,
         profile_token: None,
         last_updated_at: chrono::Utc::now(),
+        shard_id: Some(1),
+        block_height: Some(1000),
+        transaction_fid: Some(12345),
         last_updated_timestamp: chrono::Utc::now().timestamp(),
         profile_embedding: None,
         bio_embedding: None,
@@ -166,6 +174,9 @@ async fn test_user_profile_upsert() -> Result<()> {
         website_url: Some("https://updatedupsertuser.com".to_string()),
         twitter_username: None,
         github_username: None,
+        shard_id: Some(1),
+        block_height: Some(1001),
+        transaction_fid: Some(12346),
         primary_address_ethereum: None,
         primary_address_solana: None,
         profile_token: None,
@@ -210,14 +221,16 @@ async fn test_user_data_changes_crud() -> Result<()> {
         timestamp: chrono::Utc::now().timestamp(),
     };
 
-    database.record_user_data_change(
-        change_request.fid,
-        change_request.data_type as i16,
-        change_request.old_value,
-        change_request.new_value,
-        change_request.timestamp,
-        change_request.message_hash,
-    ).await?;
+    database
+        .record_user_data_change(
+            change_request.fid,
+            change_request.data_type as i16,
+            change_request.old_value,
+            change_request.new_value,
+            change_request.timestamp,
+            change_request.message_hash,
+        )
+        .await?;
 
     // Verify the change was recorded
     let result = sqlx::query!(
@@ -269,13 +282,15 @@ async fn test_user_activity_recording() -> Result<()> {
         message_hash: Some(vec![26, 27, 28, 29, 30]),
     };
 
-    database.record_user_activity(
-        activity_request.fid,
-        activity_request.activity_type,
-        Some(activity_request.activity_data),
-        activity_request.timestamp,
-        activity_request.message_hash,
-    ).await?;
+    database
+        .record_user_activity(
+            activity_request.fid,
+            activity_request.activity_type,
+            Some(activity_request.activity_data),
+            activity_request.timestamp,
+            activity_request.message_hash,
+        )
+        .await?;
 
     // Verify the activity was recorded
     let result = sqlx::query!(
@@ -296,7 +311,7 @@ async fn test_user_activity_recording() -> Result<()> {
     .await?;
 
     assert_eq!(activity_result.activity_type, "test_activity");
-    
+
     // Verify the JSON data was stored correctly
     let activity_data: Option<serde_json::Value> = activity_result.activity_data;
     assert!(activity_data.is_some());
@@ -395,11 +410,11 @@ async fn test_database_concurrent_operations() -> Result<()> {
 
     // Create multiple profiles concurrently
     let mut handles = Vec::new();
-    
+
     for i in 0..5 {
         let db = database.clone();
         let fid = test_fid_base + i;
-        
+
         let handle = tokio::spawn(async move {
             let request = CreateUserProfileRequest {
                 id: Uuid::new_v4(),
@@ -417,25 +432,33 @@ async fn test_database_concurrent_operations() -> Result<()> {
                 primary_address_solana: None,
                 profile_token: None,
                 created_at: chrono::Utc::now().timestamp(),
-                message_hash: Some(vec![i as u8, (i+1) as u8, (i+2) as u8, (i+3) as u8, (i+4) as u8]),
+                message_hash: Some(vec![
+                    i as u8,
+                    (i + 1) as u8,
+                    (i + 2) as u8,
+                    (i + 3) as u8,
+                    (i + 4) as u8,
+                ]),
             };
 
             db.create_user_profile(request).await
         });
-        
+
         handles.push(handle);
     }
 
     // Wait for all operations to complete
     for handle in handles {
-        handle.await.map_err(|e| SnapRagError::Custom(e.to_string()))??;
+        handle
+            .await
+            .map_err(|e| SnapRagError::Custom(e.to_string()))??;
     }
 
     // Verify all profiles were created
     for i in 0..5 {
         let fid = test_fid_base + i;
         assert!(verify_user_profile_exists(&database, fid).await?);
-        
+
         let profile_data = get_user_profile_data(&database, fid).await?;
         assert!(profile_data.is_some());
         let (username, display_name, bio) = profile_data.unwrap();
@@ -461,18 +484,21 @@ async fn verify_user_profile_exists(database: &Database, fid: i64) -> Result<boo
     )
     .fetch_one(database.pool())
     .await?;
-    
+
     Ok(result.count.unwrap_or(0) > 0)
 }
 
-async fn get_user_profile_data(database: &Database, fid: i64) -> Result<Option<(String, String, String)>> {
+async fn get_user_profile_data(
+    database: &Database,
+    fid: i64,
+) -> Result<Option<(String, String, String)>> {
     let result = sqlx::query!(
         "SELECT username, display_name, bio FROM user_profiles WHERE fid = $1",
         fid
     )
     .fetch_one(database.pool())
     .await?;
-    
+
     match (result.username, result.display_name, result.bio) {
         (Some(username), Some(display_name), Some(bio)) => Ok(Some((username, display_name, bio))),
         _ => Ok(None),
@@ -484,18 +510,18 @@ async fn cleanup_test_data(database: &Database, fid: i64) -> Result<()> {
     sqlx::query!("DELETE FROM user_activity_timeline WHERE fid = $1", fid)
         .execute(database.pool())
         .await?;
-    
+
     sqlx::query!("DELETE FROM user_data_changes WHERE fid = $1", fid)
         .execute(database.pool())
         .await?;
-    
+
     sqlx::query!("DELETE FROM user_profile_snapshots WHERE fid = $1", fid)
         .execute(database.pool())
         .await?;
-    
+
     sqlx::query!("DELETE FROM user_profiles WHERE fid = $1", fid)
         .execute(database.pool())
         .await?;
-    
+
     Ok(())
 }
