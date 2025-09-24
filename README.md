@@ -1,6 +1,6 @@
 <div align="center">
 
-![SnapRAG Logo](./snapchain/site/docs/public/images/logo.png)
+![SnapRAG Logo](./logo.png)
 
 # SnapRAG
 
