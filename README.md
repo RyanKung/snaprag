@@ -1,6 +1,46 @@
-# SnapRAG - Farcaster Data Synchronization & Profile Management System
+<div align="center">
 
-A comprehensive Rust-based system for synchronizing and managing Farcaster data from the snapchain network. This system provides historical data synchronization, real-time monitoring, and profile management with PostgreSQL, designed for RAG (Retrieval-Augmented Generation) applications.
+![SnapRAG Logo](./snapchain/site/docs/public/images/logo.png)
+
+# SnapRAG
+
+**Farcaster Data Synchronization & Profile Management System**
+
+[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
+[![PostgreSQL](https://img.shields.io/badge/postgresql-15+-blue.svg)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+*A comprehensive Rust-based system for synchronizing and managing Farcaster data from the snapchain network*
+
+</div>
+
+## 🎯 Overview
+
+SnapRAG is a high-performance data synchronization system designed specifically for Farcaster protocol data. It provides complete historical data synchronization, real-time monitoring, and profile management with PostgreSQL, optimized for RAG (Retrieval-Augmented Generation) applications.
+
+### Key Features
+- 🔄 **Complete Data Sync**: Historical + real-time Farcaster data synchronization
+- 📊 **Profile Management**: Comprehensive user profile tracking with full history
+- 🚀 **High Performance**: Rust-based with async PostgreSQL integration
+- 🔍 **Vector Search**: Built-in pgvector support for semantic search
+- 🛡️ **Data Integrity**: Complete audit trail and change tracking
+- 🎛️ **CLI Tools**: Full command-line interface for all operations
+
+## 📋 Table of Contents
+
+- [Quick Start](#-quick-start)
+- [Features](#-features)
+- [CLI Commands](#️-available-cli-commands)
+- [Database Schema](#️-database-schema)
+- [Block Data Distribution](#block-data-distribution)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Architecture](#️-architecture)
+- [Testing](#-testing)
+- [Configuration](#-configuration)
+- [Performance Tuning](#-performance-tuning)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
 
 ## 🚀 Quick Start
 
@@ -273,6 +313,9 @@ make bench         # Run benchmarks
 | `make run` | Run the application |
 | `make run-example` | Run basic usage example |
 | `make test` | Run all tests |
+| `make test-strict` | Run tests with strict settings (warnings as errors) |
+| `make test-quick` | Run quick tests (unit tests only) |
+| `make test-integration` | Run integration tests only |
 | `make build` | Build the project |
 | `make build-release` | Build in release mode |
 | `make clean` | Clean build artifacts |
@@ -415,6 +458,15 @@ LIMIT 20;
 # Run all tests
 cargo test
 
+# Run strict tests (recommended for development)
+make test-strict
+
+# Run quick tests (unit tests only)
+make test-quick
+
+# Run integration tests only
+make test-integration
+
 # Run specific test categories
 cargo test integration_sync_test
 cargo test grpc_shard_chunks_test
@@ -424,12 +476,30 @@ cargo test database_tests
 cargo test -- --nocapture
 ```
 
+### Strict Testing Configuration
+
+SnapRAG includes a comprehensive strict testing setup that ensures high code quality:
+
+- **Smart Warning Handling**: Automatically distinguishes between generated code and hand-written code warnings
+- **Timeout Protection**: Prevents tests from hanging indefinitely
+- **Comprehensive Validation**: Tests strict configuration functionality
+- **Intelligent Error Detection**: Differentiates between actual test failures and generated code warnings
+
+```bash
+# Run strict tests with intelligent warning handling
+./scripts/run_strict_tests.sh
+
+# Or use the Makefile target
+make test-strict
+```
+
 ### Test Categories
 
 - **Integration Tests**: End-to-end CLI functionality testing
 - **gRPC Tests**: Real snapchain service interaction tests
 - **Database Tests**: Database operations and schema tests
 - **Unit Tests**: Individual component testing
+- **Strict Validation Tests**: Test configuration and warning handling
 
 ## 🔍 Data Types
 
@@ -596,15 +666,70 @@ let pool = PgPool::builder()
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 🛠️ Development Workflow
+
+### Code Quality Standards
+
+SnapRAG follows strict development standards to ensure high code quality:
+
+- **Strict Testing**: All tests must pass with zero warnings (except generated code)
+- **Code Formatting**: Automatic formatting with `rustfmt`
+- **Linting**: Comprehensive clippy checks with strict settings
+- **Documentation**: All public APIs must be documented
+
+### Development Commands
+
+```bash
+# Set up development environment
+make check-config  # Verify configuration
+make migrate       # Set up database
+
+# Development workflow
+make test-strict   # Run strict tests (recommended)
+make check         # Run clippy and format checks
+make fix           # Auto-fix formatting and clippy issues
+make docs          # Generate documentation
+
+# Before committing
+make test-strict && make check && make docs
+```
+
+### Cursor IDE Integration
+
+SnapRAG includes comprehensive Cursor IDE rules for enhanced development experience:
+
+- **Project-specific rules**: Tailored for Farcaster data synchronization
+- **CI/CD guidelines**: Automated testing and deployment rules
+- **Rust standards**: Best practices for Rust development
+- **Notification system**: Task completion notifications
+
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes following the development workflow
 4. Add tests for new functionality
-5. Run the test suite
-6. Submit a pull request
+5. Run the strict test suite (`make test-strict`)
+6. Ensure all checks pass (`make check`)
+7. Commit your changes (`git commit -m 'Add amazing feature'`)
+8. Push to the branch (`git push origin feature/amazing-feature`)
+9. Submit a pull request
+
+### Pull Request Guidelines
+
+- Ensure all tests pass with `make test-strict`
+- Follow the existing code style and formatting
+- Add documentation for new public APIs
+- Include tests for new functionality
+- Update README if adding new features or changing behavior
 
 ## 📞 Support
 
 For questions, issues, or contributions, please open an issue on the GitHub repository.
+
+### Getting Help
+
+- 📖 **Documentation**: Check this README and inline code documentation
+- 🐛 **Bug Reports**: Use GitHub issues with detailed reproduction steps
+- 💡 **Feature Requests**: Open a GitHub issue with use case description
+- 💬 **Discussions**: Use GitHub Discussions for questions and ideas
