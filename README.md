@@ -4,25 +4,26 @@
 
 # SnapRAG
 
-**Farcaster Data Synchronization & Profile Management System**
+**PostgreSQL-based RAG Foundation Framework with Database Query Capabilities**
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-15+-blue.svg)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/license-GPTv3-blue.svg)](LICENSE)
 
-*A comprehensive Rust-based system for synchronizing and managing Farcaster data from the snapchain network*
+*A comprehensive PostgreSQL-based RAG foundation framework that provides data synchronization, vector search, and advanced database query capabilities for Farcaster protocol data*
 
 </div>
 
 ## 🎯 Overview
 
-SnapRAG is a high-performance data synchronization system designed specifically for Farcaster protocol data. It provides complete historical data synchronization, real-time monitoring, and profile management with PostgreSQL, optimized for RAG (Retrieval-Augmented Generation) applications.
+SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for Farcaster protocol data. It provides a complete data synchronization layer, vector search capabilities, and advanced database query functionality, making it an ideal foundation for building RAG (Retrieval-Augmented Generation) applications on top of Farcaster data.
 
 ### Key Features
-- 🔄 **Complete Data Sync**: Historical + real-time Farcaster data synchronization
-- 📊 **Profile Management**: Comprehensive user profile tracking with full history
+- 🏗️ **RAG Foundation**: PostgreSQL-based framework for building RAG applications
+- 🔄 **Data Synchronization**: Complete historical + real-time Farcaster data sync
+- 🔍 **Vector Search**: Built-in pgvector support for semantic similarity search
+- 📊 **Advanced Queries**: Rich database query capabilities and analytics
 - 🚀 **High Performance**: Rust-based with async PostgreSQL integration
-- 🔍 **Vector Search**: Built-in pgvector support for semantic search
 - 🛡️ **Data Integrity**: Complete audit trail and change tracking
 - 🎛️ **CLI Tools**: Full command-line interface for all operations
 
@@ -68,6 +69,13 @@ make run         # Run the application
 
 ## ✨ Features
 
+### RAG Foundation Framework
+- **PostgreSQL-based Architecture**: Built on PostgreSQL for robust data management
+- **Vector Search Ready**: Built-in pgvector support for semantic similarity search
+- **Query Interface**: Rich database query capabilities for complex analytics
+- **Data Synchronization Layer**: Complete Farcaster data sync from snapchain
+- **RAG Application Ready**: Designed as a foundation for building RAG applications
+
 ### Core Synchronization
 - **Historical Data Sync**: Complete synchronization of past Farcaster data from snapchain
 - **Real-time Monitoring**: Live monitoring of new blocks and user activities
@@ -75,10 +83,11 @@ make run         # Run the application
 - **Lock File Management**: Prevents concurrent sync processes with PID tracking
 - **Progress Tracking**: Real-time sync progress and status monitoring
 
-### Data Management
+### Data Management & Query Capabilities
 - **Historical Profile Preservation**: Complete snapshot history of user profile changes
 - **Efficient Current State Access**: Fast queries for current profile data
 - **Vector Embeddings Support**: Built-in support for pgvector for semantic search
+- **Advanced Database Queries**: Complex analytics and data exploration capabilities
 - **Change Tracking**: Detailed audit trail of all profile modifications
 - **Username Proofs**: Support for Farcaster-style username verification
 - **Activity Timeline**: Comprehensive user activity tracking
@@ -432,6 +441,13 @@ LIMIT 20;
 
 ## 🏗️ Architecture
 
+### RAG Foundation Framework
+- **PostgreSQL Core**: Robust database foundation for RAG applications
+- **Vector Search Engine**: pgvector integration for semantic similarity
+- **Query Interface**: Rich database query capabilities and analytics
+- **Data Synchronization**: Complete Farcaster data sync from snapchain
+- **RAG Application Layer**: Ready-to-use foundation for building RAG apps
+
 ### Sync Service
 - **SyncService**: Orchestrates the synchronization process
 - **ShardProcessor**: Processes individual shard chunks
@@ -449,6 +465,7 @@ LIMIT 20;
 - **Migration System**: Schema versioning and updates
 - **Connection Pooling**: Efficient database connections
 - **Vector Support**: pgvector integration for semantic search
+- **Query Engine**: Advanced database query capabilities
 
 ## 🧪 Testing
 
