@@ -1,11 +1,15 @@
 //! Sync state persistence manager
 
-use crate::Result;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
+
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::Result;
 
 /// Persistent sync state stored in a temporary file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,8 +218,9 @@ impl SyncStats {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::TempDir;
+
+    use super::*;
 
     #[test]
     fn test_sync_state_manager() {

@@ -1,10 +1,15 @@
+use std::process::Command;
+use std::process::Stdio;
+use std::sync::Arc;
+use std::sync::Mutex;
+
+use tracing::info;
+
 use crate::config::AppConfig;
 use crate::database::Database;
-use crate::sync::{SyncLockManager, SyncService};
+use crate::sync::SyncLockManager;
+use crate::sync::SyncService;
 use crate::Result;
-use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
-use tracing::info;
 
 // Global test lock to ensure tests run serially
 static TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -49,7 +54,7 @@ fn cleanup_before_test() -> Result<()> {
 async fn test_sync_user_message_blocks() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     // Initialize logging for test
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -151,7 +156,7 @@ async fn test_sync_user_message_blocks() -> Result<()> {
 async fn test_sync_high_activity_blocks() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Clean up before test
@@ -210,7 +215,7 @@ async fn test_sync_high_activity_blocks() -> Result<()> {
 async fn test_sync_early_blocks() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Clean up before test
@@ -275,7 +280,7 @@ async fn test_sync_early_blocks() -> Result<()> {
 async fn test_sync_error_handling() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Clean up before test
@@ -319,7 +324,7 @@ async fn test_sync_error_handling() -> Result<()> {
 async fn test_lock_file_management() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Clean up before test
@@ -393,7 +398,7 @@ async fn test_lock_file_management() -> Result<()> {
 async fn test_cli_functionality() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Clean up before test
@@ -457,7 +462,7 @@ async fn test_cli_functionality() -> Result<()> {
 async fn test_cli_sync_ranges() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Clean up before test
@@ -500,7 +505,7 @@ async fn test_cli_sync_ranges() -> Result<()> {
 async fn test_cli_error_handling() -> Result<()> {
     // Acquire global test lock to ensure serial execution
     let _lock = TEST_LOCK.lock().unwrap();
-    
+
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Clean up before test

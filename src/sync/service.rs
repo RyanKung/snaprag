@@ -1,15 +1,22 @@
+use std::sync::Arc;
+
+use tokio::sync::RwLock;
+use tracing::error;
+use tracing::info;
+use tracing::warn;
+
 use crate::config::AppConfig;
 use crate::database::Database;
 use crate::sync::client::proto;
 use crate::sync::client::SnapchainClient;
-use crate::sync::lock_file::{SyncLockFile, SyncLockManager, SyncRange};
+use crate::sync::lock_file::SyncLockFile;
+use crate::sync::lock_file::SyncLockManager;
+use crate::sync::lock_file::SyncRange;
 use crate::sync::shard_processor::ShardProcessor;
 use crate::sync::state_manager::SyncStateManager;
-use crate::sync::types::{SyncConfig, SyncState};
+use crate::sync::types::SyncConfig;
+use crate::sync::types::SyncState;
 use crate::Result;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use tracing::{error, info, warn};
 
 /// Main sync service that coordinates synchronization with snapchain
 pub struct SyncService {
@@ -43,6 +50,62 @@ impl SyncService {
             state_manager,
             lock_manager: SyncLockManager::new(),
         })
+    }
+
+    /// Poll once for a single block (for testing)
+    pub async fn poll_once(&self, shard_id: u32, block_number: u64) -> Result<()> {
+        info!("Polling once for shard {} block {}", shard_id, block_number);
+
+        // Create a single block request
+        let request = proto::ShardChunksRequest {
+            shard_id,
+            start_block_number: block_number,
+            stop_block_number: Some(block_number + 1),
+        };
+
+        // Fetch the chunk
+        match self.client.get_shard_chunks(request).await {
+            Ok(response) => {
+                let chunk_count = response.shard_chunks.len();
+                info!(
+                    "Received {} chunks for shard {} block {}",
+                    chunk_count, shard_id, block_number
+                );
+
+                // Process each chunk
+                let processor = ShardProcessor::new(self.database.as_ref().clone());
+                for chunk in response.shard_chunks {
+                    match processor.process_chunk(&chunk, shard_id).await {
+                        Ok(()) => {
+                            info!(
+                                "Successfully processed shard {} chunk at block {}",
+                                shard_id, block_number
+                            );
+                        }
+                        Err(err) => {
+                            error!(
+                                "Failed processing shard {} chunk at block {}: {}",
+                                shard_id, block_number, err
+                            );
+                            return Err(err);
+                        }
+                    }
+                }
+
+                info!(
+                    "Poll once completed for shard {} block {}",
+                    shard_id, block_number
+                );
+                Ok(())
+            }
+            Err(err) => {
+                error!(
+                    "Failed to get shard chunks for shard {} at block {}: {}",
+                    shard_id, block_number, err
+                );
+                Err(err)
+            }
+        }
     }
 
     /// Start the sync service
@@ -376,48 +439,13 @@ impl SyncService {
         let mut total_blocks = 0u64;
 
         loop {
-            // Get chunks from current height
-            let request = proto::ShardChunksRequest {
-                shard_id,
-                start_block_number: last_height,
-                stop_block_number: Some(last_height + self.config.batch_size as u64),
-                ..Default::default()
-            };
-
-            match self.client.get_shard_chunks(request).await {
-                Ok(response) => {
-                    if response.shard_chunks.is_empty() {
-                        info!(
-                            "Shard {}: no more chunks at height {}, sync complete",
-                            shard_id, last_height
-                        );
-                        break;
-                    }
-
-                    let chunk_count = response.shard_chunks.len();
-                    total_blocks += chunk_count as u64;
-
-                    // Process each chunk
-                    let processor = ShardProcessor::new(self.database.as_ref().clone());
-                    for chunk in response.shard_chunks {
-                        match processor.process_chunk(&chunk, shard_id).await {
-                            Ok(()) => {
-                                // Chunk processed successfully
-                                info!("Successfully processed shard {} chunk", shard_id);
-                            }
-                            Err(err) => {
-                                error!("Failed processing shard {} chunk: {}", shard_id, err);
-                                let mut state_manager = self.state_manager.write().await;
-                                state_manager.add_error(format!(
-                                    "Shard {} chunk processing error: {}",
-                                    shard_id, err
-                                ))?;
-                            }
-                        }
-                    }
+            // Use poll_once for each block
+            match self.poll_once(shard_id, last_height).await {
+                Ok(()) => {
+                    total_blocks += 1;
+                    last_height += 1;
 
                     // Update progress
-                    last_height += chunk_count as u64;
                     {
                         let mut state_manager = self.state_manager.write().await;
                         state_manager.update_last_processed_height(shard_id, last_height)?;
@@ -426,21 +454,35 @@ impl SyncService {
                     }
 
                     info!(
-                        "Shard {}: processed {} chunks, total messages: {}, height: {}",
-                        shard_id, chunk_count, total_messages, last_height
+                        "Shard {}: processed block {}, total messages: {}, height: {}",
+                        shard_id,
+                        last_height - 1,
+                        total_messages,
+                        last_height
                     );
 
                     // Small delay to prevent overwhelming the node
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 }
                 Err(err) => {
+                    // Check if it's a "no more data" error or a real error
+                    if err.to_string().contains("no more chunks")
+                        || err.to_string().contains("empty")
+                    {
+                        info!(
+                            "Shard {}: no more chunks at height {}, sync complete",
+                            shard_id, last_height
+                        );
+                        break;
+                    }
+
                     error!(
-                        "Failed to get shard chunks for shard {} at height {}: {}",
+                        "Failed to process shard {} block {}: {}",
                         shard_id, last_height, err
                     );
                     let mut state_manager = self.state_manager.write().await;
                     state_manager.add_error(format!(
-                        "Shard {} chunk fetch error at height {}: {}",
+                        "Shard {} block processing error at height {}: {}",
                         shard_id, last_height, err
                     ))?;
 
@@ -476,57 +518,13 @@ impl SyncService {
         let mut total_blocks = 0u64;
 
         while current_block <= to_block {
-            // Get chunks from current block
-            let request = proto::ShardChunksRequest {
-                shard_id,
-                start_block_number: current_block,
-                stop_block_number: Some(std::cmp::min(
-                    current_block + self.config.batch_size as u64,
-                    to_block,
-                )),
-                ..Default::default()
-            };
-
-            match self.client.get_shard_chunks(request).await {
-                Ok(response) => {
-                    if response.shard_chunks.is_empty() {
-                        info!(
-                            "Shard {}: no more chunks at block {}, range sync complete",
-                            shard_id, current_block
-                        );
-                        break;
-                    }
-
-                    let chunk_count = response.shard_chunks.len();
-                    total_blocks += chunk_count as u64;
-
-                    // Process each chunk
-                    let processor = ShardProcessor::new(self.database.as_ref().clone());
-                    for chunk in response.shard_chunks {
-                        match processor.process_chunk(&chunk, shard_id).await {
-                            Ok(()) => {
-                                // Chunk processed successfully
-                                info!(
-                                    "Successfully processed shard {} chunk at block {}",
-                                    shard_id, current_block
-                                );
-                            }
-                            Err(err) => {
-                                error!(
-                                    "Failed processing shard {} chunk at block {}: {}",
-                                    shard_id, current_block, err
-                                );
-                                let mut state_manager = self.state_manager.write().await;
-                                state_manager.add_error(format!(
-                                    "Shard {} chunk processing error at block {}: {}",
-                                    shard_id, current_block, err
-                                ))?;
-                            }
-                        }
-                    }
+            // Use poll_once for each block
+            match self.poll_once(shard_id, current_block).await {
+                Ok(()) => {
+                    total_blocks += 1;
+                    current_block += 1;
 
                     // Update progress
-                    current_block += chunk_count as u64;
                     {
                         let mut state_manager = self.state_manager.write().await;
                         state_manager.update_last_processed_height(shard_id, current_block)?;
@@ -536,12 +534,15 @@ impl SyncService {
 
                     // Update lock file with progress
                     lock.update_progress(Some(shard_id), Some(current_block));
-                    lock.increment_processed(chunk_count as u64, total_messages);
+                    lock.increment_processed(1, total_messages);
                     self.lock_manager.update_lock(lock.clone())?;
 
                     info!(
-                        "Shard {}: processed {} chunks, total messages: {}, current block: {}",
-                        shard_id, chunk_count, total_messages, current_block
+                        "Shard {}: processed block {}, total messages: {}, current block: {}",
+                        shard_id,
+                        current_block - 1,
+                        total_messages,
+                        current_block
                     );
 
                     // Small delay to prevent overwhelming the node
@@ -549,12 +550,12 @@ impl SyncService {
                 }
                 Err(err) => {
                     error!(
-                        "Failed to get shard chunks for shard {} at block {}: {}",
+                        "Failed to process shard {} block {}: {}",
                         shard_id, current_block, err
                     );
                     let mut state_manager = self.state_manager.write().await;
                     state_manager.add_error(format!(
-                        "Shard {} chunk fetch error at block {}: {}",
+                        "Shard {} block processing error at block {}: {}",
                         shard_id, current_block, err
                     ))?;
 

@@ -11,8 +11,12 @@ pub mod state_manager;
 pub mod types;
 
 pub use client::SnapchainClient;
-pub use lock_file::{SyncLockFile, SyncLockManager, SyncProgress, SyncRange};
+pub use lock_file::SyncLockFile;
+pub use lock_file::SyncLockManager;
+pub use lock_file::SyncProgress;
+pub use lock_file::SyncRange;
 pub use service::SyncService;
 pub use shard_processor::ShardProcessor;
-pub use state_manager::{SyncStateManager, SyncStats};
+pub use state_manager::SyncStateManager;
+pub use state_manager::SyncStats;
 pub use types::*;

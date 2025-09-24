@@ -1,25 +1,31 @@
 //! Snapchain gRPC client for synchronization
 
+use std::collections::HashMap;
+
+use reqwest::Client;
+use serde::Deserialize;
+use serde::Serialize;
+use tonic::transport::Channel;
+
 use crate::generated::blocks::ShardChunk;
 use crate::generated::hub_event::HubEvent;
 use crate::generated::hub_service_client::HubServiceClient;
+use crate::generated::request_response::FidsRequest;
+use crate::generated::request_response::FidsResponse;
+use crate::generated::request_response::GetInfoRequest;
+use crate::generated::request_response::GetInfoResponse;
+use crate::generated::request_response::ShardChunksRequest;
+use crate::generated::request_response::ShardChunksResponse;
 use crate::generated::request_response::SubscribeRequest;
-use crate::generated::request_response::{
-    FidsRequest, FidsResponse, GetInfoRequest, GetInfoResponse, ShardChunksRequest,
-    ShardChunksResponse,
-};
 use crate::Result;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use tonic::transport::Channel;
 
 // Import generated protobuf types (these would be generated from .proto files)
 // For now, we'll use placeholder types until we generate the actual protobuf bindings
 
 /// Placeholder for generated protobuf types
 pub mod proto {
-    use serde::{Deserialize, Serialize};
+    use serde::Deserialize;
+    use serde::Serialize;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct Block {
@@ -247,17 +253,25 @@ impl SnapchainClient {
         let client = Client::new();
         let base_url = endpoint.trim_end_matches('/').to_string();
 
-        // TODO: Create gRPC client once we fix the protobuf mapping issues
-        // For now, create a dummy client
-        let grpc_endpoint = endpoint.replace("http://", "").replace("https://", "");
-        let channel = Channel::from_shared(format!("http://{}", grpc_endpoint))
-            .map_err(|e| crate::SnapRagError::Custom(format!("Invalid gRPC endpoint: {}", e)))?
-            .connect()
+        // Create gRPC client with proper endpoint handling
+        // Use the same approach as HubServiceClient
+        let endpoint_url = if endpoint.starts_with("http://") {
+            endpoint.to_string()
+        } else {
+            format!("http://{}", endpoint)
+        };
+
+        println!("Creating gRPC client for endpoint: {}", endpoint_url);
+
+        // Use the generated gRPC client directly like HubServiceClient does
+        let grpc_client =
+            crate::generated::grpc_client::hub_service_client::HubServiceClient::connect(
+                endpoint_url,
+            )
             .await
             .map_err(|e| {
-                crate::SnapRagError::Custom(format!("Failed to connect to gRPC: {}", e))
+                crate::SnapRagError::Custom(format!("Failed to connect to gRPC endpoint: {}", e))
             })?;
-        let grpc_client = HubServiceClient::new(channel);
 
         Ok(Self {
             client,
@@ -268,36 +282,42 @@ impl SnapchainClient {
 
     /// Create a new Snapchain client from AppConfig
     pub async fn from_config(config: &crate::AppConfig) -> Result<Self> {
-        Self::new(config.snapchain_http_endpoint()).await
+        Self::new(config.snapchain_grpc_endpoint()).await
     }
 
     /// Get node information
     pub async fn get_info(&self) -> Result<proto::GetInfoResponse> {
-        let url = format!("{}/v1/info", self.base_url);
-        let response = self.client.get(&url).send().await?;
+        // Use gRPC client instead of HTTP client
+        let mut grpc_client = self.grpc_client.clone();
+        let request = tonic::Request::new(crate::generated::grpc_client::GetInfoRequest::default());
 
-        if !response.status().is_success() {
-            return Err(crate::errors::SnapRagError::Custom(format!(
-                "Failed to get info: HTTP {}",
-                response.status()
-            )));
-        }
+        let response = grpc_client.get_info(request).await.map_err(|e| {
+            crate::errors::SnapRagError::Custom(format!("gRPC get_info call failed: {}", e))
+        })?;
 
-        let info: InfoResponse = response.json().await?;
+        let grpc_response = response.into_inner();
 
         Ok(proto::GetInfoResponse {
-            version: info.version.unwrap_or_else(|| "unknown".to_string()),
+            version: grpc_response.version,
             db_stats: Some(proto::DbStats {
-                num_messages: info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0),
-                num_fid_registrations: info
+                num_messages: grpc_response
+                    .db_stats
+                    .as_ref()
+                    .map(|s| s.num_messages)
+                    .unwrap_or(0),
+                num_fid_registrations: grpc_response
                     .db_stats
                     .as_ref()
                     .map(|s| s.num_fid_registrations)
                     .unwrap_or(0),
-                approx_size: info.db_stats.as_ref().map(|s| s.approx_size).unwrap_or(0),
+                approx_size: grpc_response
+                    .db_stats
+                    .as_ref()
+                    .map(|s| s.approx_size)
+                    .unwrap_or(0),
             }),
-            peer_id: info.peer_id.unwrap_or_else(|| "unknown".to_string()),
-            num_shards: info.num_shards.unwrap_or(1),
+            peer_id: grpc_response.peer_id,
+            num_shards: grpc_response.num_shards,
             shard_infos: vec![], // TODO: Parse from response if available
         })
     }
@@ -323,7 +343,9 @@ impl SnapchainClient {
         // Make the gRPC call using tonic::Request wrapper
         let mut grpc_client = self.grpc_client.clone();
         let tonic_request = tonic::Request::new(grpc_request);
-        let response = grpc_client.get_shard_chunks(tonic_request).await
+        let response = grpc_client
+            .get_shard_chunks(tonic_request)
+            .await
             .map_err(|e| crate::SnapRagError::Custom(format!("gRPC call failed: {}", e)))?;
 
         let grpc_response = response.into_inner();

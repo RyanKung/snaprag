@@ -14,6 +14,16 @@ build-release: ## Build the project in release mode
 test: ## Run tests
 	cargo test
 
+test-strict: ## Run tests with strict settings (warnings as errors)
+	@echo "Running strict tests with warnings treated as errors..."
+	@./scripts/run_strict_tests.sh
+
+test-quick: ## Run quick tests (unit tests only)
+	cargo test --lib -- --test-threads=1
+
+test-integration: ## Run integration tests only
+	cargo test --test "*" -- --test-threads=1
+
 
 run: ## Run the application
 	cargo run

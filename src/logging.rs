@@ -1,13 +1,17 @@
 //! Logging configuration for SnapRAG
 
-use crate::Result;
 use std::path::Path;
-use tracing_subscriber::{
-    fmt::{self, format::FmtSpan},
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    EnvFilter, Registry,
+
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::{
+    self,
 };
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::Registry;
+
+use crate::Result;
 
 /// Initialize logging system with file output
 pub fn init_logging() -> Result<()> {

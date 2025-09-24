@@ -1,11 +1,14 @@
+use uuid::Uuid;
+
 use super::*;
 use crate::errors::SnapRagError;
-use crate::models::{
-    CreateUserProfileRequest, RecordUserActivityRequest, RecordUserDataChangeRequest,
-    UpdateUserProfileRequest, UserDataType, UserProfile,
-};
+use crate::models::CreateUserProfileRequest;
+use crate::models::RecordUserActivityRequest;
+use crate::models::RecordUserDataChangeRequest;
+use crate::models::UpdateUserProfileRequest;
+use crate::models::UserDataType;
+use crate::models::UserProfile;
 use crate::Result;
-use uuid::Uuid;
 
 #[tokio::test]
 async fn test_user_profile_create_and_read() -> Result<()> {

@@ -3,16 +3,29 @@
 //! This test demonstrates how to parse ShardChunksResponse data
 //! from shard 1, requesting blocks from 0 to 42.
 
-use crate::config::AppConfig;
-use crate::generated::grpc_client::{
-    CastAddBody, CommitSignature, Commits, FarcasterNetwork, HashScheme, Height,
-    Message as FarcasterMessage, MessageData, MessageType, ShardChunk, ShardChunksRequest,
-    ShardChunksResponse, ShardHash, ShardHeader, SignatureScheme, Transaction,
-};
-use crate::grpc_client::HubServiceClient;
-use prost::Message;
 use std::collections::HashMap;
+
+use prost::Message;
 use tokio;
+
+use crate::config::AppConfig;
+use crate::generated::grpc_client::CastAddBody;
+use crate::generated::grpc_client::CommitSignature;
+use crate::generated::grpc_client::Commits;
+use crate::generated::grpc_client::FarcasterNetwork;
+use crate::generated::grpc_client::HashScheme;
+use crate::generated::grpc_client::Height;
+use crate::generated::grpc_client::Message as FarcasterMessage;
+use crate::generated::grpc_client::MessageData;
+use crate::generated::grpc_client::MessageType;
+use crate::generated::grpc_client::ShardChunk;
+use crate::generated::grpc_client::ShardChunksRequest;
+use crate::generated::grpc_client::ShardChunksResponse;
+use crate::generated::grpc_client::ShardHash;
+use crate::generated::grpc_client::ShardHeader;
+use crate::generated::grpc_client::SignatureScheme;
+use crate::generated::grpc_client::Transaction;
+use crate::grpc_client::HubServiceClient;
 
 /// Common test setup: load config and create gRPC client
 async fn setup_grpc_client() -> (AppConfig, HubServiceClient) {
@@ -75,8 +88,10 @@ fn verify_chunk_basic_structure(chunk: &ShardChunk) {
         .height
         .as_ref()
         .expect("Header height should not be None");
-    assert!(height.shard_index >= 0, "Shard index should be >= 0");
-    assert!(height.block_number >= 0, "Block number should be >= 0");
+    // Note: shard_index and block_number are u32, so >= 0 is always true
+    // We'll check for reasonable ranges instead
+    assert!(height.shard_index < 1000, "Shard index should be reasonable");
+    assert!(height.block_number < 1_000_000_000, "Block number should be reasonable");
     assert!(header.timestamp > 0, "Timestamp should be > 0");
 
     // Verify hash
@@ -91,13 +106,15 @@ fn verify_chunk_basic_structure(chunk: &ShardChunk) {
         .height
         .as_ref()
         .expect("Commit height should not be None");
+    // Note: shard_index and block_number are u32, so >= 0 is always true
+    // We'll check for reasonable ranges instead
     assert!(
-        commit_height.shard_index >= 0,
-        "Commit shard index should be >= 0"
+        commit_height.shard_index < 1000,
+        "Commit shard index should be reasonable"
     );
     assert!(
-        commit_height.block_number >= 0,
-        "Commit block number should be >= 0"
+        commit_height.block_number < 1_000_000_000,
+        "Commit block number should be reasonable"
     );
     assert!(
         !commits.signatures.is_empty(),
@@ -109,7 +126,9 @@ fn verify_chunk_basic_structure(chunk: &ShardChunk) {
 fn verify_transactions(chunk: &ShardChunk, allow_fid_zero: bool) {
     for (tx_idx, transaction) in chunk.transactions.iter().enumerate() {
         if allow_fid_zero {
-            assert!(transaction.fid >= 0, "Transaction FID should be >= 0");
+            // Note: fid is u64, so >= 0 is always true
+            // We'll check for reasonable range instead
+            assert!(transaction.fid < 1_000_000_000, "Transaction FID should be reasonable");
         } else {
             assert!(
                 transaction.fid > 0,
