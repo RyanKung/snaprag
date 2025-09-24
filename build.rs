@@ -139,7 +139,7 @@ fn compile_protobufs() {
                 "cargo:warning=Successfully compiled {} protobuf files",
                 existing_proto_files.len()
             );
-            
+
             // Add #[allow] attributes to generated files to suppress warnings
             add_allow_attributes_to_generated_files(out_dir);
         }
@@ -156,11 +156,11 @@ fn compile_protobufs() {
 /// Add #[allow] attributes to generated protobuf files to suppress warnings
 fn add_allow_attributes_to_generated_files(out_dir: &str) {
     let allow_attributes = "#![allow(unused_lifetimes)]\n#![allow(clippy::all)]\n";
-    
+
     // List of generated files that need the allow attributes
     let generated_files = [
         "message.rs",
-        "onchain_event.rs", 
+        "onchain_event.rs",
         "request_response.rs",
         "replication.rs",
         "node_state.rs",
@@ -171,7 +171,7 @@ fn add_allow_attributes_to_generated_files(out_dir: &str) {
         "admin_rpc.rs",
         "gossip.rs",
     ];
-    
+
     for file_name in &generated_files {
         let file_path = format!("{}/{}", out_dir, file_name);
         if let Ok(content) = fs::read_to_string(&file_path) {
@@ -179,7 +179,10 @@ fn add_allow_attributes_to_generated_files(out_dir: &str) {
             if !content.contains("#![allow(unused_lifetimes)]") {
                 let modified_content = format!("{}\n{}", allow_attributes, content);
                 if let Err(e) = fs::write(&file_path, modified_content) {
-                    println!("cargo:warning=Failed to add allow attributes to {}: {}", file_name, e);
+                    println!(
+                        "cargo:warning=Failed to add allow attributes to {}: {}",
+                        file_name, e
+                    );
                 } else {
                     println!("cargo:warning=Added allow attributes to {}", file_name);
                 }

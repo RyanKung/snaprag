@@ -2,12 +2,14 @@ use crate::config::AppConfig;
 use crate::database::Database;
 use crate::sync::client::proto;
 use crate::sync::client::SnapchainClient;
+use crate::sync::lock_file::{SyncLockFile, SyncLockManager, SyncRange};
+use crate::sync::shard_processor::ShardProcessor;
 use crate::sync::state_manager::SyncStateManager;
 use crate::sync::types::{SyncConfig, SyncState};
 use crate::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Main sync service that coordinates synchronization with snapchain
 pub struct SyncService {
@@ -16,6 +18,7 @@ pub struct SyncService {
     database: Arc<Database>,
     state: Arc<RwLock<SyncState>>,
     state_manager: Arc<RwLock<SyncStateManager>>,
+    lock_manager: SyncLockManager,
 }
 
 impl SyncService {
@@ -38,6 +41,7 @@ impl SyncService {
             database,
             state,
             state_manager,
+            lock_manager: SyncLockManager::new(),
         })
     }
 
@@ -57,6 +61,45 @@ impl SyncService {
             info!("Starting real-time sync for new data...");
             self.start_full_realtime_sync().await?;
         }
+
+        Ok(())
+    }
+
+    /// Start the sync service with a specific block range
+    pub async fn start_with_range(&self, from_block: u64, to_block: u64) -> Result<()> {
+        info!(
+            "Starting SnapRAG sync service with range {} to {}...",
+            from_block, to_block
+        );
+        info!("Sync configuration: {:?}", self.config);
+
+        // Create lock file for this sync process
+        let sync_range = SyncRange {
+            from_block,
+            to_block: if to_block == u64::MAX {
+                None
+            } else {
+                Some(to_block)
+            },
+        };
+        let mut lock = self.lock_manager.create_lock("running", Some(sync_range))?;
+
+        // Start historical sync with the specified range
+        if self.config.enable_historical_sync {
+            info!(
+                "Starting historical data sync from block {} to block {}...",
+                from_block, to_block
+            );
+            self.start_historical_sync_with_range(from_block, to_block, &mut lock)
+                .await?;
+        }
+
+        // Update lock file to completed status
+        lock.update_status("completed");
+        self.lock_manager.update_lock(lock)?;
+
+        // Note: We don't start real-time sync when using a range, as it's typically for testing
+        info!("Range sync completed. Use 'sync start' without range for continuous sync.");
 
         Ok(())
     }
@@ -104,6 +147,57 @@ impl SyncService {
         info!(
             "Full historical sync completed! Processed {} unique FIDs",
             all_fids.len()
+        );
+        Ok(())
+    }
+
+    /// Start historical data synchronization with a specific block range
+    async fn start_historical_sync_with_range(
+        &self,
+        from_block: u64,
+        to_block: u64,
+        lock: &mut SyncLockFile,
+    ) -> Result<()> {
+        info!(
+            "Starting historical data sync from block {} to block {}...",
+            from_block, to_block
+        );
+
+        // Update status
+        {
+            let mut state_manager = self.state_manager.write().await;
+            state_manager.update_status("RangeSync")?;
+        }
+
+        // Get node info to understand the data structure
+        let info = self.client.get_info().await?;
+        info!(
+            "Node info: version={}, num_shards={}, total_messages={}",
+            info.version,
+            info.num_shards,
+            info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0)
+        );
+
+        // Sync user shards (1 to num_shards-1) with the specified range
+        for shard_id in 1..info.num_shards {
+            info!(
+                "Starting range sync of user shard {} from block {} to block {}...",
+                shard_id, from_block, to_block
+            );
+
+            // Update lock file with current shard
+            lock.update_progress(Some(shard_id), Some(from_block));
+            self.lock_manager.update_lock(lock.clone())?;
+
+            self.sync_shard_with_range(shard_id, from_block, to_block, lock)
+                .await?;
+        }
+
+        info!(
+            "Range sync completed! Processed blocks {} to {} across {} shards",
+            from_block,
+            to_block,
+            info.num_shards - 1
         );
         Ok(())
     }
@@ -304,11 +398,12 @@ impl SyncService {
                     total_blocks += chunk_count as u64;
 
                     // Process each chunk
-                    for _chunk in response.shard_chunks {
-                        // Shard chunk processing removed - simplified sync service
-                        match Ok::<(), crate::SnapRagError>(()) {
+                    let processor = ShardProcessor::new(self.database.as_ref().clone());
+                    for chunk in response.shard_chunks {
+                        match processor.process_chunk(&chunk, shard_id).await {
                             Ok(()) => {
                                 // Chunk processed successfully
+                                info!("Successfully processed shard {} chunk", shard_id);
                             }
                             Err(err) => {
                                 error!("Failed processing shard {} chunk: {}", shard_id, err);
@@ -361,6 +456,170 @@ impl SyncService {
             shard_id, total_messages, total_blocks
         );
         Ok(())
+    }
+
+    /// Sync a specific shard with a block range
+    async fn sync_shard_with_range(
+        &self,
+        shard_id: u32,
+        from_block: u64,
+        to_block: u64,
+        lock: &mut SyncLockFile,
+    ) -> Result<()> {
+        info!(
+            "Starting range sync for shard {} from block {} to block {}",
+            shard_id, from_block, to_block
+        );
+
+        let mut current_block = from_block;
+        let total_messages = 0u64;
+        let mut total_blocks = 0u64;
+
+        while current_block <= to_block {
+            // Get chunks from current block
+            let request = proto::ShardChunksRequest {
+                shard_id,
+                start_block_number: current_block,
+                stop_block_number: Some(std::cmp::min(
+                    current_block + self.config.batch_size as u64,
+                    to_block,
+                )),
+                ..Default::default()
+            };
+
+            match self.client.get_shard_chunks(request).await {
+                Ok(response) => {
+                    if response.shard_chunks.is_empty() {
+                        info!(
+                            "Shard {}: no more chunks at block {}, range sync complete",
+                            shard_id, current_block
+                        );
+                        break;
+                    }
+
+                    let chunk_count = response.shard_chunks.len();
+                    total_blocks += chunk_count as u64;
+
+                    // Process each chunk
+                    let processor = ShardProcessor::new(self.database.as_ref().clone());
+                    for chunk in response.shard_chunks {
+                        match processor.process_chunk(&chunk, shard_id).await {
+                            Ok(()) => {
+                                // Chunk processed successfully
+                                info!(
+                                    "Successfully processed shard {} chunk at block {}",
+                                    shard_id, current_block
+                                );
+                            }
+                            Err(err) => {
+                                error!(
+                                    "Failed processing shard {} chunk at block {}: {}",
+                                    shard_id, current_block, err
+                                );
+                                let mut state_manager = self.state_manager.write().await;
+                                state_manager.add_error(format!(
+                                    "Shard {} chunk processing error at block {}: {}",
+                                    shard_id, current_block, err
+                                ))?;
+                            }
+                        }
+                    }
+
+                    // Update progress
+                    current_block += chunk_count as u64;
+                    {
+                        let mut state_manager = self.state_manager.write().await;
+                        state_manager.update_last_processed_height(shard_id, current_block)?;
+                        state_manager.increment_messages_processed(shard_id, total_messages)?;
+                        state_manager.increment_blocks_processed(shard_id, total_blocks)?;
+                    }
+
+                    // Update lock file with progress
+                    lock.update_progress(Some(shard_id), Some(current_block));
+                    lock.increment_processed(chunk_count as u64, total_messages);
+                    self.lock_manager.update_lock(lock.clone())?;
+
+                    info!(
+                        "Shard {}: processed {} chunks, total messages: {}, current block: {}",
+                        shard_id, chunk_count, total_messages, current_block
+                    );
+
+                    // Small delay to prevent overwhelming the node
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
+                Err(err) => {
+                    error!(
+                        "Failed to get shard chunks for shard {} at block {}: {}",
+                        shard_id, current_block, err
+                    );
+                    let mut state_manager = self.state_manager.write().await;
+                    state_manager.add_error(format!(
+                        "Shard {} chunk fetch error at block {}: {}",
+                        shard_id, current_block, err
+                    ))?;
+
+                    // Wait before retrying
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                    continue;
+                }
+            }
+        }
+
+        info!(
+            "Shard {} range sync completed: {} messages, {} blocks (blocks {} to {})",
+            shard_id, total_messages, total_blocks, from_block, to_block
+        );
+        Ok(())
+    }
+
+    /// Stop the sync service and save current state
+    pub async fn stop(&self, force: bool) -> Result<()> {
+        info!("Stopping SnapRAG sync service...");
+
+        if self.lock_manager.lock_exists() {
+            match self.lock_manager.read_lock() {
+                Ok(mut lock) => {
+                    if force {
+                        info!("Force stopping sync process (PID: {})", lock.pid);
+                        lock.update_status("force_stopped");
+                    } else {
+                        info!("Gracefully stopping sync process (PID: {})", lock.pid);
+                        lock.update_status("stopped");
+                    }
+
+                    // Save final state to lock file
+                    self.lock_manager.update_lock(lock)?;
+
+                    // Save state to persistent storage
+                    {
+                        let mut state_manager = self.state_manager.write().await;
+                        state_manager.save()?;
+                    }
+
+                    // Remove lock file
+                    self.lock_manager.remove_lock()?;
+
+                    info!("Sync service stopped successfully");
+                }
+                Err(e) => {
+                    warn!("Failed to read lock file during stop: {}", e);
+                    self.lock_manager.remove_lock()?;
+                }
+            }
+        } else {
+            info!("No active sync process found");
+        }
+
+        Ok(())
+    }
+
+    /// Get sync status from lock file
+    pub fn get_sync_status(&self) -> Result<Option<SyncLockFile>> {
+        if self.lock_manager.lock_exists() {
+            Ok(Some(self.lock_manager.read_lock()?))
+        } else {
+            Ok(None)
+        }
     }
 
     // All unused methods have been removed

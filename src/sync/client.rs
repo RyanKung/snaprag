@@ -1,10 +1,18 @@
 //! Snapchain gRPC client for synchronization
 
+use crate::generated::blocks::ShardChunk;
+use crate::generated::hub_event::HubEvent;
+use crate::generated::hub_service_client::HubServiceClient;
+use crate::generated::request_response::SubscribeRequest;
+use crate::generated::request_response::{
+    FidsRequest, FidsResponse, GetInfoRequest, GetInfoResponse, ShardChunksRequest,
+    ShardChunksResponse,
+};
 use crate::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-// Removed tonic dependency - only using protobuf for serialization
+use tonic::transport::Channel;
 
 // Import generated protobuf types (these would be generated from .proto files)
 // For now, we'll use placeholder types until we generate the actual protobuf bindings
@@ -223,6 +231,7 @@ pub mod proto {
 pub struct SnapchainClient {
     client: Client,
     base_url: String,
+    grpc_client: HubServiceClient<Channel>,
 }
 
 /// Snapchain protobuf client for serialization/deserialization
@@ -238,7 +247,23 @@ impl SnapchainClient {
         let client = Client::new();
         let base_url = endpoint.trim_end_matches('/').to_string();
 
-        Ok(Self { client, base_url })
+        // TODO: Create gRPC client once we fix the protobuf mapping issues
+        // For now, create a dummy client
+        let grpc_endpoint = endpoint.replace("http://", "").replace("https://", "");
+        let channel = Channel::from_shared(format!("http://{}", grpc_endpoint))
+            .map_err(|e| crate::SnapRagError::Custom(format!("Invalid gRPC endpoint: {}", e)))?
+            .connect()
+            .await
+            .map_err(|e| {
+                crate::SnapRagError::Custom(format!("Failed to connect to gRPC: {}", e))
+            })?;
+        let grpc_client = HubServiceClient::new(channel);
+
+        Ok(Self {
+            client,
+            base_url,
+            grpc_client,
+        })
     }
 
     /// Create a new Snapchain client from AppConfig
@@ -287,13 +312,103 @@ impl SnapchainClient {
     /// Get shard chunks for a shard
     pub async fn get_shard_chunks(
         &self,
-        _request: proto::ShardChunksRequest,
+        request: proto::ShardChunksRequest,
     ) -> Result<proto::ShardChunksResponse> {
-        // TODO: Implement actual gRPC call
-        // For now, return empty result
-        Ok(proto::ShardChunksResponse {
+        // Convert our internal proto request to gRPC client request
+        let mut grpc_request = crate::generated::grpc_client::ShardChunksRequest::default();
+        grpc_request.shard_id = request.shard_id;
+        grpc_request.start_block_number = request.start_block_number;
+        grpc_request.stop_block_number = Some(request.stop_block_number.unwrap_or(u64::MAX));
+
+        // Make the gRPC call using tonic::Request wrapper
+        let mut grpc_client = self.grpc_client.clone();
+        let tonic_request = tonic::Request::new(grpc_request);
+        let response = grpc_client.get_shard_chunks(tonic_request).await
+            .map_err(|e| crate::SnapRagError::Custom(format!("gRPC call failed: {}", e)))?;
+
+        let grpc_response = response.into_inner();
+
+        // Convert generated protobuf response to our internal proto response
+        let mut proto_response = proto::ShardChunksResponse {
             shard_chunks: vec![],
-        })
+        };
+
+        // Convert each shard chunk
+        for grpc_chunk in grpc_response.shard_chunks {
+            let mut proto_chunk = proto::ShardChunk {
+                header: None,
+                hash: grpc_chunk.hash.clone(),
+                transactions: vec![],
+            };
+
+            // Convert header if present
+            if let Some(grpc_header) = grpc_chunk.header {
+                let mut proto_header = proto::ShardHeader {
+                    height: None,
+                    timestamp: grpc_header.timestamp,
+                    parent_hash: grpc_header.parent_hash.clone(),
+                    shard_root: grpc_header.shard_root.clone(),
+                };
+
+                // Convert height if present
+                if let Some(grpc_height) = grpc_header.height {
+                    proto_header.height = Some(proto::Height {
+                        shard_index: grpc_height.shard_index,
+                        block_number: grpc_height.block_number,
+                    });
+                }
+
+                proto_chunk.header = Some(proto_header);
+            }
+
+            // Convert transactions
+            for grpc_tx in grpc_chunk.transactions {
+                let mut proto_tx = proto::Transaction {
+                    fid: grpc_tx.fid,
+                    user_messages: vec![],
+                    system_messages: vec![],
+                };
+
+                // Convert user messages
+                for grpc_msg in grpc_tx.user_messages {
+                    let mut proto_msg = proto::Message {
+                        data: None,
+                        hash: grpc_msg.hash.clone(),
+                        signature: grpc_msg.signature.clone(),
+                        signer: grpc_msg.signer.clone(),
+                    };
+
+                    // Convert message data if present
+                    if let Some(grpc_data) = grpc_msg.data {
+                        // Convert body from protobuf enum to JSON value
+                        let body_json = match grpc_data.body {
+                            Some(body) => {
+                                // For now, serialize the body as JSON string
+                                // This is a simplified approach - in production you'd want proper conversion
+                                Some(serde_json::Value::String("converted_body".to_string()))
+                            }
+                            None => None,
+                        };
+
+                        proto_msg.data = Some(proto::MessageData {
+                            r#type: grpc_data.r#type as i32,
+                            fid: grpc_data.fid,
+                            timestamp: grpc_data.timestamp,
+                            network: grpc_data.network as i32,
+                            body: body_json,
+                        });
+                    }
+
+                    proto_tx.user_messages.push(proto_msg);
+                }
+
+                proto_chunk.transactions.push(proto_tx);
+            }
+
+            proto_response.shard_chunks.push(proto_chunk);
+        }
+
+        Ok(proto_response)
     }
 
     /// Subscribe to real-time events

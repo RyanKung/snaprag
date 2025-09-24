@@ -30,8 +30,8 @@ enum Commands {
         #[arg(short, long, default_value = "100")]
         limit: u32,
     },
-    /// Clear all synchronized data from the database
-    Clear {
+    /// Reset all synchronized data from the database and remove lock files
+    Reset {
         /// Skip confirmation prompt
         #[arg(short, long)]
         force: bool,
@@ -48,7 +48,14 @@ enum SyncCommands {
     /// Run all sync (historical + real-time)
     All,
     /// Start synchronization
-    Start,
+    Start {
+        /// Start block number (default: 0)
+        #[arg(long)]
+        from: Option<u64>,
+        /// End block number (default: latest)
+        #[arg(long)]
+        to: Option<u64>,
+    },
     /// Run real-time sync only
     Realtime,
     /// Show sync status and statistics
@@ -101,7 +108,7 @@ async fn main() -> Result<()> {
         Commands::List { data_type, limit } => {
             handle_list_command(&db, data_type, limit).await?;
         }
-        Commands::Clear { force } => {
+        Commands::Reset { force } => {
             handle_clear_command(&db, force).await?;
         }
         Commands::Sync(sync_command) => {
@@ -173,7 +180,9 @@ async fn handle_list_command(db: &Database, data_type: DataType, limit: u32) -> 
 
 async fn handle_clear_command(db: &Database, force: bool) -> Result<()> {
     if !force {
-        println!("⚠️  This will clear ALL synchronized data from the database!");
+        println!(
+            "⚠️  This will reset ALL synchronized data from the database and remove lock files!"
+        );
         println!("Are you sure you want to continue? (y/N)");
 
         let mut input = String::new();
@@ -185,7 +194,15 @@ async fn handle_clear_command(db: &Database, force: bool) -> Result<()> {
         }
     }
 
-    println!("🧹 Clearing all synchronized data...");
+    println!("🔄 Resetting all synchronized data and lock files...");
+
+    // Remove lock file if it exists
+    if std::path::Path::new("snaprag.lock").exists() {
+        std::fs::remove_file("snaprag.lock")?;
+        println!("  - Removed snaprag.lock file");
+    } else {
+        println!("  - No lock file found");
+    }
 
     // Clear user profiles
     let deleted_profiles = sqlx::query("DELETE FROM user_profiles")
@@ -223,7 +240,7 @@ async fn handle_clear_command(db: &Database, force: bool) -> Result<()> {
         deleted_changes.rows_affected()
     );
 
-    println!("✅ Database cleared successfully!");
+    println!("✅ Database and lock files reset successfully!");
     Ok(())
 }
 
@@ -238,11 +255,24 @@ async fn handle_sync_command(db: &Database, sync_command: SyncCommands) -> Resul
             let sync_service = SyncService::new(&config, db_arc).await?;
             sync_service.start().await?;
         }
-        SyncCommands::Start => {
-            println!("🚀 Starting synchronization...");
+        SyncCommands::Start { from, to } => {
+            let from_block = from.unwrap_or(0);
+            let to_block = to.unwrap_or(u64::MAX);
+
+            if let Some(to_val) = to {
+                println!(
+                    "🚀 Starting synchronization from block {} to block {}...",
+                    from_block, to_val
+                );
+            } else {
+                println!(
+                    "🚀 Starting synchronization from block {} to latest...",
+                    from_block
+                );
+            }
+
             let sync_service = SyncService::new(&config, db_arc).await?;
-            // For now, just start the service which does historical sync by default
-            sync_service.start().await?;
+            sync_service.start_with_range(from_block, to_block).await?;
         }
         SyncCommands::Realtime => {
             println!("⚡ Starting real-time synchronization...");
@@ -252,23 +282,74 @@ async fn handle_sync_command(db: &Database, sync_command: SyncCommands) -> Resul
         }
         SyncCommands::Status => {
             println!("📊 Sync Status:");
-            // This would need to be implemented to show actual sync status
-            println!("  - Historical sync: Not implemented");
-            println!("  - Real-time sync: Not implemented");
-            println!("  - Last sync time: Not implemented");
+            let sync_service = SyncService::new(&config, db_arc).await?;
+
+            match sync_service.get_sync_status()? {
+                Some(lock) => {
+                    println!("  - Status: {}", lock.status);
+                    println!("  - PID: {}", lock.pid);
+                    println!(
+                        "  - Start time: {}",
+                        chrono::DateTime::from_timestamp(lock.start_time as i64, 0)
+                            .unwrap_or_default()
+                            .format("%Y-%m-%d %H:%M:%S")
+                    );
+                    println!(
+                        "  - Last update: {}",
+                        chrono::DateTime::from_timestamp(lock.last_update as i64, 0)
+                            .unwrap_or_default()
+                            .format("%Y-%m-%d %H:%M:%S")
+                    );
+
+                    if let Some(shard) = lock.progress.current_shard {
+                        println!("  - Current shard: {}", shard);
+                    }
+                    if let Some(block) = lock.progress.current_block {
+                        println!("  - Current block: {}", block);
+                    }
+                    println!(
+                        "  - Total blocks processed: {}",
+                        lock.progress.total_blocks_processed
+                    );
+                    println!(
+                        "  - Total messages processed: {}",
+                        lock.progress.total_messages_processed
+                    );
+
+                    if let Some(range) = &lock.progress.sync_range {
+                        println!(
+                            "  - Sync range: {} to {}",
+                            range.from_block,
+                            range
+                                .to_block
+                                .map(|b| b.to_string())
+                                .unwrap_or("latest".to_string())
+                        );
+                    }
+
+                    if let Some(error) = &lock.error_message {
+                        println!("  - Error: {}", error);
+                    }
+                }
+                None => {
+                    println!("  - No active sync process");
+                }
+            }
         }
         SyncCommands::Stop { force } => {
             println!("🛑 Stopping sync processes...");
+            let sync_service = SyncService::new(&config, db_arc).await?;
+            sync_service.stop(force).await?;
+
             if force {
-                println!("  - Force stopping (not implemented)");
+                println!("  - Force stopped successfully");
             } else {
-                println!("  - Graceful stop (not implemented)");
+                println!("  - Gracefully stopped successfully");
             }
         }
     }
     Ok(())
 }
-
 
 async fn handle_config_command(config: &AppConfig) -> Result<()> {
     println!("📋 SnapRAG Configuration:");
