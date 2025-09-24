@@ -1,6 +1,6 @@
 <div align="center">
 
-![SnapRAG Logo](./logo.png)
+<img src="./logo.png" alt="SnapRAG Logo" width="200" height="200">
 
 # SnapRAG
 
@@ -8,7 +8,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-15+-blue.svg)](https://www.postgresql.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPTv3-blue.svg)](LICENSE)
 
 *A comprehensive Rust-based system for synchronizing and managing Farcaster data from the snapchain network*
 
@@ -664,7 +664,7 @@ let pool = PgPool::builder()
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPTv3 License - see the [LICENSE](LICENSE) file for details.
 
 ## 🛠️ Development Workflow
 
