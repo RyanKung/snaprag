@@ -521,16 +521,16 @@ impl Database {
                 display_name,
                 bio,
                 pfp_url,
-                profile_url,
+                website_url,
                 location,
                 twitter_username,
                 github_username,
                 banner_url,
-                primary_addresses,
-                created_at,
-                updated_at
+                primary_address_ethereum,
+                primary_address_solana,
+                last_updated_at
             FROM user_profiles 
-            ORDER BY created_at DESC
+            ORDER BY last_updated_at DESC
             LIMIT $1
             OFFSET $2
             "#,
@@ -553,7 +553,7 @@ impl Database {
     ) -> Result<UserProfileSnapshot> {
         // Use a slightly different timestamp to avoid conflicts
         let snapshot_timestamp = profile.last_updated_timestamp + 1;
-        
+
         let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
             r#"
             INSERT INTO user_profile_snapshots (
@@ -608,12 +608,13 @@ impl Database {
                 display_name,
                 bio,
                 pfp_url,
-                profile_url,
+                website_url,
                 location,
                 twitter_username,
                 github_username,
                 banner_url,
-                primary_addresses,
+                primary_address_ethereum,
+                primary_address_solana,
                 created_at
             FROM user_profile_snapshots 
             WHERE fid = $1

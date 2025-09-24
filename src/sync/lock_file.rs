@@ -1,0 +1,264 @@
+use crate::Result;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
+use std::process;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tracing::{error, info, warn};
+
+/// Lock file structure for tracking sync process
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncLockFile {
+    /// Process ID of the sync process
+    pub pid: u32,
+    /// Sync status (running, stopping, error)
+    pub status: String,
+    /// Start time of the sync process
+    pub start_time: u64,
+    /// Last update time
+    pub last_update: u64,
+    /// Current sync progress
+    pub progress: SyncProgress,
+    /// Error message if any
+    pub error_message: Option<String>,
+}
+
+/// Sync progress information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncProgress {
+    /// Current shard being processed
+    pub current_shard: Option<u32>,
+    /// Current block being processed
+    pub current_block: Option<u64>,
+    /// Total blocks processed
+    pub total_blocks_processed: u64,
+    /// Total messages processed
+    pub total_messages_processed: u64,
+    /// Sync range (if applicable)
+    pub sync_range: Option<SyncRange>,
+}
+
+/// Sync range information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncRange {
+    pub from_block: u64,
+    pub to_block: Option<u64>,
+}
+
+impl SyncLockFile {
+    /// Create a new lock file
+    pub fn new(status: &str, sync_range: Option<SyncRange>) -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        Self {
+            pid: process::id(),
+            status: status.to_string(),
+            start_time: now,
+            last_update: now,
+            progress: SyncProgress {
+                current_shard: None,
+                current_block: None,
+                total_blocks_processed: 0,
+                total_messages_processed: 0,
+                sync_range,
+            },
+            error_message: None,
+        }
+    }
+
+    /// Update the lock file with new progress
+    pub fn update_progress(&mut self, shard_id: Option<u32>, block_number: Option<u64>) {
+        self.last_update = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        self.progress.current_shard = shard_id;
+        self.progress.current_block = block_number;
+    }
+
+    /// Update status
+    pub fn update_status(&mut self, status: &str) {
+        self.status = status.to_string();
+        self.last_update = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+    }
+
+    /// Set error message
+    pub fn set_error(&mut self, error: &str) {
+        self.error_message = Some(error.to_string());
+        self.status = "error".to_string();
+        self.last_update = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+    }
+
+    /// Increment processed counts
+    pub fn increment_processed(&mut self, blocks: u64, messages: u64) {
+        self.progress.total_blocks_processed += blocks;
+        self.progress.total_messages_processed += messages;
+        self.last_update = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+    }
+}
+
+/// Lock file manager
+pub struct SyncLockManager {
+    lock_file_path: String,
+}
+
+impl SyncLockManager {
+    /// Create a new lock manager
+    pub fn new() -> Self {
+        Self {
+            lock_file_path: "snaprag.lock".to_string(),
+        }
+    }
+
+    /// Create lock file
+    pub fn create_lock(&self, status: &str, sync_range: Option<SyncRange>) -> Result<SyncLockFile> {
+        // Check if lock file already exists
+        if Path::new(&self.lock_file_path).exists() {
+            match self.read_lock() {
+                Ok(existing_lock) => {
+                    // Check if the process is still running
+                    if self.is_process_running(existing_lock.pid) {
+                        return Err(crate::SnapRagError::Custom(format!(
+                            "Sync process is already running (PID: {})",
+                            existing_lock.pid
+                        )));
+                    } else {
+                        warn!(
+                            "Found stale lock file from PID {}, removing it",
+                            existing_lock.pid
+                        );
+                        self.remove_lock()?;
+                    }
+                }
+                Err(_) => {
+                    warn!("Found corrupted lock file, removing it");
+                    self.remove_lock()?;
+                }
+            }
+        }
+
+        let lock = SyncLockFile::new(status, sync_range);
+        self.write_lock(&lock)?;
+        info!("Created sync lock file (PID: {})", lock.pid);
+        Ok(lock)
+    }
+
+    /// Read lock file
+    pub fn read_lock(&self) -> Result<SyncLockFile> {
+        let content = fs::read_to_string(&self.lock_file_path)
+            .map_err(|e| crate::SnapRagError::Custom(format!("Failed to read lock file: {}", e)))?;
+
+        let lock: SyncLockFile = serde_json::from_str(&content).map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to parse lock file: {}", e))
+        })?;
+
+        Ok(lock)
+    }
+
+    /// Write lock file
+    pub fn write_lock(&self, lock: &SyncLockFile) -> Result<()> {
+        let content = serde_json::to_string_pretty(lock).map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to serialize lock file: {}", e))
+        })?;
+
+        fs::write(&self.lock_file_path, content).map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to write lock file: {}", e))
+        })?;
+
+        Ok(())
+    }
+
+    /// Update lock file
+    pub fn update_lock(&self, mut lock: SyncLockFile) -> Result<SyncLockFile> {
+        self.write_lock(&lock)?;
+        Ok(lock)
+    }
+
+    /// Remove lock file
+    pub fn remove_lock(&self) -> Result<()> {
+        if Path::new(&self.lock_file_path).exists() {
+            fs::remove_file(&self.lock_file_path).map_err(|e| {
+                crate::SnapRagError::Custom(format!("Failed to remove lock file: {}", e))
+            })?;
+            info!("Removed sync lock file");
+        }
+        Ok(())
+    }
+
+    /// Check if lock file exists
+    pub fn lock_exists(&self) -> bool {
+        Path::new(&self.lock_file_path).exists()
+    }
+
+    /// Check if a process is running
+    fn is_process_running(&self, pid: u32) -> bool {
+        // On Unix systems, kill with signal 0 checks if process exists
+        unsafe { libc::kill(pid as i32, 0) == 0 }
+    }
+
+    /// Get lock file path
+    pub fn lock_file_path(&self) -> &str {
+        &self.lock_file_path
+    }
+}
+
+impl Default for SyncLockManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_lock_file_creation() {
+        let manager = SyncLockManager::new();
+        let sync_range = SyncRange {
+            from_block: 0,
+            to_block: Some(100),
+        };
+
+        let lock = manager.create_lock("running", Some(sync_range)).unwrap();
+        assert_eq!(lock.status, "running");
+        assert_eq!(lock.pid, process::id());
+        assert!(lock.progress.sync_range.is_some());
+
+        // Clean up
+        manager.remove_lock().unwrap();
+    }
+
+    #[test]
+    fn test_lock_file_update() {
+        let manager = SyncLockManager::new();
+        let lock = manager.create_lock("running", None).unwrap();
+
+        let mut updated_lock = lock;
+        updated_lock.update_progress(Some(1), Some(100));
+        updated_lock.increment_processed(10, 50);
+
+        let saved_lock = manager.update_lock(updated_lock).unwrap();
+        assert_eq!(saved_lock.progress.current_shard, Some(1));
+        assert_eq!(saved_lock.progress.current_block, Some(100));
+        assert_eq!(saved_lock.progress.total_blocks_processed, 10);
+        assert_eq!(saved_lock.progress.total_messages_processed, 50);
+
+        // Clean up
+        manager.remove_lock().unwrap();
+    }
+}

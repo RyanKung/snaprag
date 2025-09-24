@@ -1,5 +1,6 @@
 pub mod database_tests;
 pub mod grpc_shard_chunks_test;
+pub mod integration_sync_test;
 
 use crate::config::AppConfig;
 use crate::database::Database;

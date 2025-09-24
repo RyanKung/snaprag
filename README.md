@@ -1,6 +1,6 @@
-# SnapRAG - Historical Profile Management System
+# SnapRAG - Farcaster Data Synchronization & Profile Management System
 
-A Rust-based system for managing historical user profiles with PostgreSQL, designed for RAG (Retrieval-Augmented Generation) applications. This system preserves complete profile history while providing efficient current state access.
+A comprehensive Rust-based system for synchronizing and managing Farcaster data from the snapchain network. This system provides historical data synchronization, real-time monitoring, and profile management with PostgreSQL, designed for RAG (Retrieval-Augmented Generation) applications.
 
 ## 🚀 Quick Start
 
@@ -26,8 +26,16 @@ make migrate     # Run database migrations
 make run         # Run the application
 ```
 
-## Features
+## ✨ Features
 
+### Core Synchronization
+- **Historical Data Sync**: Complete synchronization of past Farcaster data from snapchain
+- **Real-time Monitoring**: Live monitoring of new blocks and user activities
+- **Shard-based Processing**: Efficient processing of data across multiple shards
+- **Lock File Management**: Prevents concurrent sync processes with PID tracking
+- **Progress Tracking**: Real-time sync progress and status monitoring
+
+### Data Management
 - **Historical Profile Preservation**: Complete snapshot history of user profile changes
 - **Efficient Current State Access**: Fast queries for current profile data
 - **Vector Embeddings Support**: Built-in support for pgvector for semantic search
@@ -36,18 +44,108 @@ make run         # Run the application
 - **Activity Timeline**: Comprehensive user activity tracking
 - **No Data Cleanup**: All historical data is preserved indefinitely
 
-## Database Schema
+### CLI Tools
+- **Comprehensive CLI**: Full command-line interface for all operations
+- **Sync Management**: Start, stop, and monitor synchronization processes
+- **Data Querying**: List and search FIDs, profiles, casts, and relationships
+- **Database Operations**: Migration, reset, and maintenance commands
+
+## 🛠️ Available CLI Commands
+
+### Main Commands
+```bash
+# Show help
+cargo run -- --help
+
+# List available data
+cargo run list fid --limit 50
+cargo run list profiles --limit 20
+cargo run list casts --limit 100
+cargo run list follows --limit 50
+
+# Reset all data
+cargo run reset --force
+
+# Show configuration
+cargo run config
+```
+
+### Synchronization Commands
+```bash
+# Sync all data (historical + real-time)
+cargo run sync all
+
+# Start historical sync with optional range
+cargo run sync start
+cargo run sync start --from 1000000 --to 2000000
+
+# Start real-time sync
+cargo run sync realtime
+
+# Show sync status
+cargo run sync status
+
+# Stop running sync
+cargo run sync stop
+```
+
+## 🗄️ Database Schema
 
 The system uses the following main tables:
 
+### Core Tables
 - `user_profiles`: Current profile state (latest values only)
 - `user_profile_snapshots`: Historical profile snapshots
 - `user_data_changes`: Detailed change tracking
-- `username_proofs`: Username verification records
 - `user_activity_timeline`: User activity history
-- `user_profile_trends`: Aggregated trend data
 
-## Installation
+### Farcaster-specific Tables
+- `fids`: Farcaster ID registry
+- `fname_transfers`: Username transfer history
+- `signers`: User signer keys
+- `signer_history`: Signer key changes
+- `storage_rent_events`: Storage rent events
+- `id_register_events`: ID registration events
+
+### Sync Tracking Tables
+- `sync_state`: Synchronization state and progress
+- `shard_block_info`: Shard and block tracking for data origin
+
+## Block Data Distribution
+
+Based on our analysis of the snapchain network, here's the distribution of user messages across different block ranges:
+
+### Early Blocks (Genesis - ~625,000)
+- **Blocks 0-10**: No user messages, only system messages
+- **Blocks 0-1000**: No user messages found
+- **Blocks 5000-6000**: No user messages found
+- **Blocks 10000-10100**: No user messages found
+- **Blocks 50000-50100**: No user messages found
+- **Blocks 625000-625100**: No user messages found
+
+### User Message Start Range (~625,000 - 1,250,000)
+- **Blocks 1250000-1250100**: ✅ User messages found
+- **Blocks 2500000-2500100**: ✅ User messages found
+
+### High Activity Range (5,000,000+)
+- **Blocks 5000000-5001000**: ✅ High user message activity
+- **Profile Creation Messages**: Found Type 11 (UserDataAdd) messages
+- **Current Network Height**: ~15,550,000 blocks
+
+### Key Findings
+1. **User messages start around block 625,000+**
+2. **Early blocks contain only system messages** (ValidatorMessage types)
+3. **Profile creation/modification messages** (Type 11) are common in higher blocks
+4. **Block production rate**: ~1 second per block
+5. **Timestamp format**: snapchain-specific timestamps (not Unix epoch)
+
+### Recommended Test Ranges
+- **No user messages**: 0-1000, 5000-6000, 10000-10100
+- **First user messages**: 625000-625100
+- **Active user activity**: 1250000-1250100, 2500000-2500100
+- **High activity**: 5000000-5001000
+
+## 🔧 Installation
 
 ### Prerequisites
 
@@ -183,32 +281,41 @@ make bench         # Run benchmarks
 | `make docs` | Generate documentation |
 | `make bench` | Run benchmarks |
 
-## Usage
+## 🚀 Usage
 
-### CLI Commands
-
-SnapRAG provides a comprehensive CLI tool for managing data synchronization and database operations:
-
-#### Data Synchronization
+### Starting Synchronization
 
 ```bash
-# Run all sync (historical + real-time)
-cargo run sync all
+# Start historical sync (recommended for first run)
+cargo run sync start
 
-# Run historical sync only (sync all past data)
-cargo run sync historical
+# Start with specific block range
+cargo run sync start --from 1000000 --to 2000000
 
-# Run real-time sync only (monitor new data)
+# Start real-time sync (after historical sync)
 cargo run sync realtime
 
-# Show sync status and statistics
-cargo run sync status
+# Run both historical and real-time sync
+cargo run sync all
 ```
 
-#### Data Management
+### Monitoring Sync Progress
 
 ```bash
-# List FIDs from database
+# Check sync status
+cargo run sync status
+
+# Stop running sync
+cargo run sync stop
+
+# Reset all data and start fresh
+cargo run reset --force
+```
+
+### Querying Data
+
+```bash
+# List FIDs
 cargo run list fid --limit 50
 
 # List user profiles
@@ -219,46 +326,27 @@ cargo run list casts --limit 100
 
 # List follow relationships
 cargo run list follows --limit 50
-
-# Clear all synchronized data (with confirmation)
-cargo run clear
-
-# Clear all data without confirmation (force)
-cargo run clear --force
 ```
 
-#### Database Operations
-
-```bash
-# Run database migrations
-cargo run --bin migrate
-
-# Check configuration
-cargo run --bin check_config
-```
-
-### Creating a User Profile
+### Programmatic Usage
 
 ```rust
 use snaprag::models::*;
 use snaprag::database::Database;
 
+// Create a user profile
 let create_request = CreateUserProfileRequest {
     fid: 12345,
     username: Some("alice".to_string()),
     display_name: Some("Alice Smith".to_string()),
     bio: Some("Blockchain enthusiast".to_string()),
-    // ... other fields
     message_hash: vec![1, 2, 3, 4, 5],
     timestamp: 1640995200,
 };
 
 let profile = db.create_user_profile(create_request).await?;
-```
 
-### Updating a Profile
-
-```rust
+// Update a profile
 let update_request = UpdateUserProfileRequest {
     fid: 12345,
     data_type: UserDataType::Bio,
@@ -268,12 +356,8 @@ let update_request = UpdateUserProfileRequest {
 };
 
 let updated_profile = db.update_user_profile(update_request).await?;
-```
 
-### Querying Historical Data
-
-```rust
-// Get profile snapshots
+// Query historical data
 let snapshot_query = ProfileSnapshotQuery {
     fid: 12345,
     start_timestamp: Some(1640995200),
@@ -283,9 +367,6 @@ let snapshot_query = ProfileSnapshotQuery {
 };
 
 let snapshots = db.get_profile_snapshots(snapshot_query).await?;
-
-// Get profile at specific timestamp
-let snapshot = db.get_profile_snapshot_at_timestamp(12345, 1640995500).await?;
 ```
 
 ### Semantic Search with Vectors
@@ -306,7 +387,51 @@ ORDER BY similarity_score
 LIMIT 20;
 ```
 
-## Data Types
+## 🏗️ Architecture
+
+### Sync Service
+- **SyncService**: Orchestrates the synchronization process
+- **ShardProcessor**: Processes individual shard chunks
+- **SnapchainClient**: Communicates with snapchain gRPC service
+- **StateManager**: Manages sync state persistence
+
+### Lock File System
+- **SyncLockFile**: Tracks running sync processes
+- **PID Management**: Prevents concurrent sync operations
+- **Progress Tracking**: Real-time sync progress monitoring
+- **Graceful Shutdown**: Clean process termination
+
+### Database Layer
+- **SQLx Integration**: Async PostgreSQL operations
+- **Migration System**: Schema versioning and updates
+- **Connection Pooling**: Efficient database connections
+- **Vector Support**: pgvector integration for semantic search
+
+## 🧪 Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test
+
+# Run specific test categories
+cargo test integration_sync_test
+cargo test grpc_shard_chunks_test
+cargo test database_tests
+
+# Run with verbose output
+cargo test -- --nocapture
+```
+
+### Test Categories
+
+- **Integration Tests**: End-to-end CLI functionality testing
+- **gRPC Tests**: Real snapchain service interaction tests
+- **Database Tests**: Database operations and schema tests
+- **Unit Tests**: Individual component testing
+
+## 🔍 Data Types
 
 ### UserDataType
 
@@ -329,29 +454,7 @@ LIMIT 20;
 - `EnsL1`: ENS L1
 - `Basename`: Basename
 
-## Key Design Principles
-
-1. **No Data Loss**: All historical data is preserved
-2. **Efficient Queries**: Current state is optimized for fast access
-3. **Complete Audit Trail**: Every change is tracked with timestamps and message hashes
-4. **Vector Support**: Built-in support for semantic search and RAG applications
-5. **Snapshot-based History**: Complete profile snapshots at each change point
-
-## Error Handling
-
-The system uses a comprehensive error handling approach:
-
-```rust
-use snaprag::Result;
-
-match db.get_user_profile(12345).await {
-    Ok(Some(profile)) => println!("Found profile: {:?}", profile),
-    Ok(None) => println!("Profile not found"),
-    Err(e) => eprintln!("Error: {}", e),
-}
-```
-
-## Database Configuration
+## 🔧 Configuration
 
 ### Configuration File
 
@@ -364,6 +467,11 @@ url = "postgresql://username:password@your-db-host:5432/your-database"
 max_connections = 20
 min_connections = 5
 connection_timeout = 30
+
+# Snapchain Configuration
+[snapchain]
+http_endpoint = "http://your-snapchain-host:8080"
+grpc_endpoint = "your-snapchain-host:8080"
 
 # Logging Configuration
 [logging]
@@ -381,29 +489,15 @@ enable_vector_indexes = true
 vector_index_lists = 100
 ```
 
-### Database Connection Options
+## 🎯 Key Design Principles
 
-You can customize the database connection in `Cargo.toml`:
+1. **No Data Loss**: All historical data is preserved
+2. **Efficient Queries**: Current state is optimized for fast access
+3. **Complete Audit Trail**: Every change is tracked with timestamps and message hashes
+4. **Vector Support**: Built-in support for semantic search and RAG applications
+5. **Snapshot-based History**: Complete profile snapshots at each change point
 
-```toml
-[dependencies]
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
-```
-
-### Vector Embedding Configuration
-
-The system supports configurable vector dimensions. Update the schema migration if needed:
-
-```sql
--- Default: 1536 dimensions (OpenAI ada-002)
-profile_embedding VECTOR(1536)
-
--- For other models, adjust accordingly:
--- profile_embedding VECTOR(384)   -- sentence-transformers
--- profile_embedding VECTOR(768)   -- BERT-base
-```
-
-## Troubleshooting
+## 🚨 Troubleshooting
 
 ### Common Issues
 
@@ -431,57 +525,31 @@ sudo apt-get install postgresql-15-pgvector  # Ubuntu/Debian
 brew install pgvector                        # macOS
 ```
 
-#### 3. Migration Errors
+#### 3. Sync Process Issues
 ```bash
-# Check if you have proper permissions on your remote database
-psql -h your-db-host -U your-username -d your-database -c "SELECT current_user, current_database();"
+# Check if sync is running
+cargo run sync status
 
-# If you need to recreate tables, connect to your database and drop them manually:
-psql -h your-db-host -U your-username -d your-database
-DROP TABLE IF EXISTS user_profile_trends CASCADE;
-DROP TABLE IF EXISTS user_activity_timeline CASCADE;
-DROP TABLE IF EXISTS username_proofs CASCADE;
-DROP TABLE IF EXISTS user_data_changes CASCADE;
-DROP TABLE IF EXISTS user_profile_snapshots CASCADE;
-DROP TABLE IF EXISTS user_profiles CASCADE;
-\q
+# Stop any running sync
+cargo run sync stop
 
-# Then run migrations again
-make migrate
-# Or run the migration binary directly:
-cargo run --bin migrate
+# Reset and start fresh
+cargo run reset --force
+cargo run sync start
 ```
 
-#### 4. Permission Denied Errors
+#### 4. gRPC Connection Issues
 ```bash
-# Contact your database administrator to grant proper permissions:
-# GRANT ALL PRIVILEGES ON DATABASE your_database TO your_username;
-# GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_username;
-# GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO your_username;
+# Check snapchain endpoint connectivity
+curl http://your-snapchain-host:8080/v1/info
 
-# Or if you have admin access:
-psql -h your-db-host -U admin-username -d your-database
-GRANT ALL PRIVILEGES ON DATABASE your_database TO your_username;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_username;
-\q
+# Verify gRPC endpoint
+telnet your-snapchain-host 8080
 ```
 
-#### 5. Rust Compilation Issues
-```bash
-# Update Rust toolchain
-rustup update
+## 📈 Performance Tuning
 
-# Clean and rebuild
-cargo clean
-cargo build
-
-# Check for dependency conflicts
-cargo tree
-```
-
-### Performance Tuning
-
-#### PostgreSQL Configuration
+### PostgreSQL Configuration
 Add to your `postgresql.conf`:
 
 ```conf
@@ -498,7 +566,7 @@ shared_preload_libraries = 'vector'
 maintenance_work_mem = 64MB
 ```
 
-#### Connection Pool Settings
+### Connection Pool Settings
 ```rust
 // In your application code
 let pool = PgPool::builder()
@@ -509,7 +577,7 @@ let pool = PgPool::builder()
     .await?;
 ```
 
-## Dependencies
+## 🔗 Dependencies
 
 - `sqlx`: Async PostgreSQL driver
 - `serde`: Serialization/deserialization
@@ -519,3 +587,24 @@ let pool = PgPool::builder()
 - `tokio`: Async runtime
 - `anyhow`: Error handling
 - `thiserror`: Custom error types
+- `tonic`: gRPC client
+- `prost`: Protocol buffers
+- `reqwest`: HTTP client
+- `libc`: System calls
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Run the test suite
+6. Submit a pull request
+
+## 📞 Support
+
+For questions, issues, or contributions, please open an issue on the GitHub repository.
