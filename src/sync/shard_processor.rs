@@ -1,13 +1,20 @@
-use crate::database::Database;
-use crate::models::{
-    ShardBlockInfo, UserActivityTimeline, UserDataChange, UserProfile, UserProfileSnapshot,
-};
-use crate::sync::client::proto::{
-    Message as FarcasterMessage, MessageData, ShardChunk, Transaction,
-};
-use crate::Result;
 use std::collections::HashMap;
-use tracing::{error, info, warn};
+
+use tracing::error;
+use tracing::info;
+use tracing::warn;
+
+use crate::database::Database;
+use crate::models::ShardBlockInfo;
+use crate::models::UserActivityTimeline;
+use crate::models::UserDataChange;
+use crate::models::UserProfile;
+use crate::models::UserProfileSnapshot;
+use crate::sync::client::proto::Message as FarcasterMessage;
+use crate::sync::client::proto::MessageData;
+use crate::sync::client::proto::ShardChunk;
+use crate::sync::client::proto::Transaction;
+use crate::Result;
 
 /// Processor for handling shard chunks and extracting user data
 pub struct ShardProcessor {
@@ -151,20 +158,49 @@ impl ShardProcessor {
         let fid = data.fid as i64;
         let timestamp = data.timestamp as i64;
 
-        // For now, just log that we found a user data add message
-        // The actual parsing would require understanding the protobuf body structure
         info!(
             "Found UserDataAdd message for FID {} at timestamp {}",
             fid, timestamp
         );
 
-        // Record basic user data change
+        // Parse user data from the body
+        let mut data_type = 0;
+        let mut value = "user_data_add".to_string();
+
+        if let Some(body) = &data.body {
+            if let Some(user_data_body) = body.get("user_data_body") {
+                // Extract data type
+                if let Some(type_value) = user_data_body.get("type") {
+                    data_type = type_value.as_i64().unwrap_or(0) as i16;
+                }
+
+                // Extract value
+                if let Some(value_value) = user_data_body.get("value") {
+                    if let Some(value_str) = value_value.as_str() {
+                        value = value_str.to_string();
+                    }
+                }
+            }
+        }
+
+        // Insert user data into database
+        self.database
+            .upsert_user_data(
+                fid,
+                data_type,
+                value.clone(),
+                timestamp,
+                message_hash.to_vec(),
+            )
+            .await?;
+
+        // Record user data change
         self.database
             .record_user_data_change(
                 fid,
-                0,                           // data_type - would need to parse from body
-                None,                        // old_value
-                "user_data_add".to_string(), // new_value
+                data_type,
+                None, // old_value
+                value,
                 timestamp,
                 message_hash.to_vec(),
             )
@@ -187,6 +223,57 @@ impl ShardProcessor {
             "Found CastAdd message for FID {} at timestamp {}",
             fid, timestamp
         );
+
+        // Parse cast data from the body
+        let mut text = None;
+        let mut parent_hash = None;
+        let mut root_hash = None;
+        let mut embeds = None;
+        let mut mentions = None;
+
+        if let Some(body) = &data.body {
+            if let Some(cast_add_body) = body.get("cast_add_body") {
+                // Extract text
+                if let Some(text_value) = cast_add_body.get("text") {
+                    text = text_value.as_str().map(|s| s.to_string());
+                }
+
+                // Extract parent cast info
+                if let Some(parent) = cast_add_body.get("parent") {
+                    if let Some(parent_cast_id) = parent.get("parent_cast_id") {
+                        if let Some(parent_hash_value) = parent_cast_id.get("hash") {
+                            if let Some(hash_str) = parent_hash_value.as_str() {
+                                parent_hash = hex::decode(hash_str).ok();
+                            }
+                        }
+                    }
+                }
+
+                // Extract embeds
+                if let Some(embeds_value) = cast_add_body.get("embeds") {
+                    embeds = Some(embeds_value.clone());
+                }
+
+                // Extract mentions
+                if let Some(mentions_value) = cast_add_body.get("mentions") {
+                    mentions = Some(mentions_value.clone());
+                }
+            }
+        }
+
+        // Insert cast into database
+        self.database
+            .upsert_cast(
+                fid,
+                text,
+                timestamp,
+                message_hash.to_vec(),
+                parent_hash,
+                root_hash,
+                embeds,
+                mentions,
+            )
+            .await?;
 
         // Record cast activity
         self.database
@@ -252,15 +339,47 @@ impl ShardProcessor {
             fid, timestamp
         );
 
-        // Record reaction activity
+        // Parse reaction data from the body
+        let mut target_fid = None;
+        let mut reaction_type = None;
+
+        if let Some(body) = &data.body {
+            if let Some(reaction_body) = body.get("reaction_body") {
+                // Extract target cast info
+                if let Some(target) = reaction_body.get("target") {
+                    if let Some(cast_id) = target.get("cast_id") {
+                        if let Some(target_fid_value) = cast_id.get("fid") {
+                            target_fid = target_fid_value.as_u64().map(|f| f as i64);
+                        }
+                    }
+                }
+
+                // Extract reaction type
+                if let Some(type_value) = reaction_body.get("type") {
+                    reaction_type = type_value.as_i64();
+                }
+            }
+        }
+
+        // Record reaction activity with parsed data
+        let mut activity_data = serde_json::json!({
+            "message_type": "reaction_add",
+            "timestamp": timestamp
+        });
+
+        if let Some(tfid) = target_fid {
+            activity_data["target_fid"] = serde_json::Value::Number(serde_json::Number::from(tfid));
+        }
+        if let Some(rt) = reaction_type {
+            activity_data["reaction_type"] =
+                serde_json::Value::Number(serde_json::Number::from(rt));
+        }
+
         self.database
             .record_user_activity(
                 fid,
                 "reaction_add".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "reaction_add",
-                    "timestamp": timestamp
-                })),
+                Some(activity_data),
                 timestamp,
                 Some(message_hash.to_vec()),
             )

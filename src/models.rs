@@ -1,5 +1,7 @@
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use chrono::DateTime;
+use chrono::Utc;
+use serde::Deserialize;
+use serde::Serialize;
 use sqlx::FromRow;
 use uuid::Uuid;
 
@@ -304,10 +306,122 @@ pub struct UserProfileQuery {
     pub fid: Option<i64>,
     pub username: Option<String>,
     pub display_name: Option<String>,
+    pub bio: Option<String>,
+    pub location: Option<String>,
+    pub twitter_username: Option<String>,
+    pub github_username: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
     pub start_timestamp: Option<i64>,
     pub end_timestamp: Option<i64>,
+    pub sort_by: Option<ProfileSortBy>,
+    pub sort_order: Option<SortOrder>,
+    pub search_term: Option<String>,
+}
+
+/// Profile sorting options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProfileSortBy {
+    Fid,
+    Username,
+    DisplayName,
+    LastUpdated,
+    CreatedAt,
+}
+
+/// Sort order
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SortOrder {
+    Asc,
+    Desc,
+}
+
+/// FID query filters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FidQuery {
+    pub fid: Option<i64>,
+    pub min_fid: Option<i64>,
+    pub max_fid: Option<i64>,
+    pub has_username: Option<bool>,
+    pub has_display_name: Option<bool>,
+    pub has_bio: Option<bool>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub sort_by: Option<FidSortBy>,
+    pub sort_order: Option<SortOrder>,
+    pub search_term: Option<String>,
+}
+
+/// FID sorting options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FidSortBy {
+    Fid,
+    Username,
+    LastUpdated,
+    CreatedAt,
+}
+
+/// Statistics query
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatisticsQuery {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub group_by: Option<StatisticsGroupBy>,
+}
+
+/// Statistics grouping options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StatisticsGroupBy {
+    Day,
+    Week,
+    Month,
+    Year,
+}
+
+/// Statistics result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatisticsResult {
+    pub total_fids: i64,
+    pub total_profiles: i64,
+    pub profiles_with_username: i64,
+    pub profiles_with_display_name: i64,
+    pub profiles_with_bio: i64,
+    pub profiles_with_pfp: i64,
+    pub profiles_with_website: i64,
+    pub profiles_with_location: i64,
+    pub profiles_with_twitter: i64,
+    pub profiles_with_github: i64,
+    pub profiles_with_ethereum_address: i64,
+    pub profiles_with_solana_address: i64,
+    pub recent_registrations: Vec<ProfileRegistration>,
+    pub top_usernames: Vec<UsernameStats>,
+    pub growth_by_period: Vec<GrowthStats>,
+}
+
+/// Profile registration data
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ProfileRegistration {
+    pub fid: i64,
+    pub username: Option<String>,
+    pub display_name: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Username statistics
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct UsernameStats {
+    pub username: String,
+    pub count: i64,
+    pub percentage: f64,
+}
+
+/// Growth statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrowthStats {
+    pub period: String,
+    pub new_registrations: i64,
+    pub total_fids: i64,
+    pub growth_rate: f64,
 }
 
 /// Profile snapshot query filters
@@ -339,4 +453,78 @@ pub struct RecordUserActivityRequest {
     pub activity_data: serde_json::Value,
     pub timestamp: i64,
     pub message_hash: Option<Vec<u8>>,
+}
+
+/// Cast query filters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CastQuery {
+    pub fid: Option<i64>,
+    pub text_search: Option<String>,
+    pub parent_hash: Option<Vec<u8>>,
+    pub root_hash: Option<Vec<u8>>,
+    pub has_mentions: Option<bool>,
+    pub has_embeds: Option<bool>,
+    pub start_timestamp: Option<i64>,
+    pub end_timestamp: Option<i64>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub sort_by: Option<CastSortBy>,
+    pub sort_order: Option<SortOrder>,
+}
+
+/// Cast sorting options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CastSortBy {
+    Timestamp,
+    Fid,
+    Text,
+    CreatedAt,
+}
+
+/// Link query filters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkQuery {
+    pub fid: Option<i64>,
+    pub target_fid: Option<i64>,
+    pub link_type: Option<String>,
+    pub start_timestamp: Option<i64>,
+    pub end_timestamp: Option<i64>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub sort_by: Option<LinkSortBy>,
+    pub sort_order: Option<SortOrder>,
+}
+
+/// Link sorting options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LinkSortBy {
+    Timestamp,
+    Fid,
+    TargetFid,
+    LinkType,
+    CreatedAt,
+}
+
+/// User data query filters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserDataQuery {
+    pub fid: Option<i64>,
+    pub data_type: Option<i16>,
+    pub value_search: Option<String>,
+    pub start_timestamp: Option<i64>,
+    pub end_timestamp: Option<i64>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub sort_by: Option<UserDataSortBy>,
+    pub sort_order: Option<SortOrder>,
+}
+
+/// User data sorting options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum UserDataSortBy {
+    Timestamp,
+    Fid,
+    DataType,
+    Value,
+    CreatedAt,
 }

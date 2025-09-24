@@ -43,3 +43,24 @@ unused_imports = "allow"
 unused_variables = "allow"
 dead_code = "allow"
 
+# Strict settings for tests
+[profile.test]
+# Enable debug info for better test debugging
+debug = true
+# Enable overflow checks for tests
+overflow-checks = true
+
+# Strict clippy configuration for tests
+[lints.clippy]
+# Allow warnings in generated code but be strict in our code
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+# Allow some specific warnings that are common in test code
+unused_io_amount = "allow"
+unused_self = "allow"
+# Allow warnings in generated protobuf code
+unused_variables = "allow"
+unused_imports = "allow"
+

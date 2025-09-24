@@ -1,7 +1,9 @@
 //! Types for snapchain synchronization
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Sync configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

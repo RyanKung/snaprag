@@ -155,7 +155,7 @@ fn compile_protobufs() {
 
 /// Add #[allow] attributes to generated protobuf files to suppress warnings
 fn add_allow_attributes_to_generated_files(out_dir: &str) {
-    let allow_attributes = "#![allow(unused_lifetimes)]\n#![allow(clippy::all)]\n";
+    let allow_attributes = "#![allow(unused_lifetimes)]\n#![allow(elided_lifetimes_in_paths)]\n#![allow(clippy::all)]\n#![allow(unknown_lints)]\n#![allow(renamed_and_removed_lints)]\n";
 
     // List of generated files that need the allow attributes
     let generated_files = [
@@ -174,8 +174,11 @@ fn add_allow_attributes_to_generated_files(out_dir: &str) {
 
     for file_name in &generated_files {
         let file_path = format!("{}/{}", out_dir, file_name);
-        if let Ok(content) = fs::read_to_string(&file_path) {
-            // Check if the file already has allow attributes
+        if let Ok(mut content) = fs::read_to_string(&file_path) {
+            // Remove old box_pointers allow attribute if it exists
+            content = content.replace("#![allow(box_pointers)]\n", "");
+
+            // Check if the file already has our allow attributes
             if !content.contains("#![allow(unused_lifetimes)]") {
                 let modified_content = format!("{}\n{}", allow_attributes, content);
                 if let Err(e) = fs::write(&file_path, modified_content) {
@@ -185,6 +188,19 @@ fn add_allow_attributes_to_generated_files(out_dir: &str) {
                     );
                 } else {
                     println!("cargo:warning=Added allow attributes to {}", file_name);
+                }
+            } else {
+                // File already has allow attributes, just remove box_pointers if present
+                if content.contains("#![allow(box_pointers)]") {
+                    let modified_content = content.replace("#![allow(box_pointers)]\n", "");
+                    if let Err(e) = fs::write(&file_path, modified_content) {
+                        println!(
+                            "cargo:warning=Failed to remove box_pointers from {}: {}",
+                            file_name, e
+                        );
+                    } else {
+                        println!("cargo:warning=Removed box_pointers from {}", file_name);
+                    }
                 }
             }
         }
@@ -203,10 +219,55 @@ fn generate_grpc_client() {
         {
             Ok(_) => {
                 println!("cargo:warning=Successfully generated gRPC client code");
+
+                // Add allow attributes to gRPC generated files
+                add_allow_attributes_to_grpc_files(out_dir);
             }
             Err(e) => {
                 println!("cargo:warning=Failed to generate gRPC client: {}", e);
                 println!("cargo:warning=Continuing build without gRPC client");
+            }
+        }
+    }
+}
+
+/// Add #[allow] attributes to gRPC generated files
+fn add_allow_attributes_to_grpc_files(out_dir: &str) {
+    let allow_attributes = "#![allow(unused_lifetimes)]\n#![allow(elided_lifetimes_in_paths)]\n#![allow(clippy::all)]\n#![allow(unknown_lints)]\n#![allow(renamed_and_removed_lints)]\n";
+
+    // List of gRPC generated files
+    let grpc_files = ["rpc.rs"];
+
+    for file_name in &grpc_files {
+        let file_path = format!("{}/{}", out_dir, file_name);
+        if let Ok(mut content) = fs::read_to_string(&file_path) {
+            // Remove old box_pointers allow attribute if it exists
+            content = content.replace("#![allow(box_pointers)]\n", "");
+
+            // Check if the file already has our allow attributes
+            if !content.contains("#![allow(unused_lifetimes)]") {
+                let modified_content = format!("{}\n{}", allow_attributes, content);
+                if let Err(e) = fs::write(&file_path, modified_content) {
+                    println!(
+                        "cargo:warning=Failed to add allow attributes to {}: {}",
+                        file_name, e
+                    );
+                } else {
+                    println!("cargo:warning=Added allow attributes to {}", file_name);
+                }
+            } else {
+                // File already has allow attributes, just remove box_pointers if present
+                if content.contains("#![allow(box_pointers)]") {
+                    let modified_content = content.replace("#![allow(box_pointers)]\n", "");
+                    if let Err(e) = fs::write(&file_path, modified_content) {
+                        println!(
+                            "cargo:warning=Failed to remove box_pointers from {}: {}",
+                            file_name, e
+                        );
+                    } else {
+                        println!("cargo:warning=Removed box_pointers from {}", file_name);
+                    }
+                }
             }
         }
     }

@@ -1,9 +1,11 @@
-use clap::{Parser, Subcommand};
+use std::sync::Arc;
+
+use clap::Parser;
+use clap::Subcommand;
 use snaprag::config::AppConfig;
 use snaprag::database::Database;
 use snaprag::sync::service::SyncService;
 use snaprag::Result;
-use std::sync::Arc;
 use tracing::info;
 
 #[derive(Parser)]
@@ -21,7 +23,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// List FIDs from the database
+    /// List data from the database
     List {
         /// The type of data to list
         #[arg(value_enum)]
@@ -29,6 +31,45 @@ enum Commands {
         /// Maximum number of records to return
         #[arg(short, long, default_value = "100")]
         limit: u32,
+        /// Search term for filtering
+        #[arg(short, long)]
+        search: Option<String>,
+        /// Sort by field
+        #[arg(long)]
+        sort_by: Option<String>,
+        /// Sort order (asc/desc)
+        #[arg(long, default_value = "desc")]
+        sort_order: String,
+        /// Filter by FID range (min-max)
+        #[arg(long)]
+        fid_range: Option<String>,
+        /// Filter by username
+        #[arg(long)]
+        username: Option<String>,
+        /// Filter by display name
+        #[arg(long)]
+        display_name: Option<String>,
+        /// Filter by bio content
+        #[arg(long)]
+        bio: Option<String>,
+        /// Filter by location
+        #[arg(long)]
+        location: Option<String>,
+        /// Filter by Twitter username
+        #[arg(long)]
+        twitter: Option<String>,
+        /// Filter by GitHub username
+        #[arg(long)]
+        github: Option<String>,
+        /// Show only profiles with username
+        #[arg(long)]
+        has_username: bool,
+        /// Show only profiles with display name
+        #[arg(long)]
+        has_display_name: bool,
+        /// Show only profiles with bio
+        #[arg(long)]
+        has_bio: bool,
     },
     /// Reset all synchronized data from the database and remove lock files
     Reset {
@@ -39,6 +80,28 @@ enum Commands {
     /// Synchronization commands
     #[command(subcommand)]
     Sync(SyncCommands),
+    /// Show statistics and analytics
+    Stats {
+        /// Show detailed statistics
+        #[arg(short, long)]
+        detailed: bool,
+        /// Export statistics to JSON
+        #[arg(short, long)]
+        export: Option<String>,
+    },
+    /// Search profiles with advanced filters
+    Search {
+        /// Search term
+        query: String,
+        /// Maximum number of results
+        #[arg(short, long, default_value = "20")]
+        limit: u32,
+        /// Search in specific fields (username,display_name,bio,all)
+        #[arg(long, default_value = "all")]
+        fields: String,
+    },
+    /// Show dashboard with key metrics
+    Dashboard,
     /// Show current configuration
     Config,
 }
@@ -55,6 +118,15 @@ enum SyncCommands {
         /// End block number (default: latest)
         #[arg(long)]
         to: Option<u64>,
+    },
+    /// Test single block synchronization
+    Test {
+        /// Shard ID to test
+        #[arg(long, default_value = "1")]
+        shard: u32,
+        /// Block number to test
+        #[arg(long)]
+        block: u64,
     },
     /// Run real-time sync only
     Realtime,
@@ -78,6 +150,8 @@ enum DataType {
     Casts,
     /// List follows
     Follows,
+    /// List user data
+    UserData,
 }
 
 #[tokio::main]
@@ -105,14 +179,61 @@ async fn main() -> Result<()> {
 
     // Execute the requested command
     match cli.command {
-        Commands::List { data_type, limit } => {
-            handle_list_command(&db, data_type, limit).await?;
+        Commands::List {
+            data_type,
+            limit,
+            search,
+            sort_by,
+            sort_order,
+            fid_range,
+            username,
+            display_name,
+            bio,
+            location,
+            twitter,
+            github,
+            has_username,
+            has_display_name,
+            has_bio,
+        } => {
+            handle_list_command(
+                &db,
+                data_type,
+                limit,
+                search,
+                sort_by,
+                sort_order,
+                fid_range,
+                username,
+                display_name,
+                bio,
+                location,
+                twitter,
+                github,
+                has_username,
+                has_display_name,
+                has_bio,
+            )
+            .await?;
         }
         Commands::Reset { force } => {
             handle_clear_command(&db, force).await?;
         }
         Commands::Sync(sync_command) => {
             handle_sync_command(&db, sync_command).await?;
+        }
+        Commands::Stats { detailed, export } => {
+            handle_stats_command(&db, detailed, export).await?;
+        }
+        Commands::Search {
+            query,
+            limit,
+            fields,
+        } => {
+            handle_search_command(&db, query, limit, fields).await?;
+        }
+        Commands::Dashboard => {
+            handle_dashboard_command(&db).await?;
         }
         Commands::Config => {
             handle_config_command(&config).await?;
@@ -122,57 +243,218 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn handle_list_command(db: &Database, data_type: DataType, limit: u32) -> Result<()> {
+async fn handle_list_command(
+    db: &Database,
+    data_type: DataType,
+    limit: u32,
+    search: Option<String>,
+    sort_by: Option<String>,
+    sort_order: String,
+    fid_range: Option<String>,
+    username: Option<String>,
+    display_name: Option<String>,
+    bio: Option<String>,
+    location: Option<String>,
+    twitter: Option<String>,
+    github: Option<String>,
+    has_username: bool,
+    has_display_name: bool,
+    has_bio: bool,
+) -> Result<()> {
     match data_type {
         DataType::Fid => {
             println!("📋 Listing FIDs (limit: {})", limit);
-            // Get FIDs from user profiles
-            let profiles = db
-                .list_user_profiles(snaprag::models::UserProfileQuery {
-                    fid: None,
-                    username: None,
-                    display_name: None,
-                    limit: Some(limit as i64),
-                    offset: None,
-                    start_timestamp: None,
-                    end_timestamp: None,
-                })
-                .await?;
+
+            // Parse FID range if provided
+            let (min_fid, max_fid) = if let Some(range) = fid_range {
+                if let Some((min, max)) = range.split_once('-') {
+                    (
+                        Some(min.parse::<i64>().unwrap_or(0)),
+                        Some(max.parse::<i64>().unwrap_or(i64::MAX)),
+                    )
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+
+            // Parse sort options
+            let sort_by = match sort_by.as_deref() {
+                Some("fid") => Some(snaprag::models::FidSortBy::Fid),
+                Some("username") => Some(snaprag::models::FidSortBy::Username),
+                Some("last_updated") => Some(snaprag::models::FidSortBy::LastUpdated),
+                Some("created_at") => Some(snaprag::models::FidSortBy::CreatedAt),
+                _ => None,
+            };
+
+            let sort_order = match sort_order.as_str() {
+                "asc" => Some(snaprag::models::SortOrder::Asc),
+                "desc" => Some(snaprag::models::SortOrder::Desc),
+                _ => Some(snaprag::models::SortOrder::Asc),
+            };
+
+            // Build FID query
+            let fid_query = snaprag::models::FidQuery {
+                fid: None,
+                min_fid,
+                max_fid,
+                has_username: if has_username { Some(true) } else { None },
+                has_display_name: if has_display_name { Some(true) } else { None },
+                has_bio: if has_bio { Some(true) } else { None },
+                limit: Some(limit as i64),
+                offset: None,
+                sort_by,
+                sort_order,
+                search_term: search,
+            };
+
+            let profiles = db.list_fids(fid_query).await?;
             println!("Found {} FIDs:", profiles.len());
             for profile in profiles {
-                println!("  - FID: {}", profile.fid);
+                println!(
+                    "  - FID: {} | Username: {} | Display: {}",
+                    profile.fid,
+                    profile.username.as_deref().unwrap_or("N/A"),
+                    profile.display_name.as_deref().unwrap_or("N/A")
+                );
             }
         }
         DataType::Profiles => {
             println!("👤 Listing user profiles (limit: {})", limit);
-            let profiles = db
-                .list_user_profiles(snaprag::models::UserProfileQuery {
-                    fid: None,
-                    username: None,
-                    display_name: None,
-                    limit: Some(limit as i64),
-                    offset: None,
-                    start_timestamp: None,
-                    end_timestamp: None,
-                })
-                .await?;
+
+            // Parse sort options
+            let sort_by = match sort_by.as_deref() {
+                Some("fid") => Some(snaprag::models::ProfileSortBy::Fid),
+                Some("username") => Some(snaprag::models::ProfileSortBy::Username),
+                Some("display_name") => Some(snaprag::models::ProfileSortBy::DisplayName),
+                Some("last_updated") => Some(snaprag::models::ProfileSortBy::LastUpdated),
+                Some("created_at") => Some(snaprag::models::ProfileSortBy::CreatedAt),
+                _ => None,
+            };
+
+            let sort_order = match sort_order.as_str() {
+                "asc" => Some(snaprag::models::SortOrder::Asc),
+                "desc" => Some(snaprag::models::SortOrder::Desc),
+                _ => Some(snaprag::models::SortOrder::Desc),
+            };
+
+            // Build profile query
+            let profile_query = snaprag::models::UserProfileQuery {
+                fid: None,
+                username,
+                display_name,
+                bio,
+                location,
+                twitter_username: twitter,
+                github_username: github,
+                limit: Some(limit as i64),
+                offset: None,
+                start_timestamp: None,
+                end_timestamp: None,
+                sort_by,
+                sort_order,
+                search_term: search,
+            };
+
+            let profiles = db.list_user_profiles(profile_query).await?;
             println!("Found {} profiles:", profiles.len());
             for profile in profiles {
                 println!(
-                    "  - FID: {}, Username: {:?}, Display: {:?}",
-                    profile.fid, profile.username, profile.display_name
+                    "  - FID: {}, Username: {:?}, Display: {:?}, Bio: {:?}",
+                    profile.fid, profile.username, profile.display_name, profile.bio
                 );
             }
         }
         DataType::Casts => {
             println!("💬 Listing casts (limit: {})", limit);
-            // Note: This would need to be implemented in the database module
-            println!("Cast listing not yet implemented");
+
+            // Build cast query
+            let cast_query = snaprag::models::CastQuery {
+                fid: None,
+                text_search: search,
+                parent_hash: None,
+                root_hash: None,
+                has_mentions: None,
+                has_embeds: None,
+                start_timestamp: None,
+                end_timestamp: None,
+                limit: Some(limit as i64),
+                offset: None,
+                sort_by: Some(snaprag::models::CastSortBy::Timestamp),
+                sort_order: Some(snaprag::models::SortOrder::Desc),
+            };
+
+            let casts = db.list_casts(cast_query).await?;
+            println!("Found {} casts:", casts.len());
+            for cast in casts {
+                let text_preview = cast
+                    .text
+                    .as_deref()
+                    .unwrap_or("")
+                    .chars()
+                    .take(100)
+                    .collect::<String>();
+                let text_display = if text_preview.len() >= 100 {
+                    format!("{}...", text_preview)
+                } else {
+                    text_preview
+                };
+                println!(
+                    "  - FID: {} | Text: {} | Timestamp: {}",
+                    cast.fid, text_display, cast.timestamp
+                );
+            }
         }
         DataType::Follows => {
             println!("👥 Listing follows (limit: {})", limit);
-            // Note: This would need to be implemented in the database module
-            println!("Follow listing not yet implemented");
+
+            // Build link query for follows
+            let link_query = snaprag::models::LinkQuery {
+                fid: None,
+                target_fid: None,
+                link_type: Some("follow".to_string()),
+                start_timestamp: None,
+                end_timestamp: None,
+                limit: Some(limit as i64),
+                offset: None,
+                sort_by: Some(snaprag::models::LinkSortBy::Timestamp),
+                sort_order: Some(snaprag::models::SortOrder::Desc),
+            };
+
+            let links = db.list_links(link_query).await?;
+            println!("Found {} follow relationships:", links.len());
+            for link in links {
+                println!(
+                    "  - FID: {} -> Target: {} | Type: {} | Timestamp: {}",
+                    link.fid, link.target_fid, link.link_type, link.timestamp
+                );
+            }
+        }
+        DataType::UserData => {
+            println!("📊 Listing user data (limit: {})", limit);
+
+            // Build user data query
+            let user_data_query = snaprag::models::UserDataQuery {
+                fid: None,
+                data_type: None, // TODO: Parse data_type from search if needed
+                value_search: search.clone(),
+                start_timestamp: None,
+                end_timestamp: None,
+                limit: Some(limit as i64),
+                offset: None,
+                sort_by: Some(snaprag::models::UserDataSortBy::Timestamp),
+                sort_order: Some(snaprag::models::SortOrder::Desc),
+            };
+
+            let user_data = db.list_user_data(user_data_query).await?;
+            println!("Found {} user data records:", user_data.len());
+            for data in user_data {
+                println!(
+                    "  - FID: {} | Type: {} | Value: {} | Timestamp: {}",
+                    data.fid, data.data_type, data.value, data.timestamp
+                );
+            }
         }
     }
     Ok(())
@@ -240,6 +522,23 @@ async fn handle_clear_command(db: &Database, force: bool) -> Result<()> {
         deleted_changes.rows_affected()
     );
 
+    // Clear casts
+    let deleted_casts = sqlx::query("DELETE FROM casts").execute(db.pool()).await?;
+    println!("  - Deleted {} casts", deleted_casts.rows_affected());
+
+    // Clear links
+    let deleted_links = sqlx::query("DELETE FROM links").execute(db.pool()).await?;
+    println!("  - Deleted {} links", deleted_links.rows_affected());
+
+    // Clear user_data
+    let deleted_user_data = sqlx::query("DELETE FROM user_data")
+        .execute(db.pool())
+        .await?;
+    println!(
+        "  - Deleted {} user data records",
+        deleted_user_data.rows_affected()
+    );
+
     println!("✅ Database and lock files reset successfully!");
     Ok(())
 }
@@ -273,6 +572,23 @@ async fn handle_sync_command(db: &Database, sync_command: SyncCommands) -> Resul
 
             let sync_service = SyncService::new(&config, db_arc).await?;
             sync_service.start_with_range(from_block, to_block).await?;
+        }
+        SyncCommands::Test { shard, block } => {
+            println!(
+                "🧪 Testing single block synchronization for shard {} block {}...",
+                shard, block
+            );
+
+            let sync_service = SyncService::new(&config, db_arc).await?;
+            match sync_service.poll_once(shard, block).await {
+                Ok(()) => {
+                    println!("✅ Single block test completed successfully!");
+                }
+                Err(e) => {
+                    println!("❌ Single block test failed: {}", e);
+                    return Err(e);
+                }
+            }
         }
         SyncCommands::Realtime => {
             println!("⚡ Starting real-time synchronization...");
@@ -410,4 +726,266 @@ fn mask_database_url(url: &str) -> String {
     } else {
         "***invalid***".to_string()
     }
+}
+
+async fn handle_stats_command(db: &Database, detailed: bool, export: Option<String>) -> Result<()> {
+    println!("📊 SnapRAG Statistics");
+    println!("===================");
+
+    let stats_query = snaprag::models::StatisticsQuery {
+        start_date: None,
+        end_date: None,
+        group_by: None,
+    };
+
+    let stats = db.get_statistics(stats_query).await?;
+
+    println!();
+    println!("📈 Overview:");
+    println!("  Total FIDs: {}", stats.total_fids);
+    println!("  Total Profiles: {}", stats.total_profiles);
+
+    println!();
+    println!("👤 Profile Completeness:");
+    println!(
+        "  With Username: {} ({:.1}%)",
+        stats.profiles_with_username,
+        if stats.total_profiles > 0 {
+            (stats.profiles_with_username as f64 / stats.total_profiles as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
+    println!(
+        "  With Display Name: {} ({:.1}%)",
+        stats.profiles_with_display_name,
+        if stats.total_profiles > 0 {
+            (stats.profiles_with_display_name as f64 / stats.total_profiles as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
+    println!(
+        "  With Bio: {} ({:.1}%)",
+        stats.profiles_with_bio,
+        if stats.total_profiles > 0 {
+            (stats.profiles_with_bio as f64 / stats.total_profiles as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
+    println!(
+        "  With Profile Picture: {} ({:.1}%)",
+        stats.profiles_with_pfp,
+        if stats.total_profiles > 0 {
+            (stats.profiles_with_pfp as f64 / stats.total_profiles as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
+
+    if detailed {
+        println!();
+        println!("🔗 Social Links:");
+        println!(
+            "  With Website: {} ({:.1}%)",
+            stats.profiles_with_website,
+            if stats.total_profiles > 0 {
+                (stats.profiles_with_website as f64 / stats.total_profiles as f64) * 100.0
+            } else {
+                0.0
+            }
+        );
+        println!(
+            "  With Twitter: {} ({:.1}%)",
+            stats.profiles_with_twitter,
+            if stats.total_profiles > 0 {
+                (stats.profiles_with_twitter as f64 / stats.total_profiles as f64) * 100.0
+            } else {
+                0.0
+            }
+        );
+        println!(
+            "  With GitHub: {} ({:.1}%)",
+            stats.profiles_with_github,
+            if stats.total_profiles > 0 {
+                (stats.profiles_with_github as f64 / stats.total_profiles as f64) * 100.0
+            } else {
+                0.0
+            }
+        );
+        println!(
+            "  With Ethereum Address: {} ({:.1}%)",
+            stats.profiles_with_ethereum_address,
+            if stats.total_profiles > 0 {
+                (stats.profiles_with_ethereum_address as f64 / stats.total_profiles as f64) * 100.0
+            } else {
+                0.0
+            }
+        );
+        println!(
+            "  With Solana Address: {} ({:.1}%)",
+            stats.profiles_with_solana_address,
+            if stats.total_profiles > 0 {
+                (stats.profiles_with_solana_address as f64 / stats.total_profiles as f64) * 100.0
+            } else {
+                0.0
+            }
+        );
+
+        println!();
+        println!("🆕 Recent Registrations:");
+        for reg in &stats.recent_registrations {
+            println!(
+                "  - FID: {} | Username: {} | Display: {} | Created: {}",
+                reg.fid,
+                reg.username.as_deref().unwrap_or("N/A"),
+                reg.display_name.as_deref().unwrap_or("N/A"),
+                reg.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+            );
+        }
+    }
+
+    if let Some(export_path) = export {
+        let json = serde_json::to_string_pretty(&stats)?;
+        std::fs::write(&export_path, json)?;
+        println!();
+        println!("📁 Statistics exported to: {}", export_path);
+    }
+
+    Ok(())
+}
+
+async fn handle_search_command(
+    db: &Database,
+    query: String,
+    limit: u32,
+    fields: String,
+) -> Result<()> {
+    println!("🔍 Searching profiles for: \"{}\"", query);
+    println!("Fields: {}", fields);
+    println!();
+
+    // Build search query based on fields
+    let search_query = snaprag::models::UserProfileQuery {
+        fid: None,
+        username: if fields == "all" || fields == "username" {
+            Some(query.clone())
+        } else {
+            None
+        },
+        display_name: if fields == "all" || fields == "display_name" {
+            Some(query.clone())
+        } else {
+            None
+        },
+        bio: if fields == "all" || fields == "bio" {
+            Some(query.clone())
+        } else {
+            None
+        },
+        location: None,
+        twitter_username: None,
+        github_username: None,
+        limit: Some(limit as i64),
+        offset: None,
+        start_timestamp: None,
+        end_timestamp: None,
+        sort_by: Some(snaprag::models::ProfileSortBy::LastUpdated),
+        sort_order: Some(snaprag::models::SortOrder::Desc),
+        search_term: if fields == "all" { Some(query) } else { None },
+    };
+
+    let profiles = db.list_user_profiles(search_query).await?;
+    println!("Found {} profiles:", profiles.len());
+
+    for profile in profiles {
+        println!();
+        println!("  🆔 FID: {}", profile.fid);
+        if let Some(username) = &profile.username {
+            println!("  👤 Username: {}", username);
+        }
+        if let Some(display_name) = &profile.display_name {
+            println!("  📝 Display Name: {}", display_name);
+        }
+        if let Some(bio) = &profile.bio {
+            println!("  📄 Bio: {}", bio);
+        }
+        if let Some(location) = &profile.location {
+            println!("  📍 Location: {}", location);
+        }
+        if let Some(twitter) = &profile.twitter_username {
+            println!("  🐦 Twitter: @{}", twitter);
+        }
+        if let Some(github) = &profile.github_username {
+            println!("  🐙 GitHub: @{}", github);
+        }
+        println!(
+            "  🕒 Last Updated: {}",
+            profile.last_updated_at.format("%Y-%m-%d %H:%M:%S UTC")
+        );
+    }
+
+    Ok(())
+}
+
+async fn handle_dashboard_command(db: &Database) -> Result<()> {
+    println!("📊 SnapRAG Dashboard");
+    println!("===================");
+
+    let stats_query = snaprag::models::StatisticsQuery {
+        start_date: None,
+        end_date: None,
+        group_by: None,
+    };
+
+    let stats = db.get_statistics(stats_query).await?;
+
+    println!();
+    println!("🎯 Key Metrics:");
+    println!("  Total Users: {}", stats.total_fids);
+    println!(
+        "  Complete Profiles: {} ({:.1}%)",
+        stats.profiles_with_username,
+        if stats.total_profiles > 0 {
+            (stats.profiles_with_username as f64 / stats.total_profiles as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
+
+    println!();
+    println!("📈 Profile Health:");
+    println!("  ✅ With Username: {}", stats.profiles_with_username);
+    println!(
+        "  ✅ With Display Name: {}",
+        stats.profiles_with_display_name
+    );
+    println!("  ✅ With Bio: {}", stats.profiles_with_bio);
+    println!("  ✅ With Profile Picture: {}", stats.profiles_with_pfp);
+
+    println!();
+    println!("🔗 Social Presence:");
+    println!("  🌐 With Website: {}", stats.profiles_with_website);
+    println!("  🐦 With Twitter: {}", stats.profiles_with_twitter);
+    println!("  🐙 With GitHub: {}", stats.profiles_with_github);
+    println!(
+        "  💰 With Ethereum: {}",
+        stats.profiles_with_ethereum_address
+    );
+    println!("  💰 With Solana: {}", stats.profiles_with_solana_address);
+
+    println!();
+    println!("🆕 Recent Activity:");
+    for (i, reg) in stats.recent_registrations.iter().take(5).enumerate() {
+        println!(
+            "  {}. FID: {} | @{} | {}",
+            i + 1,
+            reg.fid,
+            reg.username.as_deref().unwrap_or("N/A"),
+            reg.display_name.as_deref().unwrap_or("N/A")
+        );
+    }
+
+    Ok(())
 }

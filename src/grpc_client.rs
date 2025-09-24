@@ -1,8 +1,10 @@
 //! gRPC client for connecting to snapchain HubService
 
-use crate::generated::grpc_client::hub_service_client::HubServiceClient as GeneratedHubServiceClient;
-use crate::generated::grpc_client::{ShardChunksRequest, ShardChunksResponse};
 use anyhow::Result;
+
+use crate::generated::grpc_client::hub_service_client::HubServiceClient as GeneratedHubServiceClient;
+use crate::generated::grpc_client::ShardChunksRequest;
+use crate::generated::grpc_client::ShardChunksResponse;
 
 /// Wrapper around the generated gRPC client for HubService
 pub struct HubServiceClient {

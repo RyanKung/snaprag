@@ -1,10 +1,16 @@
-use crate::Result;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::process;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tracing::{error, info, warn};
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
+
+use serde::Deserialize;
+use serde::Serialize;
+use tracing::error;
+use tracing::info;
+use tracing::warn;
+
+use crate::Result;
 
 /// Lock file structure for tracking sync process
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -223,8 +229,9 @@ impl Default for SyncLockManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
+    use super::*;
 
     #[test]
     fn test_lock_file_creation() {

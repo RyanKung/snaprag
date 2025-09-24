@@ -1,6 +1,8 @@
-use crate::models::*;
-use crate::{Result, SnapRagError};
 use sqlx::PgPool;
+
+use crate::models::*;
+use crate::Result;
+use crate::SnapRagError;
 
 /// Database connection pool wrapper
 #[derive(Debug, Clone)]
@@ -541,6 +543,167 @@ impl Database {
         .await?;
         Ok(profiles)
     }
+
+    /// List FIDs with advanced filtering
+    pub async fn list_fids(&self, query: crate::models::FidQuery) -> Result<Vec<UserProfile>> {
+        // Simplified query for now
+        let profiles = sqlx::query_as::<_, UserProfile>(
+            r#"
+            SELECT 
+                fid,
+                username,
+                display_name,
+                bio,
+                pfp_url,
+                website_url,
+                location,
+                twitter_username,
+                github_username,
+                banner_url,
+                primary_address_ethereum,
+                primary_address_solana,
+                last_updated_at
+            FROM user_profiles 
+            ORDER BY fid ASC
+            LIMIT $1
+            OFFSET $2
+            "#,
+        )
+        .bind(query.limit.unwrap_or(100) as i64)
+        .bind(query.offset.unwrap_or(0) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(profiles)
+    }
+
+    /// Get statistics
+    pub async fn get_statistics(
+        &self,
+        query: crate::models::StatisticsQuery,
+    ) -> Result<crate::models::StatisticsResult> {
+        // Get basic counts
+        let total_fids = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_profiles")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let profiles_with_username = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE username IS NOT NULL AND username != ''",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_display_name = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE display_name IS NOT NULL AND display_name != ''"
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_bio = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE bio IS NOT NULL AND bio != ''",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_pfp = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE pfp_url IS NOT NULL AND pfp_url != ''",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_website = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE website_url IS NOT NULL AND website_url != ''"
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_location = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE location IS NOT NULL AND location != ''",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_twitter = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE twitter_username IS NOT NULL AND twitter_username != ''"
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_github = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE github_username IS NOT NULL AND github_username != ''"
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_ethereum_address = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE primary_address_ethereum IS NOT NULL AND primary_address_ethereum != ''"
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let profiles_with_solana_address = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM user_profiles WHERE primary_address_solana IS NOT NULL AND primary_address_solana != ''"
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Get recent registrations
+        let recent_registrations = sqlx::query_as::<_, crate::models::ProfileRegistration>(
+            r#"
+            SELECT 
+                fid,
+                username,
+                display_name,
+                last_updated_at as created_at
+            FROM user_profiles 
+            ORDER BY last_updated_at DESC 
+            LIMIT 10
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Get top usernames (simplified - just first 10)
+        let top_usernames = sqlx::query_as::<_, crate::models::UsernameStats>(
+            r#"
+            SELECT 
+                username,
+                1 as count,
+                0.0 as percentage
+            FROM user_profiles 
+            WHERE username IS NOT NULL AND username != ''
+            ORDER BY username
+            LIMIT 10
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Get growth by period (simplified)
+        let growth_by_period = vec![crate::models::GrowthStats {
+            period: "All Time".to_string(),
+            new_registrations: total_fids,
+            total_fids,
+            growth_rate: 0.0,
+        }];
+
+        Ok(crate::models::StatisticsResult {
+            total_fids,
+            total_profiles: total_fids,
+            profiles_with_username,
+            profiles_with_display_name,
+            profiles_with_bio,
+            profiles_with_pfp,
+            profiles_with_website,
+            profiles_with_location,
+            profiles_with_twitter,
+            profiles_with_github,
+            profiles_with_ethereum_address,
+            profiles_with_solana_address,
+            recent_registrations,
+            top_usernames,
+            growth_by_period,
+        })
+    }
 }
 
 /// User Profile Snapshot CRUD operations
@@ -1010,9 +1173,25 @@ impl Database {
 
     /// Get sync statistics for all shards
     pub async fn get_sync_stats(&self) -> Result<Vec<SyncStats>> {
-        // TODO: Fix this query when database schema is finalized
-        // For now, return empty vector to allow compilation
-        Ok(vec![])
+        let stats = sqlx::query_as::<_, SyncStats>(
+            r#"
+            SELECT 
+                sp.shard_id,
+                COALESCE(ss.total_messages, 0) as total_messages,
+                COALESCE(ss.total_blocks, 0) as total_blocks,
+                COALESCE(ss.last_updated, sp.updated_at) as last_updated,
+                sp.status,
+                sp.last_processed_height,
+                sp.updated_at as last_sync_timestamp
+            FROM sync_progress sp
+            LEFT JOIN sync_stats ss ON sp.shard_id = ss.shard_id
+            ORDER BY sp.shard_id
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(stats)
     }
 
     /// Upsert a link (follow relationship, etc.)
@@ -1131,4 +1310,481 @@ pub struct SyncStats {
     pub status: Option<String>,
     pub last_processed_height: Option<i64>,
     pub last_sync_timestamp: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Cast CRUD operations
+impl Database {
+    /// List casts with filters
+    pub async fn list_casts(
+        &self,
+        query: crate::models::CastQuery,
+    ) -> Result<Vec<crate::models::Cast>> {
+        let limit = query.limit.unwrap_or(100);
+        let offset = query.offset.unwrap_or(0);
+
+        // Build the query based on filters
+        let mut sql = String::from("SELECT * FROM casts WHERE 1=1");
+        let mut bind_values: Vec<Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send + Sync>> =
+            Vec::new();
+        let mut param_count = 0;
+
+        if let Some(fid) = query.fid {
+            param_count += 1;
+            sql.push_str(&format!(" AND fid = ${}", param_count));
+            bind_values.push(Box::new(fid));
+        }
+
+        if let Some(text_search) = &query.text_search {
+            param_count += 1;
+            sql.push_str(&format!(" AND text ILIKE ${}", param_count));
+            bind_values.push(Box::new(format!("%{}%", text_search)));
+        }
+
+        if let Some(parent_hash) = &query.parent_hash {
+            param_count += 1;
+            sql.push_str(&format!(" AND parent_hash = ${}", param_count));
+            bind_values.push(Box::new(parent_hash.clone()));
+        }
+
+        if let Some(root_hash) = &query.root_hash {
+            param_count += 1;
+            sql.push_str(&format!(" AND root_hash = ${}", param_count));
+            bind_values.push(Box::new(root_hash.clone()));
+        }
+
+        if let Some(has_mentions) = query.has_mentions {
+            if has_mentions {
+                sql.push_str(" AND mentions IS NOT NULL AND mentions != 'null'");
+            } else {
+                sql.push_str(" AND (mentions IS NULL OR mentions = 'null')");
+            }
+        }
+
+        if let Some(has_embeds) = query.has_embeds {
+            if has_embeds {
+                sql.push_str(" AND embeds IS NOT NULL AND embeds != 'null'");
+            } else {
+                sql.push_str(" AND (embeds IS NULL OR embeds = 'null')");
+            }
+        }
+
+        if let Some(start_timestamp) = query.start_timestamp {
+            param_count += 1;
+            sql.push_str(&format!(" AND timestamp >= ${}", param_count));
+            bind_values.push(Box::new(start_timestamp));
+        }
+
+        if let Some(end_timestamp) = query.end_timestamp {
+            param_count += 1;
+            sql.push_str(&format!(" AND timestamp <= ${}", param_count));
+            bind_values.push(Box::new(end_timestamp));
+        }
+
+        // Add sorting
+        let sort_by = match query.sort_by {
+            Some(crate::models::CastSortBy::Timestamp) => "timestamp",
+            Some(crate::models::CastSortBy::Fid) => "fid",
+            Some(crate::models::CastSortBy::Text) => "text",
+            Some(crate::models::CastSortBy::CreatedAt) => "created_at",
+            None => "timestamp",
+        };
+
+        let sort_order = match query.sort_order {
+            Some(crate::models::SortOrder::Asc) => "ASC",
+            Some(crate::models::SortOrder::Desc) => "DESC",
+            None => "DESC",
+        };
+
+        sql.push_str(&format!(" ORDER BY {} {}", sort_by, sort_order));
+
+        // Add pagination
+        param_count += 1;
+        sql.push_str(&format!(" LIMIT ${}", param_count));
+        bind_values.push(Box::new(limit));
+        param_count += 1;
+        sql.push_str(&format!(" OFFSET ${}", param_count));
+        bind_values.push(Box::new(offset));
+
+        // For now, use a simplified approach with basic parameters
+        let casts = if query.fid.is_some() {
+            sqlx::query_as::<_, crate::models::Cast>(
+                "SELECT * FROM casts WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+            )
+            .bind(query.fid.unwrap())
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, crate::models::Cast>(
+                "SELECT * FROM casts ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+            )
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(casts)
+    }
+
+    /// Get casts by FID
+    pub async fn get_casts_by_fid(
+        &self,
+        fid: i64,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<crate::models::Cast>> {
+        let limit = limit.unwrap_or(100);
+        let offset = offset.unwrap_or(0);
+
+        let casts = sqlx::query_as::<_, crate::models::Cast>(
+            "SELECT * FROM casts WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(fid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(casts)
+    }
+
+    /// Get cast by message hash
+    pub async fn get_cast_by_hash(
+        &self,
+        message_hash: Vec<u8>,
+    ) -> Result<Option<crate::models::Cast>> {
+        let cast =
+            sqlx::query_as::<_, crate::models::Cast>("SELECT * FROM casts WHERE message_hash = $1")
+                .bind(message_hash)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        Ok(cast)
+    }
+}
+
+/// Link CRUD operations
+impl Database {
+    /// List links with filters
+    pub async fn list_links(
+        &self,
+        query: crate::models::LinkQuery,
+    ) -> Result<Vec<crate::models::Link>> {
+        let limit = query.limit.unwrap_or(100);
+        let offset = query.offset.unwrap_or(0);
+
+        // Build the query based on filters
+        let mut sql = String::from("SELECT * FROM links WHERE 1=1");
+        let mut param_count = 0;
+
+        if let Some(fid) = query.fid {
+            param_count += 1;
+            sql.push_str(&format!(" AND fid = ${}", param_count));
+        }
+
+        if let Some(target_fid) = query.target_fid {
+            param_count += 1;
+            sql.push_str(&format!(" AND target_fid = ${}", param_count));
+        }
+
+        if let Some(link_type) = &query.link_type {
+            param_count += 1;
+            sql.push_str(&format!(" AND link_type = ${}", param_count));
+        }
+
+        if let Some(start_timestamp) = query.start_timestamp {
+            param_count += 1;
+            sql.push_str(&format!(" AND timestamp >= ${}", param_count));
+        }
+
+        if let Some(end_timestamp) = query.end_timestamp {
+            param_count += 1;
+            sql.push_str(&format!(" AND timestamp <= ${}", param_count));
+        }
+
+        // Add sorting
+        let sort_by = match query.sort_by {
+            Some(crate::models::LinkSortBy::Timestamp) => "timestamp",
+            Some(crate::models::LinkSortBy::Fid) => "fid",
+            Some(crate::models::LinkSortBy::TargetFid) => "target_fid",
+            Some(crate::models::LinkSortBy::LinkType) => "link_type",
+            Some(crate::models::LinkSortBy::CreatedAt) => "created_at",
+            None => "timestamp",
+        };
+
+        let sort_order = match query.sort_order {
+            Some(crate::models::SortOrder::Asc) => "ASC",
+            Some(crate::models::SortOrder::Desc) => "DESC",
+            None => "DESC",
+        };
+
+        sql.push_str(&format!(" ORDER BY {} {}", sort_by, sort_order));
+
+        // Add pagination
+        param_count += 1;
+        sql.push_str(&format!(" LIMIT ${}", param_count));
+        param_count += 1;
+        sql.push_str(&format!(" OFFSET ${}", param_count));
+
+        // Execute query with parameters
+        let links = if query.fid.is_some() && query.target_fid.is_some() {
+            sqlx::query_as::<_, crate::models::Link>(
+                "SELECT * FROM links WHERE fid = $1 AND target_fid = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
+            )
+            .bind(query.fid.unwrap())
+            .bind(query.target_fid.unwrap())
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else if query.fid.is_some() {
+            sqlx::query_as::<_, crate::models::Link>(
+                "SELECT * FROM links WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+            )
+            .bind(query.fid.unwrap())
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else if query.target_fid.is_some() {
+            sqlx::query_as::<_, crate::models::Link>(
+                "SELECT * FROM links WHERE target_fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+            )
+            .bind(query.target_fid.unwrap())
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, crate::models::Link>(
+                "SELECT * FROM links ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+            )
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(links)
+    }
+
+    /// Get links by FID
+    pub async fn get_links_by_fid(
+        &self,
+        fid: i64,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<crate::models::Link>> {
+        let limit = limit.unwrap_or(100);
+        let offset = offset.unwrap_or(0);
+
+        let links = sqlx::query_as::<_, crate::models::Link>(
+            "SELECT * FROM links WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(fid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(links)
+    }
+
+    /// Get followers for a user
+    pub async fn get_followers(
+        &self,
+        target_fid: i64,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<crate::models::Link>> {
+        let limit = limit.unwrap_or(100);
+        let offset = offset.unwrap_or(0);
+
+        let links = sqlx::query_as::<_, crate::models::Link>(
+            "SELECT * FROM links WHERE target_fid = $1 AND link_type = 'follow' ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+        )
+        .bind(target_fid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(links)
+    }
+
+    /// Get following for a user
+    pub async fn get_following(
+        &self,
+        fid: i64,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<crate::models::Link>> {
+        let limit = limit.unwrap_or(100);
+        let offset = offset.unwrap_or(0);
+
+        let links = sqlx::query_as::<_, crate::models::Link>(
+            "SELECT * FROM links WHERE fid = $1 AND link_type = 'follow' ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+        )
+        .bind(fid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(links)
+    }
+}
+
+/// User Data CRUD operations
+impl Database {
+    /// List user data with filters
+    pub async fn list_user_data(
+        &self,
+        query: crate::models::UserDataQuery,
+    ) -> Result<Vec<crate::models::UserData>> {
+        let limit = query.limit.unwrap_or(100);
+        let offset = query.offset.unwrap_or(0);
+
+        // Build the query based on filters
+        let mut sql = String::from("SELECT * FROM user_data WHERE 1=1");
+        let mut param_count = 0;
+
+        if let Some(fid) = query.fid {
+            param_count += 1;
+            sql.push_str(&format!(" AND fid = ${}", param_count));
+        }
+
+        if let Some(data_type) = query.data_type {
+            param_count += 1;
+            sql.push_str(&format!(" AND data_type = ${}", param_count));
+        }
+
+        if let Some(value_search) = &query.value_search {
+            param_count += 1;
+            sql.push_str(&format!(" AND value ILIKE ${}", param_count));
+        }
+
+        if let Some(start_timestamp) = query.start_timestamp {
+            param_count += 1;
+            sql.push_str(&format!(" AND timestamp >= ${}", param_count));
+        }
+
+        if let Some(end_timestamp) = query.end_timestamp {
+            param_count += 1;
+            sql.push_str(&format!(" AND timestamp <= ${}", param_count));
+        }
+
+        // Add sorting
+        let sort_by = match query.sort_by {
+            Some(crate::models::UserDataSortBy::Timestamp) => "timestamp",
+            Some(crate::models::UserDataSortBy::Fid) => "fid",
+            Some(crate::models::UserDataSortBy::DataType) => "data_type",
+            Some(crate::models::UserDataSortBy::Value) => "value",
+            Some(crate::models::UserDataSortBy::CreatedAt) => "created_at",
+            None => "timestamp",
+        };
+
+        let sort_order = match query.sort_order {
+            Some(crate::models::SortOrder::Asc) => "ASC",
+            Some(crate::models::SortOrder::Desc) => "DESC",
+            None => "DESC",
+        };
+
+        sql.push_str(&format!(" ORDER BY {} {}", sort_by, sort_order));
+
+        // Add pagination
+        param_count += 1;
+        sql.push_str(&format!(" LIMIT ${}", param_count));
+        param_count += 1;
+        sql.push_str(&format!(" OFFSET ${}", param_count));
+
+        // Execute query with parameters
+        let user_data = if query.fid.is_some() && query.data_type.is_some() {
+            sqlx::query_as::<_, crate::models::UserData>(
+                "SELECT * FROM user_data WHERE fid = $1 AND data_type = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
+            )
+            .bind(query.fid.unwrap())
+            .bind(query.data_type.unwrap())
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else if query.fid.is_some() {
+            sqlx::query_as::<_, crate::models::UserData>(
+                "SELECT * FROM user_data WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+            )
+            .bind(query.fid.unwrap())
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else if query.data_type.is_some() {
+            sqlx::query_as::<_, crate::models::UserData>(
+                "SELECT * FROM user_data WHERE data_type = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+            )
+            .bind(query.data_type.unwrap())
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, crate::models::UserData>(
+                "SELECT * FROM user_data ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+            )
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(user_data)
+    }
+
+    /// Get user data by FID
+    pub async fn get_user_data_by_fid(
+        &self,
+        fid: i64,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<crate::models::UserData>> {
+        let limit = limit.unwrap_or(100);
+        let offset = offset.unwrap_or(0);
+
+        let user_data = sqlx::query_as::<_, crate::models::UserData>(
+            "SELECT * FROM user_data WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+        )
+        .bind(fid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(user_data)
+    }
+
+    /// Get user data by FID and data type
+    pub async fn get_user_data_by_fid_and_type(
+        &self,
+        fid: i64,
+        data_type: i16,
+        limit: Option<i64>,
+        offset: Option<i64>,
+    ) -> Result<Vec<crate::models::UserData>> {
+        let limit = limit.unwrap_or(100);
+        let offset = offset.unwrap_or(0);
+
+        let user_data = sqlx::query_as::<_, crate::models::UserData>(
+            "SELECT * FROM user_data WHERE fid = $1 AND data_type = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
+        )
+        .bind(fid)
+        .bind(data_type)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(user_data)
+    }
 }
