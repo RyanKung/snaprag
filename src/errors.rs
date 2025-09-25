@@ -36,4 +36,16 @@ pub enum SnapRagError {
     Custom(String),
 }
 
+impl From<&str> for SnapRagError {
+    fn from(msg: &str) -> Self {
+        SnapRagError::Custom(msg.to_string())
+    }
+}
+
+impl From<String> for SnapRagError {
+    fn from(msg: String) -> Self {
+        SnapRagError::Custom(msg)
+    }
+}
+
 pub type Result<T> = std::result::Result<T, SnapRagError>;
