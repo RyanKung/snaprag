@@ -190,6 +190,14 @@ impl SyncService {
 
     /// Start the sync service with a specific block range
     pub async fn start_with_range(&self, from_block: u64, to_block: u64) -> Result<()> {
+        // Validate range parameters
+        if from_block > to_block {
+            return Err(crate::SnapRagError::Custom(format!(
+                "Invalid range: from_block ({}) cannot be greater than to_block ({})",
+                from_block, to_block
+            )));
+        }
+
         info!(
             "Starting SnapRAG sync service with range {} to {}...",
             from_block, to_block

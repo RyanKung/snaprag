@@ -2,6 +2,7 @@
 //! These tests verify that our strict testing setup works correctly
 
 use crate::tests::strict_test_config;
+use crate::strict_test;
 
 #[cfg(test)]
 mod tests {
@@ -61,7 +62,7 @@ mod tests {
     #[test]
     fn test_strict_test_macro() {
         // Test that the strict test macro works
-        strict_test!(test_example, {
+        strict_test!(test_example, async {
             assert_eq!(2 + 2, 4);
         });
     }
