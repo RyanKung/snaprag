@@ -28,6 +28,77 @@ pub struct SyncService {
     lock_manager: SyncLockManager,
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct ChunkProcessStats {
+    blocks_processed: u64,
+    messages_processed: u64,
+    last_block_number: Option<u64>,
+}
+
+impl ChunkProcessStats {
+    pub fn blocks_processed(&self) -> u64 {
+        self.blocks_processed
+    }
+
+    pub fn messages_processed(&self) -> u64 {
+        self.messages_processed
+    }
+
+    pub fn last_block_number(&self) -> Option<u64> {
+        self.last_block_number
+    }
+
+    fn record_chunk(&mut self, block_number: Option<u64>, message_count: u64) {
+        self.blocks_processed += 1;
+        self.messages_processed += message_count;
+        if let Some(block_number) = block_number {
+            let updated = match self.last_block_number {
+                Some(current) => current.max(block_number),
+                None => block_number,
+            };
+            self.last_block_number = Some(updated);
+        }
+    }
+}
+
+fn extract_block_number(chunk: &proto::ShardChunk) -> Option<u64> {
+    chunk
+        .header
+        .as_ref()
+        .and_then(|header| header.height.as_ref())
+        .map(|height| height.block_number)
+}
+
+fn count_chunk_messages(chunk: &proto::ShardChunk) -> u64 {
+    chunk
+        .transactions
+        .iter()
+        .map(|tx| tx.user_messages.len() as u64)
+        .sum()
+}
+
+async fn process_shard_chunks(
+    database: &Arc<Database>,
+    shard_id: u32,
+    chunks: Vec<proto::ShardChunk>,
+) -> Result<ChunkProcessStats> {
+    if chunks.is_empty() {
+        return Ok(ChunkProcessStats::default());
+    }
+
+    let processor = ShardProcessor::new(database.as_ref().clone());
+    let mut stats = ChunkProcessStats::default();
+
+    for chunk in chunks {
+        let block_number = extract_block_number(&chunk);
+        let message_count = count_chunk_messages(&chunk);
+        processor.process_chunk(&chunk, shard_id).await?;
+        stats.record_chunk(block_number, message_count);
+    }
+
+    Ok(stats)
+}
+
 impl SyncService {
     /// Create a new sync service
     pub async fn new(app_config: &AppConfig, database: Arc<Database>) -> Result<Self> {
@@ -53,17 +124,15 @@ impl SyncService {
     }
 
     /// Poll once for a single block (for testing)
-    pub async fn poll_once(&self, shard_id: u32, block_number: u64) -> Result<()> {
+    pub async fn poll_once(&self, shard_id: u32, block_number: u64) -> Result<ChunkProcessStats> {
         info!("Polling once for shard {} block {}", shard_id, block_number);
 
-        // Create a single block request
         let request = proto::ShardChunksRequest {
             shard_id,
             start_block_number: block_number,
             stop_block_number: Some(block_number + 1),
         };
 
-        // Fetch the chunk
         match self.client.get_shard_chunks(request).await {
             Ok(response) => {
                 let chunk_count = response.shard_chunks.len();
@@ -72,31 +141,22 @@ impl SyncService {
                     chunk_count, shard_id, block_number
                 );
 
-                // Process each chunk
-                let processor = ShardProcessor::new(self.database.as_ref().clone());
-                for chunk in response.shard_chunks {
-                    match processor.process_chunk(&chunk, shard_id).await {
-                        Ok(()) => {
-                            info!(
-                                "Successfully processed shard {} chunk at block {}",
-                                shard_id, block_number
-                            );
-                        }
-                        Err(err) => {
-                            error!(
-                                "Failed processing shard {} chunk at block {}: {}",
-                                shard_id, block_number, err
-                            );
-                            return Err(err);
-                        }
-                    }
+                let mut stats =
+                    process_shard_chunks(&self.database, shard_id, response.shard_chunks).await?;
+
+                if stats.blocks_processed == 0 {
+                    stats.blocks_processed = 1;
+                    stats.last_block_number = Some(block_number);
                 }
 
+                let processed_block = stats.last_block_number.unwrap_or(block_number);
+
                 info!(
-                    "Poll once completed for shard {} block {}",
-                    shard_id, block_number
+                    "Poll once completed for shard {} block {} (messages: {})",
+                    shard_id, processed_block, stats.messages_processed
                 );
-                Ok(())
+
+                Ok(stats)
             }
             Err(err) => {
                 error!(
@@ -351,7 +411,7 @@ impl SyncService {
     async fn monitor_shard_realtime(
         shard_id: u32,
         client: SnapchainClient,
-        _database: Arc<Database>,
+        database: Arc<Database>,
         state_manager: Arc<RwLock<SyncStateManager>>,
         config: SyncConfig,
     ) -> Result<()> {
@@ -374,38 +434,43 @@ impl SyncService {
 
             match client.get_shard_chunks(request).await {
                 Ok(response) => {
-                    if !response.shard_chunks.is_empty() {
-                        let chunk_count = response.shard_chunks.len();
+                    let chunks = response.shard_chunks;
+                    if !chunks.is_empty() {
+                        let chunk_count = chunks.len();
                         info!(
                             "Shard {}: found {} new chunks at height {}",
                             shard_id, chunk_count, last_processed_height
                         );
 
-                        for _chunk in response.shard_chunks {
-                            // Shard chunk processing removed - simplified sync service
-                            match Ok::<(), crate::SnapRagError>(()) {
-                                Ok(()) => {
-                                    info!("Shard {}: processed chunk successfully", shard_id);
-                                }
-                                Err(err) => {
-                                    error!(
-                                        "Failed to process chunk in shard {}: {}",
-                                        shard_id, err
-                                    );
-                                    let mut sm = state_manager.write().await;
-                                    sm.add_error(format!(
-                                        "Shard {} chunk processing error: {}",
-                                        shard_id, err
-                                    ))?;
-                                }
-                            }
-                        }
+                        let stats = process_shard_chunks(&database, shard_id, chunks).await?;
 
-                        // Update last processed height
-                        last_processed_height += chunk_count as u64;
-                        {
-                            let mut sm = state_manager.write().await;
-                            sm.update_last_processed_height(shard_id, last_processed_height)?;
+                        if stats.blocks_processed > 0 {
+                            let next_height = stats
+                                .last_block_number
+                                .map(|block| block.saturating_add(1))
+                                .unwrap_or_else(|| {
+                                    last_processed_height.saturating_add(stats.blocks_processed)
+                                });
+
+                            {
+                                let mut sm = state_manager.write().await;
+                                sm.increment_blocks_processed(shard_id, stats.blocks_processed)?;
+                                sm.increment_messages_processed(
+                                    shard_id,
+                                    stats.messages_processed,
+                                )?;
+                                sm.update_last_processed_height(shard_id, next_height)?;
+                            }
+
+                            info!(
+                                "Shard {}: processed {} blocks ({} messages), next height: {}",
+                                shard_id,
+                                stats.blocks_processed,
+                                stats.messages_processed,
+                                next_height
+                            );
+
+                            last_processed_height = next_height;
                         }
                     }
                 }
@@ -435,33 +500,47 @@ impl SyncService {
 
         info!("Shard {}: starting from height {}", shard_id, last_height);
 
-        let total_messages = 0u64;
+        let mut total_messages = 0u64;
         let mut total_blocks = 0u64;
 
         loop {
             // Use poll_once for each block
             match self.poll_once(shard_id, last_height).await {
-                Ok(()) => {
-                    total_blocks += 1;
-                    last_height += 1;
+                Ok(stats) => {
+                    let blocks_delta = stats.blocks_processed;
+                    let messages_delta = stats.messages_processed;
+                    let processed_block = stats.last_block_number.unwrap_or(last_height);
+                    if processed_block == u64::MAX {
+                        warn!(
+                            "Shard {}: reached maximum block number {}, stopping historical sync",
+                            shard_id, processed_block
+                        );
+                        break;
+                    }
+                    let next_height = processed_block.saturating_add(1);
 
-                    // Update progress
+                    total_blocks += blocks_delta;
+                    total_messages += messages_delta;
+
                     {
                         let mut state_manager = self.state_manager.write().await;
-                        state_manager.update_last_processed_height(shard_id, last_height)?;
-                        state_manager.increment_messages_processed(shard_id, total_messages)?;
-                        state_manager.increment_blocks_processed(shard_id, total_blocks)?;
+                        state_manager.update_last_processed_height(shard_id, next_height)?;
+                        state_manager.increment_messages_processed(shard_id, messages_delta)?;
+                        state_manager.increment_blocks_processed(shard_id, blocks_delta)?;
                     }
 
+                    last_height = next_height;
+
                     info!(
-                        "Shard {}: processed block {}, total messages: {}, height: {}",
+                        "Shard {}: processed {} blocks ({} messages), totals -> blocks: {}, messages: {}, next height: {}",
                         shard_id,
-                        last_height - 1,
+                        blocks_delta,
+                        messages_delta,
+                        total_blocks,
                         total_messages,
-                        last_height
+                        next_height
                     );
 
-                    // Small delay to prevent overwhelming the node
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                 }
                 Err(err) => {
@@ -514,36 +593,52 @@ impl SyncService {
         );
 
         let mut current_block = from_block;
-        let total_messages = 0u64;
+        let mut total_messages = 0u64;
         let mut total_blocks = 0u64;
 
         while current_block <= to_block {
             // Use poll_once for each block
             match self.poll_once(shard_id, current_block).await {
-                Ok(()) => {
-                    total_blocks += 1;
-                    current_block += 1;
+                Ok(stats) => {
+                    let blocks_delta = stats.blocks_processed;
+                    let messages_delta = stats.messages_processed;
+                    let processed_block = stats.last_block_number.unwrap_or(current_block);
 
-                    // Update progress
-                    {
-                        let mut state_manager = self.state_manager.write().await;
-                        state_manager.update_last_processed_height(shard_id, current_block)?;
-                        state_manager.increment_messages_processed(shard_id, total_messages)?;
-                        state_manager.increment_blocks_processed(shard_id, total_blocks)?;
+                    if processed_block == u64::MAX {
+                        warn!(
+                            "Shard {}: reached maximum block number {}, stopping range sync",
+                            shard_id, processed_block
+                        );
+                        break;
                     }
 
-                    // Update lock file with progress
-                    lock.update_progress(Some(shard_id), Some(current_block));
-                    lock.increment_processed(1, total_messages);
+                    let next_block = processed_block.saturating_add(1);
+
+                    total_blocks += blocks_delta;
+                    total_messages += messages_delta;
+
+                    {
+                        let mut state_manager = self.state_manager.write().await;
+                        state_manager.update_last_processed_height(shard_id, next_block)?;
+                        state_manager.increment_messages_processed(shard_id, messages_delta)?;
+                        state_manager.increment_blocks_processed(shard_id, blocks_delta)?;
+                    }
+
+                    lock.update_progress(Some(shard_id), Some(next_block));
+                    lock.increment_processed(blocks_delta, messages_delta);
                     self.lock_manager.update_lock(lock.clone())?;
 
                     info!(
-                        "Shard {}: processed block {}, total messages: {}, current block: {}",
+                        "Shard {}: processed {} blocks ({} messages), totals -> blocks: {}, messages: {}, next block: {}",
                         shard_id,
-                        current_block - 1,
+                        blocks_delta,
+                        messages_delta,
+                        total_blocks,
                         total_messages,
-                        current_block
+                        next_block
                     );
+
+                    current_block = next_block;
 
                     // Small delay to prevent overwhelming the node
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;

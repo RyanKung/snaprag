@@ -581,8 +581,12 @@ async fn handle_sync_command(db: &Database, sync_command: SyncCommands) -> Resul
 
             let sync_service = SyncService::new(&config, db_arc).await?;
             match sync_service.poll_once(shard, block).await {
-                Ok(()) => {
-                    println!("✅ Single block test completed successfully!");
+                Ok(stats) => {
+                    println!(
+                        "✅ Single block test completed successfully! Blocks processed: {}, messages: {}",
+                        stats.blocks_processed(),
+                        stats.messages_processed()
+                    );
                 }
                 Err(e) => {
                     println!("❌ Single block test failed: {}", e);
