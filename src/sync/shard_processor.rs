@@ -227,7 +227,7 @@ impl ShardProcessor {
         // Parse cast data from the body
         let mut text = None;
         let mut parent_hash = None;
-        let mut root_hash = None;
+        let root_hash = None;
         let mut embeds = None;
         let mut mentions = None;
 

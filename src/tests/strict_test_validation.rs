@@ -27,10 +27,10 @@ mod tests {
 
         for warning in generated_warnings {
             assert!(
-                warning.contains("generated/") || 
-                warning.contains("protobuf") ||
-                warning.contains("prost") ||
-                warning.contains("tonic"),
+                warning.contains("generated/")
+                    || warning.contains("protobuf")
+                    || warning.contains("prost")
+                    || warning.contains("tonic"),
                 "Should detect generated code warning: {}",
                 warning
             );
@@ -48,10 +48,10 @@ mod tests {
 
         for warning in non_generated_warnings {
             assert!(
-                !warning.contains("generated/") && 
-                !warning.contains("protobuf") &&
-                !warning.contains("prost") &&
-                !warning.contains("tonic"),
+                !warning.contains("generated/")
+                    && !warning.contains("protobuf")
+                    && !warning.contains("prost")
+                    && !warning.contains("tonic"),
                 "Should NOT detect as generated code warning: {}",
                 warning
             );

@@ -90,8 +90,14 @@ fn verify_chunk_basic_structure(chunk: &ShardChunk) {
         .expect("Header height should not be None");
     // Note: shard_index and block_number are u32, so >= 0 is always true
     // We'll check for reasonable ranges instead
-    assert!(height.shard_index < 1000, "Shard index should be reasonable");
-    assert!(height.block_number < 1_000_000_000, "Block number should be reasonable");
+    assert!(
+        height.shard_index < 1000,
+        "Shard index should be reasonable"
+    );
+    assert!(
+        height.block_number < 1_000_000_000,
+        "Block number should be reasonable"
+    );
     assert!(header.timestamp > 0, "Timestamp should be > 0");
 
     // Verify hash
@@ -128,7 +134,10 @@ fn verify_transactions(chunk: &ShardChunk, allow_fid_zero: bool) {
         if allow_fid_zero {
             // Note: fid is u64, so >= 0 is always true
             // We'll check for reasonable range instead
-            assert!(transaction.fid < 1_000_000_000, "Transaction FID should be reasonable");
+            assert!(
+                transaction.fid < 1_000_000_000,
+                "Transaction FID should be reasonable"
+            );
         } else {
             assert!(
                 transaction.fid > 0,

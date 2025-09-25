@@ -188,7 +188,7 @@ impl SyncLockManager {
     }
 
     /// Update lock file
-    pub fn update_lock(&self, mut lock: SyncLockFile) -> Result<SyncLockFile> {
+    pub fn update_lock(&self, lock: SyncLockFile) -> Result<SyncLockFile> {
         self.write_lock(&lock)?;
         Ok(lock)
     }

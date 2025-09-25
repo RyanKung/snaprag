@@ -4,6 +4,7 @@ pub mod integration_sync_test;
 pub mod strict_test_config;
 pub mod strict_test_runner;
 pub mod strict_test_validation;
+pub mod strict_validation_tests;
 
 use crate::config::AppConfig;
 use crate::database::Database;
