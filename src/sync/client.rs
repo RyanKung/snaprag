@@ -5,9 +5,16 @@ use std::collections::HashMap;
 use reqwest::Client;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::json;
+use serde_json::Map;
+use serde_json::Value;
 use tonic::transport::Channel;
 
 use crate::generated::blocks::ShardChunk;
+use crate::generated::grpc_client::message_data;
+use crate::generated::grpc_client::{
+    self as grpc_proto,
+};
 use crate::generated::hub_event::HubEvent;
 use crate::generated::hub_service_client::HubServiceClient;
 use crate::generated::request_response::FidsRequest;
@@ -338,7 +345,7 @@ impl SnapchainClient {
         let mut grpc_request = crate::generated::grpc_client::ShardChunksRequest::default();
         grpc_request.shard_id = request.shard_id;
         grpc_request.start_block_number = request.start_block_number;
-        grpc_request.stop_block_number = Some(request.stop_block_number.unwrap_or(u64::MAX));
+        grpc_request.stop_block_number = request.stop_block_number;
 
         // Make the gRPC call using tonic::Request wrapper
         let mut grpc_client = self.grpc_client.clone();
@@ -402,21 +409,13 @@ impl SnapchainClient {
 
                     // Convert message data if present
                     if let Some(grpc_data) = grpc_msg.data {
-                        // Convert body from protobuf enum to JSON value
-                        let body_json = match grpc_data.body {
-                            Some(body) => {
-                                // For now, serialize the body as JSON string
-                                // This is a simplified approach - in production you'd want proper conversion
-                                Some(serde_json::Value::String("converted_body".to_string()))
-                            }
-                            None => None,
-                        };
+                        let body_json = grpc_data.body.as_ref().map(convert_grpc_message_body);
 
                         proto_msg.data = Some(proto::MessageData {
-                            r#type: grpc_data.r#type as i32,
+                            r#type: grpc_data.r#type,
                             fid: grpc_data.fid,
                             timestamp: grpc_data.timestamp,
-                            network: grpc_data.network as i32,
+                            network: grpc_data.network,
                             body: body_json,
                         });
                     }
@@ -631,6 +630,148 @@ impl SnapchainClient {
         );
         Ok(fids_vec)
     }
+}
+
+fn convert_grpc_message_body(body: &message_data::Body) -> Value {
+    match body {
+        message_data::Body::CastAddBody(cast_add) => {
+            let mut root = Map::new();
+            root.insert("cast_add_body".to_string(), cast_add_body_to_json(cast_add));
+            Value::Object(root)
+        }
+        message_data::Body::CastRemoveBody(cast_remove) => {
+            let mut root = Map::new();
+            root.insert(
+                "cast_remove_body".to_string(),
+                cast_remove_body_to_json(cast_remove),
+            );
+            Value::Object(root)
+        }
+        message_data::Body::ReactionBody(reaction) => {
+            let mut root = Map::new();
+            root.insert("reaction_body".to_string(), reaction_body_to_json(reaction));
+            Value::Object(root)
+        }
+        message_data::Body::UserDataBody(user_data) => {
+            let mut root = Map::new();
+            root.insert(
+                "user_data_body".to_string(),
+                user_data_body_to_json(user_data),
+            );
+            Value::Object(root)
+        }
+        _ => Value::Null,
+    }
+}
+
+fn cast_add_body_to_json(cast_add: &grpc_proto::CastAddBody) -> Value {
+    let mut obj = Map::new();
+    obj.insert("text".to_string(), json!(cast_add.text));
+
+    if !cast_add.mentions.is_empty() {
+        obj.insert("mentions".to_string(), json!(cast_add.mentions));
+    }
+
+    if !cast_add.mentions_positions.is_empty() {
+        obj.insert(
+            "mentions_positions".to_string(),
+            json!(cast_add.mentions_positions),
+        );
+    }
+
+    if !cast_add.embeds_deprecated.is_empty() {
+        obj.insert(
+            "embeds_deprecated".to_string(),
+            json!(cast_add.embeds_deprecated.clone()),
+        );
+    }
+
+    if !cast_add.embeds.is_empty() {
+        let embeds: Vec<Value> = cast_add.embeds.iter().map(embed_to_json).collect();
+        obj.insert("embeds".to_string(), Value::Array(embeds));
+    }
+
+    obj.insert("type".to_string(), json!(cast_add.r#type));
+
+    if let Some(parent) = cast_add.parent.as_ref() {
+        let parent_value = match parent {
+            grpc_proto::cast_add_body::Parent::ParentCastId(cast_id) => {
+                let mut parent_map = Map::new();
+                parent_map.insert("parent_cast_id".to_string(), cast_id_to_json(cast_id));
+                Value::Object(parent_map)
+            }
+            grpc_proto::cast_add_body::Parent::ParentUrl(url) => {
+                let mut parent_map = Map::new();
+                parent_map.insert("parent_url".to_string(), json!(url));
+                Value::Object(parent_map)
+            }
+        };
+        obj.insert("parent".to_string(), parent_value);
+    }
+
+    Value::Object(obj)
+}
+
+fn cast_remove_body_to_json(cast_remove: &grpc_proto::CastRemoveBody) -> Value {
+    let mut obj = Map::new();
+    obj.insert(
+        "target_hash".to_string(),
+        json!(hex::encode(&cast_remove.target_hash)),
+    );
+    Value::Object(obj)
+}
+
+fn reaction_body_to_json(reaction: &grpc_proto::ReactionBody) -> Value {
+    let mut obj = Map::new();
+    obj.insert("type".to_string(), json!(reaction.r#type));
+
+    if let Some(target) = reaction.target.as_ref() {
+        let target_value = match target {
+            grpc_proto::reaction_body::Target::TargetCastId(cast_id) => {
+                let mut target_map = Map::new();
+                target_map.insert("cast_id".to_string(), cast_id_to_json(cast_id));
+                Value::Object(target_map)
+            }
+            grpc_proto::reaction_body::Target::TargetUrl(url) => {
+                let mut target_map = Map::new();
+                target_map.insert("url".to_string(), json!(url));
+                Value::Object(target_map)
+            }
+        };
+        obj.insert("target".to_string(), target_value);
+    }
+
+    Value::Object(obj)
+}
+
+fn user_data_body_to_json(user_data: &grpc_proto::UserDataBody) -> Value {
+    let mut obj = Map::new();
+    obj.insert("type".to_string(), json!(user_data.r#type));
+    obj.insert("value".to_string(), json!(user_data.value.clone()));
+    Value::Object(obj)
+}
+
+fn embed_to_json(embed: &grpc_proto::Embed) -> Value {
+    match embed.embed.as_ref() {
+        Some(grpc_proto::embed::Embed::Url(url)) => {
+            let mut obj = Map::new();
+            obj.insert("url".to_string(), json!(url));
+            Value::Object(obj)
+        }
+        Some(grpc_proto::embed::Embed::CastId(cast_id)) => {
+            let mut obj = Map::new();
+            obj.insert("cast_id".to_string(), cast_id_to_json(cast_id));
+            Value::Object(obj)
+        }
+        None => Value::Null,
+    }
+}
+
+fn cast_id_to_json(cast_id: &grpc_proto::CastId) -> Value {
+    json!({
+        "fid": cast_id.fid,
+        "hash": hex::encode(&cast_id.hash),
+    })
 }
 
 // Response types for the HTTP API
