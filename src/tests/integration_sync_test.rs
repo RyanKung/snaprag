@@ -2,8 +2,10 @@ use std::process::Command;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use tracing::info;
+use tokio::time::{timeout, Duration as TokioDuration};
 
 use crate::config::AppConfig;
 use crate::database::Database;
@@ -13,6 +15,45 @@ use crate::Result;
 
 // Global test lock to ensure tests run serially
 static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+/// Check if external services are available for integration testing
+fn is_external_service_available() -> bool {
+    // Always return true - integration tests must run with real services
+    // If services are not available, tests should fail with clear error messages
+    true
+}
+
+/// Check if a service endpoint is reachable
+fn check_service_connectivity(endpoint: &str) -> bool {
+    // Integration tests must use real services
+    // This function is kept for future connectivity checks if needed
+    !endpoint.is_empty()
+}
+
+/// Integration tests must run with real services - no skipping allowed
+
+/// Run an integration test with timeout to prevent hanging
+async fn run_integration_test_with_timeout<F, Fut>(test_name: &str, test_fn: F) -> Result<()>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<()>>,
+{
+    let timeout_duration = TokioDuration::from_secs(30); // 30 second timeout
+    
+    match timeout(timeout_duration, test_fn()).await {
+        Ok(result) => {
+            match result {
+                Ok(()) => Ok(()), // Success - no output needed
+                Err(e) => {
+                    panic!("Integration test '{}' failed: {:?}", test_name, e);
+                }
+            }
+        }
+        Err(_) => {
+            panic!("Integration test '{}' timed out after {} seconds", test_name, timeout_duration.as_secs());
+        }
+    }
+}
 
 /// Helper function to run snaprag CLI commands
 fn run_snaprag_command(args: &[&str]) -> Result<String> {
@@ -52,25 +93,24 @@ fn cleanup_before_test() -> Result<()> {
 /// Tests the complete sync pipeline from gRPC to database
 #[tokio::test]
 async fn test_sync_user_message_blocks() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_sync_user_message_blocks", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
-    // Initialize logging for test
-    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
+        // Initialize logging for test
+        let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
-    // Clean up before test
-    cleanup_before_test()?;
+        // Clean up before test
+        cleanup_before_test()?;
 
-    info!("🧪 Starting integration test for user message blocks");
+        info!("🧪 Starting integration test for user message blocks");
 
-    // Load configuration
-    let config = AppConfig::load()?;
-    info!("✅ Configuration loaded successfully");
+        // Load configuration
+        let config = AppConfig::load()?;
 
-    // Initialize database
-    let database = Database::from_config(&config).await?;
+        // Initialize database
+        let database = Database::from_config(&config).await?;
     let db_arc = Arc::new(database);
-    info!("✅ Database initialized successfully");
 
     // Clean up any existing lock files
     let lock_manager = SyncLockManager::new();
@@ -91,7 +131,6 @@ async fn test_sync_user_message_blocks() -> Result<()> {
 
     // Create sync service
     let sync_service = SyncService::new(&config, db_arc.clone()).await?;
-    info!("✅ Sync service created successfully");
 
     // Run sync with range
     let sync_result = sync_service
@@ -100,7 +139,6 @@ async fn test_sync_user_message_blocks() -> Result<()> {
 
     match sync_result {
         Ok(()) => {
-            info!("✅ Sync completed successfully");
         }
         Err(e) => {
             panic!("❌ Sync failed with error: {}", e);
@@ -146,23 +184,24 @@ async fn test_sync_user_message_blocks() -> Result<()> {
     info!("  - User activities: {}", activity_count);
     info!("  - User data changes: {}", changes_count);
 
-    // Test passed if we got this far without panicking
-    info!("🎉 Integration test completed successfully");
-    Ok(())
+        // Test passed if we got this far without panicking
+        Ok(())
+    }).await
 }
 
 /// Test sync with high activity blocks (5000000+)
 #[tokio::test]
 async fn test_sync_high_activity_blocks() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_sync_high_activity_blocks", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
-    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
+        let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
-    // Clean up before test
-    cleanup_before_test()?;
+        // Clean up before test
+        cleanup_before_test()?;
 
-    info!("🧪 Starting integration test for high activity blocks");
+        info!("🧪 Starting integration test for high activity blocks");
 
     let config = AppConfig::load()?;
     let database = Database::from_config(&config).await?;
@@ -189,7 +228,7 @@ async fn test_sync_high_activity_blocks() -> Result<()> {
         .await;
 
     match sync_result {
-        Ok(()) => info!("✅ High activity sync completed successfully"),
+        Ok(()) => {},
         Err(e) => panic!("❌ High activity sync failed with error: {}", e),
     }
 
@@ -206,15 +245,16 @@ async fn test_sync_high_activity_blocks() -> Result<()> {
         lock_manager.remove_lock()?;
     }
 
-    info!("🎉 High activity integration test completed");
-    Ok(())
+        Ok(())
+    }).await
 }
 
 /// Test sync with early blocks (no user messages)
 #[tokio::test]
 async fn test_sync_early_blocks() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_sync_early_blocks", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -248,7 +288,7 @@ async fn test_sync_early_blocks() -> Result<()> {
         .await;
 
     match sync_result {
-        Ok(()) => info!("✅ Early blocks sync completed successfully"),
+        Ok(()) => {},
         Err(e) => panic!("❌ Early blocks sync failed with error: {}", e),
     }
 
@@ -271,15 +311,16 @@ async fn test_sync_early_blocks() -> Result<()> {
         lock_manager.remove_lock()?;
     }
 
-    info!("🎉 Early blocks integration test completed");
-    Ok(())
+        Ok(())
+    }).await
 }
 
 /// Test sync service error handling
 #[tokio::test]
 async fn test_sync_error_handling() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_sync_error_handling", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -308,22 +349,22 @@ async fn test_sync_error_handling() -> Result<()> {
 
     match sync_result {
         Ok(()) => {
-            info!("✅ Sync with invalid range completed (this might be expected behavior)");
         }
         Err(e) => {
             info!("✅ Sync correctly handled invalid range with error: {}", e);
         }
     }
 
-    info!("🎉 Error handling integration test completed");
-    Ok(())
+        Ok(())
+    }).await
 }
 
 /// Test lock file management during sync
 #[tokio::test]
 async fn test_lock_file_management() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_lock_file_management", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -359,7 +400,6 @@ async fn test_lock_file_management() -> Result<()> {
     // Check lock file was created
     if lock_manager.lock_exists() {
         let lock = lock_manager.read_lock()?;
-        info!("✅ Lock file created successfully");
         info!("  - PID: {}", lock.pid);
         info!("  - Status: {}", lock.status);
         info!(
@@ -379,25 +419,25 @@ async fn test_lock_file_management() -> Result<()> {
 
         // Clean up
         lock_manager.remove_lock()?;
-        info!("✅ Lock file cleaned up successfully");
     } else {
         panic!("❌ Lock file was not created during sync - this should not happen!");
     }
 
     match sync_result {
-        Ok(()) => info!("✅ Sync completed successfully"),
+        Ok(()) => {},
         Err(e) => panic!("❌ Sync failed with error: {}", e),
     }
 
-    info!("🎉 Lock file management integration test completed");
-    Ok(())
+        Ok(())
+    }).await
 }
 
 /// Test CLI commands functionality
 #[tokio::test]
 async fn test_cli_functionality() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_cli_functionality", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -453,15 +493,16 @@ async fn test_cli_functionality() -> Result<()> {
             || reset_output.contains("Clearing all synchronized data")
     );
 
-    info!("🎉 CLI functionality test completed successfully");
-    Ok(())
+        Ok(())
+    }).await
 }
 
 /// Test CLI commands with different block ranges
 #[tokio::test]
 async fn test_cli_sync_ranges() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_cli_sync_ranges", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -496,15 +537,16 @@ async fn test_cli_sync_ranges() -> Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     }
 
-    info!("🎉 CLI sync ranges test completed successfully");
-    Ok(())
+        Ok(())
+    }).await
 }
 
 /// Test CLI error handling
 #[tokio::test]
 async fn test_cli_error_handling() -> Result<()> {
-    // Acquire global test lock to ensure serial execution
-    let _lock = TEST_LOCK.lock().unwrap();
+    run_integration_test_with_timeout("test_cli_error_handling", || async {
+        // Acquire global test lock to ensure serial execution
+        let _lock = TEST_LOCK.lock().unwrap();
 
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -535,6 +577,6 @@ async fn test_cli_error_handling() -> Result<()> {
         info!("Missing args output: {}", output);
     }
 
-    info!("🎉 CLI error handling test completed successfully");
-    Ok(())
+        Ok(())
+    }).await
 }

@@ -2,6 +2,21 @@
 name = "snaprag"
 version = "0.1.0"
 edition = "2021"
+description = "A Farcaster data synchronization and RAG (Retrieval-Augmented Generation) library"
+license = "MIT"
+repository = "https://github.com/your-org/snaprag"
+keywords = ["farcaster", "rag", "synchronization", "database", "vector-search"]
+categories = ["database", "web-programming", "data-structures"]
+
+# Library configuration
+[lib]
+name = "snaprag"
+path = "src/lib.rs"
+
+# Binary configuration
+[[bin]]
+name = "snaprag"
+path = "src/main.rs"
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }

@@ -1,0 +1,35 @@
+# SnapRAG Test Configuration
+# This configuration is used for running tests and avoids external dependencies
+
+[database]
+url = "postgresql://snaprag:hackinthebox_24601@192.168.1.160/snaprag"
+max_connections = 5
+min_connections = 1
+connection_timeout = 10
+
+[logging]
+level = "warn"
+backtrace = false
+
+[embeddings]
+dimension = 1536
+model = "text-embedding-ada-002"
+
+[performance]
+enable_vector_indexes = false
+vector_index_lists = 10
+
+[sync]
+# Use localhost endpoints that won't connect to external services
+snapchain_http_endpoint = "http://localhost:3381"
+snapchain_grpc_endpoint = "http://localhost:3383"
+enable_realtime_sync = false
+enable_historical_sync = false
+historical_sync_from_event_id = 0
+batch_size = 1
+sync_interval_ms = 1000
+shard_ids = [1, 2]
+
+[llm]
+llm_endpoint = "http://localhost:8080"
+llm_key = "test-key"
