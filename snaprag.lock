@@ -2,11 +2,11 @@
   "pid": 33036,
   "status": "running",
   "start_time": 1760104209,
-  "last_update": 1760112170,
+  "last_update": 1760112456,
   "progress": {
     "current_shard": 1,
-    "current_block": 52291,
-    "total_blocks_processed": 52291,
+    "current_block": 54272,
+    "total_blocks_processed": 54272,
     "total_messages_processed": 0,
     "sync_range": {
       "from_block": 0,
