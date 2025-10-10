@@ -100,6 +100,12 @@ pub enum Commands {
     Dashboard,
     /// Show current configuration
     Config,
+    /// RAG (Retrieval-Augmented Generation) commands
+    #[command(subcommand)]
+    Rag(RagCommands),
+    /// Embeddings generation commands
+    #[command(subcommand)]
+    Embeddings(EmbeddingsCommands),
 }
 
 #[derive(Subcommand)]
@@ -134,6 +140,70 @@ pub enum SyncCommands {
         #[arg(short, long)]
         force: bool,
     },
+}
+
+#[derive(Subcommand)]
+pub enum RagCommands {
+    /// Execute a RAG query
+    Query {
+        /// The question to ask
+        query: String,
+        /// Maximum number of profiles to retrieve
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+        /// Retrieval method (semantic, keyword, hybrid, auto)
+        #[arg(short, long, default_value = "auto")]
+        method: String,
+        /// LLM temperature (0.0 - 1.0)
+        #[arg(long, default_value = "0.7")]
+        temperature: f32,
+        /// Maximum tokens for response
+        #[arg(long, default_value = "2000")]
+        max_tokens: usize,
+        /// Show detailed sources
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// Search profiles without LLM generation
+    Search {
+        /// Search query
+        query: String,
+        /// Maximum number of results
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+        /// Search method (semantic, keyword, hybrid, auto)
+        #[arg(short, long, default_value = "auto")]
+        method: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum EmbeddingsCommands {
+    /// Backfill embeddings for all profiles
+    Backfill {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        /// Process in batches of N profiles
+        #[arg(short, long, default_value = "50")]
+        batch_size: usize,
+    },
+    /// Generate embeddings for a specific profile
+    Generate {
+        /// FID of the profile
+        #[arg(long)]
+        fid: i64,
+        /// Show generated embedding details
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// Test embedding generation
+    Test {
+        /// Text to generate embedding for
+        text: String,
+    },
+    /// Show embedding statistics
+    Stats,
 }
 
 #[derive(ValueEnum, Clone)]

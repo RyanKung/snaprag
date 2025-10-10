@@ -1,12 +1,15 @@
 //! Retrieval module for semantic and hybrid search
 
+use std::sync::Arc;
+
+use tracing::debug;
+
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::errors::Result;
 use crate::models::UserProfile;
-use crate::rag::{MatchType, SearchResult};
-use std::sync::Arc;
-use tracing::debug;
+use crate::rag::MatchType;
+use crate::rag::SearchResult;
 
 /// Retriever for semantic and hybrid search
 pub struct Retriever {
@@ -56,11 +59,7 @@ impl Retriever {
     }
 
     /// Keyword search using text matching
-    pub async fn keyword_search(
-        &self,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<SearchResult>> {
+    pub async fn keyword_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
         debug!("Performing keyword search: {}", query);
 
         let profiles = self
@@ -97,11 +96,7 @@ impl Retriever {
     }
 
     /// Hybrid search combining semantic and keyword matching
-    pub async fn hybrid_search(
-        &self,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<SearchResult>> {
+    pub async fn hybrid_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
         debug!("Performing hybrid search: {}", query);
 
         // Generate query embedding
@@ -150,9 +145,11 @@ impl Reranker {
         for results in results_sets {
             for (rank, result) in results.into_iter().enumerate() {
                 let rrf_score = 1.0 / (k + rank as f32 + 1.0);
-                let entry = scores
-                    .entry(result.profile.fid)
-                    .or_insert((0.0, result.profile.clone(), result.match_type));
+                let entry = scores.entry(result.profile.fid).or_insert((
+                    0.0,
+                    result.profile.clone(),
+                    result.match_type,
+                ));
                 entry.0 += rrf_score;
             }
         }
@@ -176,4 +173,3 @@ impl Reranker {
         results
     }
 }
-

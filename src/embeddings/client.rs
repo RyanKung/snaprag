@@ -1,9 +1,13 @@
 //! Embedding API clients for various providers
 
-use crate::errors::{Result, SnapragError};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use serde::Deserialize;
+use serde::Serialize;
+use tracing::debug;
+use tracing::info;
+
+use crate::errors::Result;
+use crate::errors::SnapragError;
 
 /// Supported embedding providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,10 +125,9 @@ impl EmbeddingClient {
             )));
         }
 
-        let result: OpenAIResponse = response
-            .json()
-            .await
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse response: {}", e)))?;
+        let result: OpenAIResponse = response.json().await.map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to parse response: {}", e))
+        })?;
 
         result
             .data
@@ -187,10 +190,9 @@ impl EmbeddingClient {
             )));
         }
 
-        let result: OpenAIResponse = response
-            .json()
-            .await
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse response: {}", e)))?;
+        let result: OpenAIResponse = response.json().await.map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to parse response: {}", e))
+        })?;
 
         Ok(result.data.into_iter().map(|d| d.embedding).collect())
     }
@@ -237,10 +239,9 @@ impl EmbeddingClient {
             )));
         }
 
-        let result: OllamaResponse = response
-            .json()
-            .await
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse response: {}", e)))?;
+        let result: OllamaResponse = response.json().await.map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to parse response: {}", e))
+        })?;
 
         Ok(result.embedding)
     }
@@ -265,4 +266,3 @@ mod tests {
         assert_eq!(embedding.len(), 1536);
     }
 }
-

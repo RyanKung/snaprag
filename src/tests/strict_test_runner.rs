@@ -180,7 +180,10 @@ impl StrictTestRunner {
         if !output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
-            panic!("Test {} failed - STDOUT: {} STDERR: {}", test_name, stdout, stderr);
+            panic!(
+                "Test {} failed - STDOUT: {} STDERR: {}",
+                test_name, stdout, stderr
+            );
         }
 
         Ok(())

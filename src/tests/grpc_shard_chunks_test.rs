@@ -60,10 +60,19 @@ async fn make_grpc_call(
 ) -> ShardChunksResponse {
     // Validate request parameters
     assert!(request.shard_id < 1000, "Shard ID must be reasonable");
-    assert!(request.start_block_number < 1_000_000_000, "Start block number must be reasonable");
+    assert!(
+        request.start_block_number < 1_000_000_000,
+        "Start block number must be reasonable"
+    );
     if let Some(stop_block) = request.stop_block_number {
-        assert!(stop_block >= request.start_block_number, "Stop block must be >= start block");
-        assert!(stop_block < 1_000_000_000, "Stop block number must be reasonable");
+        assert!(
+            stop_block >= request.start_block_number,
+            "Stop block must be >= start block"
+        );
+        assert!(
+            stop_block < 1_000_000_000,
+            "Stop block number must be reasonable"
+        );
     }
 
     let response = client
@@ -163,8 +172,14 @@ fn validate_chunk_summary(chunk: &ShardChunk, chunk_index: usize) {
 
     // Strict validation of chunk properties
     assert!(chunk_index < 1000, "Chunk index must be reasonable");
-    assert!(block_number < 1_000_000_000, "Block number must be reasonable");
-    assert!(chunk.transactions.len() < 10000, "Transaction count must be reasonable");
+    assert!(
+        block_number < 1_000_000_000,
+        "Block number must be reasonable"
+    );
+    assert!(
+        chunk.transactions.len() < 10000,
+        "Transaction count must be reasonable"
+    );
     assert!(header.timestamp > 0, "Timestamp must be positive");
 }
 
@@ -181,13 +196,22 @@ fn validate_detailed_block_analysis(chunk: &ShardChunk) {
     let block_number = height.block_number;
 
     // Strict validation of block properties
-    assert!(block_number < 1_000_000_000, "Block number must be reasonable");
+    assert!(
+        block_number < 1_000_000_000,
+        "Block number must be reasonable"
+    );
     assert!(height.shard_index < 1000, "Shard index must be reasonable");
     assert!(header.timestamp > 0, "Timestamp must be positive");
-    assert!(header.parent_hash.len() > 0, "Parent hash must not be empty");
+    assert!(
+        header.parent_hash.len() > 0,
+        "Parent hash must not be empty"
+    );
     assert!(header.shard_root.len() > 0, "Shard root must not be empty");
     assert!(chunk.hash.len() > 0, "Chunk hash must not be empty");
-    assert!(chunk.transactions.len() < 10000, "Transaction count must be reasonable");
+    assert!(
+        chunk.transactions.len() < 10000,
+        "Transaction count must be reasonable"
+    );
 
     // Analyze transaction patterns with strict validation
     let mut fid_counts = HashMap::new();
@@ -211,9 +235,15 @@ fn validate_detailed_block_analysis(chunk: &ShardChunk) {
         assert!(fid < 1_000_000_000, "Transaction FID must be reasonable");
         // Account root may be empty in some blocks - this is acceptable
         if !transaction.account_root.is_empty() {
-            assert!(transaction.account_root.len() > 0, "Account root must not be empty if present");
+            assert!(
+                transaction.account_root.len() > 0,
+                "Account root must not be empty if present"
+            );
         }
-        assert!(user_msg_count < 1000, "User message count must be reasonable");
+        assert!(
+            user_msg_count < 1000,
+            "User message count must be reasonable"
+        );
 
         // Validate user messages
         for message in &transaction.user_messages {
@@ -224,15 +254,25 @@ fn validate_detailed_block_analysis(chunk: &ShardChunk) {
             assert!(message_data.fid > 0, "Message FID must be positive");
             assert!(!message.hash.is_empty(), "Message hash must not be empty");
             assert_eq!(message.hash.len(), 32, "Message hash must be 32 bytes");
-            assert_eq!(message.signature.len(), 64, "Message signature must be 64 bytes");
+            assert_eq!(
+                message.signature.len(),
+                64,
+                "Message signature must be 64 bytes"
+            );
             assert_eq!(message.signer.len(), 32, "Message signer must be 32 bytes");
         }
     }
 
     // Validate statistics
     assert!(!fid_counts.is_empty(), "Must have at least one FID");
-    assert!(!account_root_counts.is_empty(), "Must have at least one account root");
-    assert!(!user_message_counts.is_empty(), "Must have at least one user message count");
+    assert!(
+        !account_root_counts.is_empty(),
+        "Must have at least one account root"
+    );
+    assert!(
+        !user_message_counts.is_empty(),
+        "Must have at least one user message count"
+    );
 
     // Validate commits
     let commits = chunk
@@ -243,15 +283,31 @@ fn validate_detailed_block_analysis(chunk: &ShardChunk) {
         .height
         .as_ref()
         .expect("Commit height should not be None");
-    
-    assert!(commit_height.shard_index < 1000, "Commit shard index must be reasonable");
-    assert!(commit_height.block_number < 1_000_000_000, "Commit block number must be reasonable");
-    assert!(!commits.signatures.is_empty(), "Must have at least one signature");
-    assert!(commits.signatures.len() < 1000, "Signature count must be reasonable");
+
+    assert!(
+        commit_height.shard_index < 1000,
+        "Commit shard index must be reasonable"
+    );
+    assert!(
+        commit_height.block_number < 1_000_000_000,
+        "Commit block number must be reasonable"
+    );
+    assert!(
+        !commits.signatures.is_empty(),
+        "Must have at least one signature"
+    );
+    assert!(
+        commits.signatures.len() < 1000,
+        "Signature count must be reasonable"
+    );
 
     // Validate signatures
     for signature in &commits.signatures {
-        assert_eq!(signature.signer.len(), 32, "Signature signer must be 32 bytes");
+        assert_eq!(
+            signature.signer.len(),
+            32,
+            "Signature signer must be 32 bytes"
+        );
         assert_eq!(signature.signature.len(), 64, "Signature must be 64 bytes");
     }
 }
@@ -267,18 +323,33 @@ fn validate_detailed_block_data(chunk: &ShardChunk, target_block: u64) {
         assert_eq!(block_number, target_block, "Block number must match target");
         assert!(height.shard_index < 1000, "Shard index must be reasonable");
         assert!(header.timestamp > 0, "Timestamp must be positive");
-        assert!(header.parent_hash.len() > 0, "Parent hash must not be empty");
+        assert!(
+            header.parent_hash.len() > 0,
+            "Parent hash must not be empty"
+        );
         assert!(header.shard_root.len() > 0, "Shard root must not be empty");
         assert_eq!(chunk.hash.len(), 32, "Chunk hash must be 32 bytes");
-        assert!(chunk.transactions.len() < 10000, "Transaction count must be reasonable");
+        assert!(
+            chunk.transactions.len() < 10000,
+            "Transaction count must be reasonable"
+        );
 
         // Validate all transactions
         for (tx_idx, transaction) in chunk.transactions.iter().enumerate() {
-            assert!(transaction.fid < 1_000_000_000, "Transaction FID must be reasonable");
-            assert!(transaction.user_messages.len() < 1000, "User message count must be reasonable");
+            assert!(
+                transaction.fid < 1_000_000_000,
+                "Transaction FID must be reasonable"
+            );
+            assert!(
+                transaction.user_messages.len() < 1000,
+                "User message count must be reasonable"
+            );
             // Account root may be empty in some blocks - this is acceptable
             if !transaction.account_root.is_empty() {
-                assert!(transaction.account_root.len() > 0, "Account root must not be empty if present");
+                assert!(
+                    transaction.account_root.len() > 0,
+                    "Account root must not be empty if present"
+                );
             }
 
             // Validate user messages
@@ -290,7 +361,11 @@ fn validate_detailed_block_data(chunk: &ShardChunk, target_block: u64) {
                 assert!(message_data.fid > 0, "Message FID must be positive");
                 assert!(!message.hash.is_empty(), "Message hash must not be empty");
                 assert_eq!(message.hash.len(), 32, "Message hash must be 32 bytes");
-                assert_eq!(message.signature.len(), 64, "Message signature must be 64 bytes");
+                assert_eq!(
+                    message.signature.len(),
+                    64,
+                    "Message signature must be 64 bytes"
+                );
                 assert_eq!(message.signer.len(), 32, "Message signer must be 32 bytes");
             }
         }
@@ -304,21 +379,40 @@ fn validate_detailed_block_data(chunk: &ShardChunk, target_block: u64) {
             .height
             .as_ref()
             .expect("Commit height should not be None");
-        
-        assert!(commit_height.shard_index < 1000, "Commit shard index must be reasonable");
-        assert!(commit_height.block_number < 1_000_000_000, "Commit block number must be reasonable");
-        assert!(!commits.signatures.is_empty(), "Must have at least one signature");
-        assert!(commits.signatures.len() < 1000, "Signature count must be reasonable");
+
+        assert!(
+            commit_height.shard_index < 1000,
+            "Commit shard index must be reasonable"
+        );
+        assert!(
+            commit_height.block_number < 1_000_000_000,
+            "Commit block number must be reasonable"
+        );
+        assert!(
+            !commits.signatures.is_empty(),
+            "Must have at least one signature"
+        );
+        assert!(
+            commits.signatures.len() < 1000,
+            "Signature count must be reasonable"
+        );
 
         // Validate signatures
         for signature in &commits.signatures {
-            assert_eq!(signature.signer.len(), 32, "Signature signer must be 32 bytes");
+            assert_eq!(
+                signature.signer.len(),
+                32,
+                "Signature signer must be 32 bytes"
+            );
             assert_eq!(signature.signature.len(), 64, "Signature must be 64 bytes");
         }
 
         // Validate value if present
         if let Some(value) = &commits.value {
-            assert!(value.shard_index < 1000, "Value shard index must be reasonable");
+            assert!(
+                value.shard_index < 1000,
+                "Value shard index must be reasonable"
+            );
             assert_eq!(value.hash.len(), 32, "Value hash must be 32 bytes");
         }
     }
@@ -362,7 +456,7 @@ async fn test_parse_shard_chunks_response_real_blocks_0_to_7() {
 
             if user_message_count > 0 {
                 transactions_with_messages += 1;
-                
+
                 // Validate user message properties
                 for message in &transaction.user_messages {
                     let message_data = message
@@ -384,10 +478,19 @@ async fn test_parse_shard_chunks_response_real_blocks_0_to_7() {
             .as_ref()
             .unwrap()
             .block_number;
-        
-        assert!(chunk.transactions.len() < 10000, "Transaction count must be reasonable");
-        assert!(transactions_with_messages <= chunk.transactions.len(), "Transactions with messages must not exceed total");
-        assert!(total_user_messages < 100000, "Total user messages must be reasonable");
+
+        assert!(
+            chunk.transactions.len() < 10000,
+            "Transaction count must be reasonable"
+        );
+        assert!(
+            transactions_with_messages <= chunk.transactions.len(),
+            "Transactions with messages must not exceed total"
+        );
+        assert!(
+            total_user_messages < 100000,
+            "Total user messages must be reasonable"
+        );
     }
 }
 
@@ -435,7 +538,10 @@ async fn test_parse_shard_chunks_response_real_block_9_with_fid_zero() {
                     }
 
                     // Validate Block 9 properties
-                    assert!(chunk.transactions.len() < 10000, "Block 9 transaction count must be reasonable");
+                    assert!(
+                        chunk.transactions.len() < 10000,
+                        "Block 9 transaction count must be reasonable"
+                    );
                     assert!(header.timestamp > 0, "Block 9 timestamp must be positive");
                 }
             }
@@ -547,7 +653,10 @@ fn test_parse_shard_chunks_response_mock() {
 
     // Serialize the response to bytes (simulating gRPC response)
     let response_bytes = response.encode_to_vec();
-    assert!(!response_bytes.is_empty(), "Response bytes must not be empty");
+    assert!(
+        !response_bytes.is_empty(),
+        "Response bytes must not be empty"
+    );
 
     // Parse the response back from bytes
     let parsed_response =
@@ -645,8 +754,12 @@ fn test_parse_shard_chunks_response_mock() {
     }
 
     // Validate parsed response
-    assert_eq!(parsed_response.shard_chunks.len(), 43, "Must have 43 chunks (0-42 inclusive)");
-    
+    assert_eq!(
+        parsed_response.shard_chunks.len(),
+        43,
+        "Must have 43 chunks (0-42 inclusive)"
+    );
+
     // Validate summary information
     for chunk in parsed_response.shard_chunks.iter().take(5) {
         let block_number = chunk
@@ -659,7 +772,7 @@ fn test_parse_shard_chunks_response_mock() {
             .block_number;
         let transaction_count = chunk.transactions.len();
         let timestamp = chunk.header.as_ref().unwrap().timestamp;
-        
+
         assert!(block_number < 43, "Block number must be < 43");
         assert!(transaction_count > 0, "Must have at least one transaction");
         assert!(timestamp > 0, "Timestamp must be positive");

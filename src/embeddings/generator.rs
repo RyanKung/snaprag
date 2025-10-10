@@ -1,10 +1,15 @@
 //! Embedding generation service with caching and batch processing
 
-use super::client::{EmbeddingClient, EmbeddingProvider};
-use super::{EmbeddingConfig, MAX_BATCH_SIZE};
-use crate::errors::Result;
 use std::sync::Arc;
-use tracing::{info, warn};
+
+use tracing::info;
+use tracing::warn;
+
+use super::client::EmbeddingClient;
+use super::client::EmbeddingProvider;
+use super::EmbeddingConfig;
+use super::MAX_BATCH_SIZE;
+use crate::errors::Result;
 
 /// Service for generating embeddings with caching and optimization
 pub struct EmbeddingService {
@@ -217,4 +222,3 @@ mod tests {
         assert_eq!(empty_pos, vec![0, 2]);
     }
 }
-

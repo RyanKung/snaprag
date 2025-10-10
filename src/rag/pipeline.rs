@@ -1,14 +1,20 @@
 //! Complete RAG pipeline: Retrieve -> Rank -> Generate
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use tracing::debug;
+use tracing::info;
+
 use crate::config::AppConfig;
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::errors::Result;
-use crate::llm::{ChatMessage, LlmService};
-use crate::rag::{ContextAssembler, Retriever, SearchResult};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tracing::{debug, info};
+use crate::llm::ChatMessage;
+use crate::llm::LlmService;
+use crate::rag::ContextAssembler;
+use crate::rag::Retriever;
+use crate::rag::SearchResult;
 
 /// Complete RAG service
 pub struct RagService {
@@ -195,11 +201,7 @@ impl RagResponse {
         output.push_str(&format!("Sources ({} profiles):\n", self.sources.len()));
 
         for (idx, source) in self.sources.iter().enumerate().take(5) {
-            let username = source
-                .profile
-                .username
-                .as_deref()
-                .unwrap_or("unknown");
+            let username = source.profile.username.as_deref().unwrap_or("unknown");
             output.push_str(&format!(
                 "  {}. @{} (FID: {}, Score: {:.2})\n",
                 idx + 1,
@@ -212,4 +214,3 @@ impl RagResponse {
         output
     }
 }
-

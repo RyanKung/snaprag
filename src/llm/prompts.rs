@@ -41,7 +41,7 @@ impl PromptTemplate {
 fn extract_variables(template: &str) -> Vec<String> {
     let mut variables = Vec::new();
     let mut chars = template.chars().peekable();
-    
+
     while let Some(c) = chars.next() {
         if c == '{' {
             if chars.peek() == Some(&'{') {
@@ -65,7 +65,7 @@ fn extract_variables(template: &str) -> Vec<String> {
             }
         }
     }
-    
+
     variables
 }
 
@@ -84,7 +84,7 @@ Based on the following user profiles:
 
 User query: {{query}}
 
-Please provide a summary of the most relevant profiles and explain why they match the query."#
+Please provide a summary of the most relevant profiles and explain why they match the query."#,
         )
     }
 
@@ -98,7 +98,7 @@ Context information from the database:
 
 Question: {{question}}
 
-Please provide a detailed and accurate answer based on the context above. If the context doesn't contain enough information to answer the question, please say so."#
+Please provide a detailed and accurate answer based on the context above. If the context doesn't contain enough information to answer the question, please say so."#,
         )
     }
 
@@ -118,7 +118,7 @@ Please provide:
 1. A brief overview of the user
 2. Key interests and focus areas
 3. Professional background (if evident)
-4. Community connections and influence"#
+4. Community connections and influence"#,
         )
     }
 
@@ -134,7 +134,7 @@ Please provide:
 2. Key concepts to search for
 3. Alternative phrasings
 
-Return only the enhanced query text without explanations."#
+Return only the enhanced query text without explanations."#,
         )
     }
 }
@@ -157,4 +157,3 @@ mod tests {
         assert_eq!(template.render(&values), "Hello Alice!");
     }
 }
-

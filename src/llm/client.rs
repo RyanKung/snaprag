@@ -1,10 +1,14 @@
 //! LLM API clients for various providers
 
-use crate::errors::{Result, SnapragError};
-use crate::llm::streaming::StreamingResponse;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use serde::Deserialize;
+use serde::Serialize;
+use tracing::debug;
+use tracing::info;
+
+use crate::errors::Result;
+use crate::errors::SnapragError;
+use crate::llm::streaming::StreamingResponse;
 
 /// Supported LLM providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -444,4 +448,3 @@ impl LlmClient {
         ))
     }
 }
-

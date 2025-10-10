@@ -185,7 +185,7 @@ impl SyncLockManager {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         if now > lock.last_update {
             now - lock.last_update
         } else {
@@ -201,10 +201,10 @@ impl SyncLockManager {
             unsafe {
                 libc::kill(lock.pid as i32, libc::SIGTERM);
             }
-            
+
             // Wait a bit for graceful shutdown
             std::thread::sleep(std::time::Duration::from_millis(1000));
-            
+
             // Force kill if still running
             if self.is_process_running(lock.pid) {
                 warn!("Force killing stale process PID: {}", lock.pid);
@@ -214,7 +214,7 @@ impl SyncLockManager {
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }
-        
+
         // Remove the lock file
         self.remove_lock()?;
         Ok(())

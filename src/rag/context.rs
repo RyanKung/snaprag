@@ -1,7 +1,8 @@
 //! Context assembly from retrieved documents
 
-use crate::rag::SearchResult;
 use std::collections::HashMap;
+
+use crate::rag::SearchResult;
 
 /// Assembler for creating context from search results
 pub struct ContextAssembler {
@@ -11,9 +12,7 @@ pub struct ContextAssembler {
 impl ContextAssembler {
     /// Create a new context assembler
     pub fn new(max_context_length: usize) -> Self {
-        Self {
-            max_context_length,
-        }
+        Self { max_context_length }
     }
 
     /// Assemble context from search results
@@ -37,7 +36,10 @@ impl ContextAssembler {
     }
 
     /// Assemble context with metadata
-    pub fn assemble_with_metadata(&self, results: &[SearchResult]) -> (String, Vec<HashMap<String, String>>) {
+    pub fn assemble_with_metadata(
+        &self,
+        results: &[SearchResult],
+    ) -> (String, Vec<HashMap<String, String>>) {
         let mut context = String::new();
         let mut metadata = Vec::new();
         let mut total_length = 0;
@@ -56,7 +58,10 @@ impl ContextAssembler {
             // Add metadata
             let mut meta = HashMap::new();
             meta.insert("fid".to_string(), result.profile.fid.to_string());
-            meta.insert("username".to_string(), result.profile.username.clone().unwrap_or_default());
+            meta.insert(
+                "username".to_string(),
+                result.profile.username.clone().unwrap_or_default(),
+            );
             meta.insert("score".to_string(), result.score.to_string());
             meta.insert("match_type".to_string(), format!("{:?}", result.match_type));
             metadata.push(meta);
@@ -100,16 +105,8 @@ impl ContextAssembler {
         let mut summary = format!("Found {} relevant profile(s):\n\n", results.len());
 
         for (idx, result) in results.iter().enumerate().take(5) {
-            let username = result
-                .profile
-                .username
-                .as_deref()
-                .unwrap_or("unknown");
-            let display_name = result
-                .profile
-                .display_name
-                .as_deref()
-                .unwrap_or("No name");
+            let username = result.profile.username.as_deref().unwrap_or("unknown");
+            let display_name = result.profile.display_name.as_deref().unwrap_or("No name");
             let bio_preview = result
                 .profile
                 .bio
@@ -142,4 +139,3 @@ impl Default for ContextAssembler {
         Self::new(4000) // Default max context length
     }
 }
-

@@ -257,7 +257,11 @@ async fn test_concurrent_operations() -> Result<()> {
             }
             Err(e) => {
                 // Operation failed gracefully - this is acceptable
-                assert!(!e.to_string().contains("panic"), "Concurrent operation must not panic: {}", e);
+                assert!(
+                    !e.to_string().contains("panic"),
+                    "Concurrent operation must not panic: {}",
+                    e
+                );
             }
         }
     }
@@ -304,7 +308,11 @@ async fn test_error_propagation() -> Result<()> {
                 }
                 other => {
                     // Other error types are also acceptable
-                    assert!(!other.to_string().contains("panic"), "Error must not contain panic: {:?}", other);
+                    assert!(
+                        !other.to_string().contains("panic"),
+                        "Error must not contain panic: {:?}",
+                        other
+                    );
                 }
             }
         }

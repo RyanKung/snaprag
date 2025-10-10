@@ -23,13 +23,14 @@
 //! }
 //! ```
 
+pub mod backfill;
 pub mod client;
 pub mod generator;
-pub mod backfill;
 
-pub use client::{EmbeddingClient, EmbeddingProvider};
-pub use generator::EmbeddingService;
 pub use backfill::backfill_embeddings;
+pub use client::EmbeddingClient;
+pub use client::EmbeddingProvider;
+pub use generator::EmbeddingService;
 
 use crate::errors::Result;
 
@@ -73,4 +74,3 @@ impl EmbeddingConfig {
         }
     }
 }
-

@@ -25,13 +25,16 @@
 //! }
 //! ```
 
-pub mod retriever;
 pub mod context;
 pub mod pipeline;
+pub mod retriever;
 
-pub use retriever::Retriever;
 pub use context::ContextAssembler;
-pub use pipeline::{RagService, RagQuery, RagResponse};
+pub use pipeline::RagQuery;
+pub use pipeline::RagResponse;
+pub use pipeline::RagService;
+pub use pipeline::RetrievalMethod;
+pub use retriever::Retriever;
 
 use crate::errors::Result;
 use crate::models::UserProfile;
@@ -54,4 +57,3 @@ pub enum MatchType {
     /// Combined semantic and keyword match
     Hybrid,
 }
-

@@ -1,6 +1,8 @@
 use clap::Parser;
 use snaprag::cli::Cli;
 use snaprag::cli::Commands;
+use snaprag::cli::EmbeddingsCommands;
+use snaprag::cli::RagCommands;
 use snaprag::cli::SyncCommands;
 use snaprag::AppConfig;
 use snaprag::Result;
@@ -90,6 +92,48 @@ async fn main() -> Result<()> {
         Commands::Config => {
             snaprag::cli::handle_config_command(&config).await?;
         }
+        Commands::Rag(rag_command) => match rag_command {
+            RagCommands::Query {
+                query,
+                limit,
+                method,
+                temperature,
+                max_tokens,
+                verbose,
+            } => {
+                snaprag::cli::handle_rag_query(
+                    &config,
+                    query,
+                    limit,
+                    method,
+                    temperature,
+                    max_tokens,
+                    verbose,
+                )
+                .await?;
+            }
+            RagCommands::Search {
+                query,
+                limit,
+                method,
+            } => {
+                snaprag::cli::handle_rag_search(&config, query, limit, method).await?;
+            }
+        },
+        Commands::Embeddings(embeddings_command) => match embeddings_command {
+            EmbeddingsCommands::Backfill { force, batch_size } => {
+                snaprag::cli::handle_embeddings_backfill(&config, force, batch_size).await?;
+            }
+            EmbeddingsCommands::Generate { fid, verbose } => {
+                snaprag::cli::handle_embeddings_generate(&config, fid, verbose).await?;
+            }
+            EmbeddingsCommands::Test { text } => {
+                snaprag::cli::handle_embeddings_test(&config, text).await?;
+            }
+            EmbeddingsCommands::Stats => {
+                snaprag::cli::handle_embeddings_stats(&config).await?;
+            }
+        },
     }
 
     Ok(())

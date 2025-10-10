@@ -1845,7 +1845,7 @@ impl Database {
         similarity_threshold: Option<f32>,
     ) -> Result<Vec<UserProfile>> {
         let threshold = similarity_threshold.unwrap_or(0.8);
-        
+
         let profiles = sqlx::query_as::<_, UserProfile>(
             r#"
             SELECT *
@@ -1854,7 +1854,7 @@ impl Database {
                 AND (profile_embedding <=> $1::vector) < $2
             ORDER BY profile_embedding <=> $1::vector
             LIMIT $3
-            "#
+            "#,
         )
         .bind(query_embedding)
         .bind(threshold)
@@ -1873,7 +1873,7 @@ impl Database {
         similarity_threshold: Option<f32>,
     ) -> Result<Vec<UserProfile>> {
         let threshold = similarity_threshold.unwrap_or(0.8);
-        
+
         let profiles = sqlx::query_as::<_, UserProfile>(
             r#"
             SELECT *
@@ -1882,7 +1882,7 @@ impl Database {
                 AND (bio_embedding <=> $1::vector) < $2
             ORDER BY bio_embedding <=> $1::vector
             LIMIT $3
-            "#
+            "#,
         )
         .bind(query_embedding)
         .bind(threshold)
@@ -1918,7 +1918,7 @@ impl Database {
                         AND (username ILIKE $2 OR display_name ILIKE $2 OR bio ILIKE $2)
                     ORDER BY (profile_embedding <=> $1::vector) * 0.5 + (1.0 - text_score) * 0.5
                     LIMIT $3
-                    "#
+                    "#,
                 )
                 .bind(embedding)
                 .bind(format!("%{}%", text))

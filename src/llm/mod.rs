@@ -28,7 +28,9 @@ pub mod client;
 pub mod prompts;
 pub mod streaming;
 
-pub use client::{ChatMessage, LlmClient, LlmProvider};
+pub use client::ChatMessage;
+pub use client::LlmClient;
+pub use client::LlmProvider;
 pub use prompts::PromptTemplate;
 pub use streaming::StreamingResponse;
 
@@ -138,10 +140,7 @@ impl LlmService {
     }
 
     /// Chat completion with message history
-    pub async fn chat(
-        &self,
-        messages: Vec<crate::llm::client::ChatMessage>,
-    ) -> Result<String> {
+    pub async fn chat(&self, messages: Vec<crate::llm::client::ChatMessage>) -> Result<String> {
         self.client
             .chat(messages, self.config.temperature, self.config.max_tokens)
             .await
@@ -157,4 +156,3 @@ impl LlmService {
         self.config.provider
     }
 }
-

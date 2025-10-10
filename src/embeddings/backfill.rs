@@ -1,10 +1,13 @@
 //! Backfill embeddings for existing data
 
+use std::sync::Arc;
+
+use tracing::info;
+use tracing::warn;
+
 use super::generator::EmbeddingService;
 use crate::database::Database;
 use crate::errors::Result;
-use std::sync::Arc;
-use tracing::{info, warn};
 
 /// Backfill embeddings for all user profiles
 pub async fn backfill_embeddings(
@@ -58,7 +61,10 @@ pub async fn backfill_embeddings(
                     }
                 }
                 Err(e) => {
-                    warn!("Failed to backfill embeddings for FID {}: {}", profile.fid, e);
+                    warn!(
+                        "Failed to backfill embeddings for FID {}: {}",
+                        profile.fid, e
+                    );
                     stats.failed += 1;
                 }
             }
@@ -164,4 +170,3 @@ impl BackfillStats {
         }
     }
 }
-

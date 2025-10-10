@@ -1,8 +1,10 @@
 //! Streaming response handling
 
-use crate::errors::Result;
-use futures::Stream;
 use std::pin::Pin;
+
+use futures::Stream;
+
+use crate::errors::Result;
 
 /// Streaming response from LLM
 pub struct StreamingResponse {
@@ -29,4 +31,3 @@ impl StreamingResponse {
         self.stream
     }
 }
-

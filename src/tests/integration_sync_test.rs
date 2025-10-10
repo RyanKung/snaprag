@@ -2,17 +2,20 @@ use std::process::Command;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use tokio::time::timeout;
 use tokio::time::Duration as TokioDuration;
-use tracing::{info, error};
+use tracing::error;
+use tracing::info;
 
 use crate::config::AppConfig;
 use crate::database::Database;
+use crate::sync::process_monitor::cleanup_all_snaprag_processes;
 use crate::sync::SyncLockManager;
 use crate::sync::SyncService;
-use crate::sync::process_monitor::cleanup_all_snaprag_processes;
 use crate::Result;
 
 // Global test lock to ensure tests run serially
@@ -27,7 +30,14 @@ struct TestIsolationManager {
 impl TestIsolationManager {
     fn new(test_name: &str) -> Self {
         Self {
-            test_id: format!("{}_{}", test_name, SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()),
+            test_id: format!(
+                "{}_{}",
+                test_name,
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ),
             cleanup_performed: false,
         }
     }
@@ -35,13 +45,13 @@ impl TestIsolationManager {
     async fn setup(&mut self) -> Result<()> {
         // Force cleanup before each test
         cleanup_all_snaprag_processes()?;
-        
+
         // Additional cleanup
         cleanup_before_test()?;
-        
+
         // Verify clean state
         assert_no_snaprag_processes_running()?;
-        
+
         Ok(())
     }
 
@@ -94,7 +104,10 @@ where
                 tokio::time::sleep(Duration::from_secs(30)).await;
                 let elapsed = last_progress.elapsed();
                 if elapsed > Duration::from_secs(60) {
-                    info!("Test '{}' still running after {:?}", test_name_owned, elapsed);
+                    info!(
+                        "Test '{}' still running after {:?}",
+                        test_name_owned, elapsed
+                    );
                     last_progress = std::time::Instant::now();
                 }
             }
@@ -116,7 +129,9 @@ where
                     // Check if any snaprag processes are still running
                     let monitor = crate::sync::process_monitor::ProcessMonitor::new();
                     if !monitor.get_snaprag_processes()?.is_empty() {
-                        return Err(crate::SnapRagError::Custom("Snaprag processes are still running after cleanup".to_string()));
+                        return Err(crate::SnapRagError::Custom(
+                            "Snaprag processes are still running after cleanup".to_string(),
+                        ));
                     }
                     Err(e)
                 }
@@ -125,11 +140,11 @@ where
         Err(_) => {
             let elapsed = start_time.elapsed();
             error!("Test '{}' timed out after {:?}", test_name, elapsed);
-            
+
             // Force cleanup on timeout
             let _ = cleanup_all_snaprag_processes();
             let _ = cleanup_before_test();
-            
+
             panic!(
                 "Integration test '{}' timed out after {} seconds",
                 test_name,
@@ -185,45 +200,45 @@ fn cleanup_before_test() -> Result<()> {
 /// Force kill all snaprag processes
 fn force_kill_snaprag_processes() -> Result<()> {
     use std::process::Command;
-    
+
     // Find all snaprag processes
     let output = Command::new("pgrep")
         .args(&["-f", "snaprag"])
         .output()
-        .map_err(|e| crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {}", e)))?;
-    
+        .map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {}", e))
+        })?;
+
     if !output.stdout.is_empty() {
         let output_str = String::from_utf8_lossy(&output.stdout);
-        let pids: Vec<&str> = output_str
-            .lines()
-            .filter(|line| !line.is_empty())
-            .collect();
-        
+        let pids: Vec<&str> = output_str.lines().filter(|line| !line.is_empty()).collect();
+
         for pid in pids {
-            let _ = Command::new("kill")
-                .args(&["-9", pid])
-                .output();
+            let _ = Command::new("kill").args(&["-9", pid]).output();
         }
-        
+
         // Wait for processes to terminate
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
-    
+
     Ok(())
 }
 
 /// Run snaprag command with timeout
 fn run_snaprag_command_with_timeout(args: &[&str], timeout_secs: u64) -> Result<String> {
     use std::process::Command;
-    use std::time::{Duration, Instant};
-    
+    use std::time::Duration;
+    use std::time::Instant;
+
     let start = Instant::now();
     let mut child = Command::new("cargo")
         .args(&["run", "--"])
         .args(args)
         .spawn()
-        .map_err(|e| crate::SnapRagError::Custom(format!("Failed to start snaprag command: {}", e)))?;
-    
+        .map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to start snaprag command: {}", e))
+        })?;
+
     // Wait for completion or timeout
     while start.elapsed() < Duration::from_secs(timeout_secs) {
         match child.try_wait() {
@@ -239,11 +254,14 @@ fn run_snaprag_command_with_timeout(args: &[&str], timeout_secs: u64) -> Result<
                 std::thread::sleep(Duration::from_millis(100));
             }
             Err(e) => {
-                return Err(crate::SnapRagError::Custom(format!("Error waiting for process: {}", e)));
+                return Err(crate::SnapRagError::Custom(format!(
+                    "Error waiting for process: {}",
+                    e
+                )));
             }
         }
     }
-    
+
     // Timeout reached, kill the process
     let _ = child.kill();
     Ok("Command timed out and was killed".to_string())
@@ -252,34 +270,37 @@ fn run_snaprag_command_with_timeout(args: &[&str], timeout_secs: u64) -> Result<
 /// Remove lock file directly
 fn remove_lock_file_directly() -> Result<()> {
     use std::fs;
-    
+
     let lock_files = ["snaprag.lock", "snaprag_sync_state.json"];
-    
+
     for lock_file in &lock_files {
         if std::path::Path::new(lock_file).exists() {
-            fs::remove_file(lock_file)
-                .map_err(|e| crate::SnapRagError::Custom(format!("Failed to remove {}: {}", lock_file, e)))?;
+            fs::remove_file(lock_file).map_err(|e| {
+                crate::SnapRagError::Custom(format!("Failed to remove {}: {}", lock_file, e))
+            })?;
         }
     }
-    
+
     Ok(())
 }
 
 /// Assert that no snaprag processes are running
 fn assert_no_snaprag_processes_running() -> Result<()> {
     use std::process::Command;
-    
+
     let output = Command::new("pgrep")
         .args(&["-f", "snaprag"])
         .output()
-        .map_err(|e| crate::SnapRagError::Custom(format!("Failed to check for snaprag processes: {}", e)))?;
-    
+        .map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to check for snaprag processes: {}", e))
+        })?;
+
     if !output.stdout.is_empty() {
         return Err(crate::SnapRagError::Custom(
-            "Snaprag processes are still running after cleanup".to_string()
+            "Snaprag processes are still running after cleanup".to_string(),
         ));
     }
-    
+
     Ok(())
 }
 
@@ -289,7 +310,9 @@ fn assert_no_snaprag_processes_running() -> Result<()> {
 async fn test_sync_user_message_blocks() -> Result<()> {
     run_integration_test_with_timeout("test_sync_user_message_blocks", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         // Initialize logging for test
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
@@ -331,12 +354,21 @@ async fn test_sync_user_message_blocks() -> Result<()> {
         sync_result.expect("Sync must succeed for valid block range");
 
         // Verify lock file was created and contains progress
-        assert!(lock_manager.lock_exists(), "Lock file must exist after sync");
+        assert!(
+            lock_manager.lock_exists(),
+            "Lock file must exist after sync"
+        );
         let lock = lock_manager.read_lock()?;
         assert_eq!(lock.status, "running", "Lock status must be 'running'");
-        assert!(lock.progress.total_blocks_processed > 0, "Must process at least one block");
-        assert!(lock.progress.total_messages_processed >= 0, "Message count must be non-negative");
-        
+        assert!(
+            lock.progress.total_blocks_processed > 0,
+            "Must process at least one block"
+        );
+        assert!(
+            lock.progress.total_messages_processed >= 0,
+            "Message count must be non-negative"
+        );
+
         // Clean up lock file
         lock_manager.remove_lock()?;
 
@@ -370,7 +402,9 @@ async fn test_sync_user_message_blocks() -> Result<()> {
 async fn test_sync_high_activity_blocks() -> Result<()> {
     run_integration_test_with_timeout("test_sync_high_activity_blocks", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -408,7 +442,10 @@ async fn test_sync_high_activity_blocks() -> Result<()> {
             .await?;
 
         // Validate high activity sync results
-        assert!(user_count >= 0, "User count must be non-negative after high activity sync");
+        assert!(
+            user_count >= 0,
+            "User count must be non-negative after high activity sync"
+        );
 
         // Clean up
         if lock_manager.lock_exists() {
@@ -425,7 +462,9 @@ async fn test_sync_high_activity_blocks() -> Result<()> {
 async fn test_sync_early_blocks() -> Result<()> {
     run_integration_test_with_timeout("test_sync_early_blocks", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -468,11 +507,20 @@ async fn test_sync_early_blocks() -> Result<()> {
                 .await?;
 
         // Validate early blocks sync results - early blocks may have some activity
-        assert!(user_count >= 0, "User count must be non-negative after early blocks sync");
-        assert!(activity_count >= 0, "Activity count must be non-negative after early blocks sync");
-        
+        assert!(
+            user_count >= 0,
+            "User count must be non-negative after early blocks sync"
+        );
+        assert!(
+            activity_count >= 0,
+            "Activity count must be non-negative after early blocks sync"
+        );
+
         // Log the actual counts for debugging
-        info!("Early blocks sync results: {} users, {} activities", user_count, activity_count);
+        info!(
+            "Early blocks sync results: {} users, {} activities",
+            user_count, activity_count
+        );
 
         // Clean up
         if lock_manager.lock_exists() {
@@ -489,7 +537,9 @@ async fn test_sync_early_blocks() -> Result<()> {
 async fn test_sync_error_handling() -> Result<()> {
     run_integration_test_with_timeout("test_sync_error_handling", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -526,7 +576,9 @@ async fn test_sync_error_handling() -> Result<()> {
 async fn test_lock_file_management() -> Result<()> {
     run_integration_test_with_timeout("test_lock_file_management", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -556,23 +608,35 @@ async fn test_lock_file_management() -> Result<()> {
 
         // Start sync in background (should create lock file)
         let sync_handle = tokio::spawn(async move {
-            sync_service.start_with_range(test_from_block, test_to_block).await
+            sync_service
+                .start_with_range(test_from_block, test_to_block)
+                .await
         });
 
         // Wait a bit for sync to start and create lock file
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         // Check lock file was created and is running
-        assert!(lock_manager.lock_exists(), "Lock file must exist during sync");
+        assert!(
+            lock_manager.lock_exists(),
+            "Lock file must exist during sync"
+        );
         let lock = lock_manager.read_lock()?;
         assert!(lock.pid > 0, "Lock PID must be positive");
         assert_eq!(lock.status, "running", "Lock status must be 'running'");
         assert!(lock.progress.sync_range.is_some(), "Sync range must be set");
-        
+
         let sync_range = lock.progress.sync_range.as_ref().unwrap();
-        assert_eq!(sync_range.from_block, test_from_block, "Sync range from_block must match");
-        assert_eq!(sync_range.to_block, Some(test_to_block), "Sync range to_block must match");
-        
+        assert_eq!(
+            sync_range.from_block, test_from_block,
+            "Sync range from_block must match"
+        );
+        assert_eq!(
+            sync_range.to_block,
+            Some(test_to_block),
+            "Sync range to_block must match"
+        );
+
         // Wait for sync to complete
         let sync_result = sync_handle.await.unwrap();
         sync_result.expect("Sync must succeed for valid range");
@@ -580,8 +644,11 @@ async fn test_lock_file_management() -> Result<()> {
         // Check that lock file still exists after completion (status should be completed)
         if lock_manager.lock_exists() {
             let final_lock = lock_manager.read_lock()?;
-            assert_eq!(final_lock.status, "completed", "Lock status should be 'completed' after sync");
-            
+            assert_eq!(
+                final_lock.status, "completed",
+                "Lock status should be 'completed' after sync"
+            );
+
             // Clean up
             lock_manager.remove_lock()?;
         }
@@ -596,7 +663,9 @@ async fn test_lock_file_management() -> Result<()> {
 async fn test_cli_functionality() -> Result<()> {
     run_integration_test_with_timeout("test_cli_functionality", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -609,7 +678,8 @@ async fn test_cli_functionality() -> Result<()> {
         let status_output = run_snaprag_command(&["sync", "status"])?;
         assert!(
             status_output.contains("No active sync process") || status_output.contains("Status:"),
-            "Sync status must contain expected output: {}", status_output
+            "Sync status must contain expected output: {}",
+            status_output
         );
 
         // Test 2: Test sync start with range
@@ -618,14 +688,16 @@ async fn test_cli_functionality() -> Result<()> {
         assert!(
             sync_output.contains("Starting synchronization")
                 || sync_output.contains("sync service"),
-            "Sync start must contain expected output: {}", sync_output
+            "Sync start must contain expected output: {}",
+            sync_output
         );
 
         // Test 3: Check sync status again (should show completed sync)
         let status_output2 = run_snaprag_command(&["sync", "status"])?;
         assert!(
             status_output2.contains("No active sync process") || status_output2.contains("Status:"),
-            "Sync status after sync must contain expected output: {}", status_output2
+            "Sync status after sync must contain expected output: {}",
+            status_output2
         );
 
         // Test 4: Test sync stop command
@@ -633,22 +705,30 @@ async fn test_cli_functionality() -> Result<()> {
         assert!(
             stop_output.contains("Stopping sync processes")
                 || stop_output.contains("No active sync process"),
-            "Sync stop must contain expected output: {}", stop_output
+            "Sync stop must contain expected output: {}",
+            stop_output
         );
 
         // Test 5: Test list commands
         let list_fids_output = run_snaprag_command(&["list", "fid", "--limit", "5"])?;
-        assert!(!list_fids_output.is_empty(), "List FIDs output must not be empty");
+        assert!(
+            !list_fids_output.is_empty(),
+            "List FIDs output must not be empty"
+        );
 
         let list_profiles_output = run_snaprag_command(&["list", "profiles", "--limit", "5"])?;
-        assert!(!list_profiles_output.is_empty(), "List profiles output must not be empty");
+        assert!(
+            !list_profiles_output.is_empty(),
+            "List profiles output must not be empty"
+        );
 
         // Test 6: Test reset command (with force to avoid interactive prompt)
         let reset_output = run_snaprag_command(&["reset", "--force"])?;
         assert!(
             reset_output.contains("Resetting all synchronized data")
                 || reset_output.contains("Clearing all synchronized data"),
-            "Reset command must contain expected output: {}", reset_output
+            "Reset command must contain expected output: {}",
+            reset_output
         );
 
         Ok(())
@@ -661,7 +741,9 @@ async fn test_cli_functionality() -> Result<()> {
 async fn test_cli_sync_ranges() -> Result<()> {
     run_integration_test_with_timeout("test_cli_sync_ranges", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -684,8 +766,12 @@ async fn test_cli_sync_ranges() -> Result<()> {
             let sync_output = run_snaprag_command(&["sync", "start", "--from", from, "--to", to])?;
 
             // Check that the command executed without major errors
-            assert!(!sync_output.contains("FATAL") && !sync_output.contains("panic"),
-                "Sync command for {} must not contain FATAL or panic: {}", range_name, sync_output);
+            assert!(
+                !sync_output.contains("FATAL") && !sync_output.contains("panic"),
+                "Sync command for {} must not contain FATAL or panic: {}",
+                range_name,
+                sync_output
+            );
 
             // Small delay between tests
             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
@@ -701,7 +787,9 @@ async fn test_cli_sync_ranges() -> Result<()> {
 async fn test_cli_error_handling() -> Result<()> {
     run_integration_test_with_timeout("test_cli_error_handling", || async {
         // Acquire global test lock to ensure serial execution
-        let _lock = TEST_LOCK.lock().map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
+        let _lock = TEST_LOCK
+            .lock()
+            .map_err(|_| crate::SnapRagError::Custom("Failed to acquire test lock".to_string()))?;
 
         let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -719,16 +807,22 @@ async fn test_cli_error_handling() -> Result<()> {
             run_snaprag_command(&["sync", "start", "--from", "1000", "--to", "500"]);
         // This might succeed but should handle the invalid range gracefully
         if let Ok(output) = invalid_range_output {
-            assert!(!output.contains("FATAL") && !output.contains("panic"),
-                "Invalid range command must not panic: {}", output);
+            assert!(
+                !output.contains("FATAL") && !output.contains("panic"),
+                "Invalid range command must not panic: {}",
+                output
+            );
         }
 
         // Test 3: Missing required arguments
         let missing_args_output = run_snaprag_command(&["sync", "start"]);
         // This should succeed (sync without range)
         if let Ok(output) = missing_args_output {
-            assert!(!output.contains("FATAL") && !output.contains("panic"),
-                "Missing args command must not panic: {}", output);
+            assert!(
+                !output.contains("FATAL") && !output.contains("panic"),
+                "Missing args command must not panic: {}",
+                output
+            );
         }
 
         Ok(())
