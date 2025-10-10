@@ -52,13 +52,20 @@ pub struct EmbeddingConfig {
 
 impl EmbeddingConfig {
     pub fn from_app_config(config: &crate::config::AppConfig) -> Self {
-        // Check if using OpenAI or local Ollama
-        let provider = if config.embedding_model().contains("ada")
-            || config.embedding_model().contains("text-embedding")
-        {
-            EmbeddingProvider::OpenAI
-        } else {
+        // Determine provider based on llm_key or endpoint
+        // Priority: llm_key > endpoint domain
+        let provider = if config.llm_key() == "ollama" {
             EmbeddingProvider::Ollama
+        } else if config.llm_endpoint().contains("api.openai.com") {
+            EmbeddingProvider::OpenAI
+        } else if config.llm_endpoint().contains("localhost")
+            || !config.llm_endpoint().contains("openai")
+        {
+            // Local or non-OpenAI endpoint, assume Ollama
+            EmbeddingProvider::Ollama
+        } else {
+            // Default to OpenAI if endpoint looks like OpenAI
+            EmbeddingProvider::OpenAI
         };
 
         Self {
