@@ -45,6 +45,10 @@ async fn test_database_error_handling() -> Result<()> {
             sync_interval_ms: 1000,
             shard_ids: vec![0, 1, 2],
         },
+        llm: crate::config::LlmConfig {
+            llm_endpoint: "https://api.openai.com/v1".to_string(),
+            llm_key: "test-key".to_string(),
+        },
     };
 
     // This should return an error, not panic
@@ -252,8 +256,8 @@ async fn test_concurrent_operations() -> Result<()> {
                 // Operation succeeded
             }
             Err(e) => {
-                // Operation failed gracefully
-                println!("Concurrent operation failed gracefully: {}", e);
+                // Operation failed gracefully - this is acceptable
+                assert!(!e.to_string().contains("panic"), "Concurrent operation must not panic: {}", e);
             }
         }
     }
@@ -300,7 +304,7 @@ async fn test_error_propagation() -> Result<()> {
                 }
                 other => {
                     // Other error types are also acceptable
-                    println!("Got error type: {:?}", other);
+                    assert!(!other.to_string().contains("panic"), "Error must not contain panic: {:?}", other);
                 }
             }
         }

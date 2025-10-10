@@ -1,0 +1,17 @@
+{
+  "pid": 33036,
+  "status": "running",
+  "start_time": 1760104209,
+  "last_update": 1760111103,
+  "progress": {
+    "current_shard": 1,
+    "current_block": 44923,
+    "total_blocks_processed": 44923,
+    "total_messages_processed": 0,
+    "sync_range": {
+      "from_block": 0,
+      "to_block": null
+    }
+  },
+  "error_message": null
+}

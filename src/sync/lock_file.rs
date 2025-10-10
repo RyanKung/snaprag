@@ -129,7 +129,7 @@ impl SyncLockManager {
         }
     }
 
-    /// Create lock file
+    /// Create lock file with enhanced error handling and timeout
     pub fn create_lock(&self, status: &str, sync_range: Option<SyncRange>) -> Result<SyncLockFile> {
         // Check if lock file already exists
         if Path::new(&self.lock_file_path).exists() {
@@ -137,10 +137,21 @@ impl SyncLockManager {
                 Ok(existing_lock) => {
                     // Check if the process is still running
                     if self.is_process_running(existing_lock.pid) {
-                        return Err(crate::SnapRagError::Custom(format!(
-                            "Sync process is already running (PID: {})",
-                            existing_lock.pid
-                        )));
+                        // Check if the existing process is stuck (no update for too long)
+                        if self.is_lock_stale(&existing_lock) {
+                            warn!(
+                                "Found stale lock file from PID {} (last update: {}s ago), force removing it",
+                                existing_lock.pid,
+                                self.get_lock_age_seconds(&existing_lock)
+                            );
+                            self.force_remove_stale_lock(&existing_lock)?;
+                        } else {
+                            return Err(crate::SnapRagError::Custom(format!(
+                                "Sync process is already running (PID: {}) - last update: {}s ago",
+                                existing_lock.pid,
+                                self.get_lock_age_seconds(&existing_lock)
+                            )));
+                        }
                     } else {
                         warn!(
                             "Found stale lock file from PID {}, removing it",
@@ -149,8 +160,8 @@ impl SyncLockManager {
                         self.remove_lock()?;
                     }
                 }
-                Err(_) => {
-                    warn!("Found corrupted lock file, removing it");
+                Err(e) => {
+                    warn!("Found corrupted lock file, removing it: {}", e);
                     self.remove_lock()?;
                 }
             }
@@ -160,6 +171,53 @@ impl SyncLockManager {
         self.write_lock(&lock)?;
         info!("Created sync lock file (PID: {})", lock.pid);
         Ok(lock)
+    }
+
+    /// Check if lock file is stale (no update for more than 5 minutes)
+    fn is_lock_stale(&self, lock: &SyncLockFile) -> bool {
+        let age_seconds = self.get_lock_age_seconds(lock);
+        age_seconds > 300 // 5 minutes
+    }
+
+    /// Get age of lock file in seconds
+    fn get_lock_age_seconds(&self, lock: &SyncLockFile) -> u64 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        
+        if now > lock.last_update {
+            now - lock.last_update
+        } else {
+            0
+        }
+    }
+
+    /// Force remove stale lock file
+    fn force_remove_stale_lock(&self, lock: &SyncLockFile) -> Result<()> {
+        // Try to kill the process first
+        if self.is_process_running(lock.pid) {
+            warn!("Attempting to kill stale process PID: {}", lock.pid);
+            unsafe {
+                libc::kill(lock.pid as i32, libc::SIGTERM);
+            }
+            
+            // Wait a bit for graceful shutdown
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+            
+            // Force kill if still running
+            if self.is_process_running(lock.pid) {
+                warn!("Force killing stale process PID: {}", lock.pid);
+                unsafe {
+                    libc::kill(lock.pid as i32, libc::SIGKILL);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+        }
+        
+        // Remove the lock file
+        self.remove_lock()?;
+        Ok(())
     }
 
     /// Read lock file

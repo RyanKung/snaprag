@@ -42,12 +42,19 @@ pub struct SyncConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmConfig {
+    pub llm_endpoint: String,
+    pub llm_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
     pub logging: LoggingConfig,
     pub embeddings: EmbeddingsConfig,
     pub performance: PerformanceConfig,
     pub sync: SyncConfig,
+    pub llm: LlmConfig,
 }
 
 impl AppConfig {
@@ -158,6 +165,16 @@ impl AppConfig {
     pub fn shard_ids(&self) -> &Vec<u32> {
         &self.sync.shard_ids
     }
+
+    /// Get LLM endpoint
+    pub fn llm_endpoint(&self) -> &str {
+        &self.llm.llm_endpoint
+    }
+
+    /// Get LLM key
+    pub fn llm_key(&self) -> &str {
+        &self.llm.llm_key
+    }
 }
 
 impl Default for AppConfig {
@@ -190,6 +207,10 @@ impl Default for AppConfig {
                 batch_size: 100,
                 sync_interval_ms: 1000,
                 shard_ids: vec![0, 1, 2],
+            },
+            llm: LlmConfig {
+                llm_endpoint: "http://localhost:11434".to_string(),
+                llm_key: "ollama".to_string(),
             },
         }
     }

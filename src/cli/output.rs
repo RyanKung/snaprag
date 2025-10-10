@@ -321,6 +321,11 @@ pub fn print_config(config: &AppConfig) {
     println!("  Batch size: {}", config.sync_batch_size());
     println!("  Sync interval: {}ms", config.sync_interval_ms());
     println!("  Shard IDs: {:?}", config.shard_ids());
+    println!();
+
+    println!("🤖 LLM:");
+    println!("  Endpoint: {}", config.llm_endpoint());
+    println!("  Key: {}", config.llm_key());
 }
 
 /// Mask database URL for logging (hide password)

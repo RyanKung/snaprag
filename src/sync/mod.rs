@@ -5,6 +5,7 @@
 
 pub mod client;
 pub mod lock_file;
+pub mod process_monitor;
 pub mod service;
 pub mod shard_processor;
 pub mod state_manager;

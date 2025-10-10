@@ -1,8 +1,8 @@
 //! Validation tests for strict test configuration
 //! These tests verify that our strict testing setup works correctly
 
-use crate::tests::strict_test_config;
 use crate::strict_test;
+use crate::tests::strict_test_config;
 
 #[cfg(test)]
 mod tests {

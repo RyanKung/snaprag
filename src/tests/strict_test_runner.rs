@@ -46,8 +46,6 @@ impl StrictTestRunner {
 
     /// Run all strict checks and tests
     pub async fn run_all(&self) -> Result<()> {
-        println!("🚀 Starting strict test execution...");
-
         // Step 1: Code formatting check
         if self.config.check_formatting {
             self.check_formatting()?;
@@ -61,32 +59,25 @@ impl StrictTestRunner {
         // Step 3: Run tests with strict settings
         self.run_tests().await?;
 
-        println!("✅ All strict tests passed!");
         Ok(())
     }
 
     /// Check code formatting
     fn check_formatting(&self) -> Result<()> {
-        println!("🔍 Checking code formatting...");
-
         let output = Command::new("cargo")
             .args(&["fmt", "--all", "--", "--check"])
             .output()?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("❌ Code formatting check failed:\n{}", stderr);
-            return Err("Code formatting check failed".into());
+            panic!("Code formatting check failed: {}", stderr);
         }
 
-        println!("✅ Code formatting check passed");
         Ok(())
     }
 
     /// Run clippy with strict settings
     fn run_clippy(&self) -> Result<()> {
-        println!("🔍 Running clippy with strict settings...");
-
         let mut args = vec![
             "clippy",
             "--all-targets",
@@ -116,18 +107,14 @@ impl StrictTestRunner {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("❌ Clippy check failed:\n{}", stderr);
-            return Err("Clippy check failed".into());
+            panic!("Clippy check failed: {}", stderr);
         }
 
-        println!("✅ Clippy check passed");
         Ok(())
     }
 
     /// Run tests with strict settings
     async fn run_tests(&self) -> Result<()> {
-        println!("🧪 Running tests with strict settings...");
-
         let mut args = vec!["test", "--lib"];
 
         if !self.config.parallel {
@@ -153,27 +140,15 @@ impl StrictTestRunner {
 
             // Check if failure is due to warnings from generated code
             if self.is_generated_code_warning(&stderr) {
-                println!(
-                    "⚠️  Warning: Tests failed due to generated code warnings, but continuing..."
-                );
-                println!("📝 This is expected for protobuf-generated code");
-                println!("🔍 Checking if actual test logic passed...");
-
                 // Check if tests actually passed despite warnings
                 if stdout.contains("test result: ok") {
-                    println!("✅ Tests actually passed despite generated code warnings!");
                     return Ok(());
                 }
             }
 
-            eprintln!("❌ Tests failed:");
-            eprintln!("STDOUT:\n{}", stdout);
-            eprintln!("STDERR:\n{}", stderr);
-            return Err("Tests failed".into());
+            panic!("Tests failed - STDOUT: {} STDERR: {}", stdout, stderr);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("✅ Tests passed:\n{}", stdout);
         Ok(())
     }
 
@@ -191,8 +166,6 @@ impl StrictTestRunner {
 
     /// Run a specific test with strict settings
     pub async fn run_test(&self, test_name: &str) -> Result<()> {
-        println!("🧪 Running test: {} with strict settings...", test_name);
-
         let mut cmd = Command::new("cargo");
         cmd.args(&["test", "--lib", test_name, "--", "--test-threads", "1"])
             .env("RUST_BACKTRACE", "1")
@@ -207,14 +180,9 @@ impl StrictTestRunner {
         if !output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("❌ Test {} failed:", test_name);
-            eprintln!("STDOUT:\n{}", stdout);
-            eprintln!("STDERR:\n{}", stderr);
-            return Err(format!("Test {} failed", test_name).into());
+            panic!("Test {} failed - STDOUT: {} STDERR: {}", test_name, stdout, stderr);
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("✅ Test {} passed:\n{}", test_name, stdout);
         Ok(())
     }
 }
