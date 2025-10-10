@@ -36,11 +36,14 @@
 pub mod cli;
 pub mod config;
 pub mod database;
+pub mod embeddings;
 pub mod errors;
 pub mod generated;
 pub mod grpc_client;
+pub mod llm;
 pub mod logging;
 pub mod models;
+pub mod rag;
 pub mod sync;
 
 /// Farcaster epoch constant (January 1, 2021 UTC in milliseconds)

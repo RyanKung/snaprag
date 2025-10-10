@@ -34,6 +34,18 @@ pub enum SnapRagError {
 
     #[error("Custom error: {0}")]
     Custom(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+
+    #[error("HTTP error: {0}")]
+    HttpError(String),
+
+    #[error("Embedding generation error: {0}")]
+    EmbeddingError(String),
+
+    #[error("LLM error: {0}")]
+    LlmError(String),
 }
 
 impl From<&str> for SnapRagError {
@@ -49,3 +61,6 @@ impl From<String> for SnapRagError {
 }
 
 pub type Result<T> = std::result::Result<T, SnapRagError>;
+
+// Re-export for convenience
+pub use SnapRagError as SnapragError;

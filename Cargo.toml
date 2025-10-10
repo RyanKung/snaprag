@@ -45,6 +45,7 @@ clap = { version = "4.0", features = ["derive"] }
 tonic = "0.10"
 prost = "0.12"
 libc = "0.2"
+futures = "0.3"
 
 [build-dependencies]
 protobuf-codegen-pure = "2.28"

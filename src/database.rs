@@ -1787,4 +1787,174 @@ impl Database {
 
         Ok(user_data)
     }
+
+    /// Update profile embeddings
+    pub async fn update_profile_embeddings(
+        &self,
+        fid: i64,
+        profile_embedding: Option<Vec<f32>>,
+        bio_embedding: Option<Vec<f32>>,
+        interests_embedding: Option<Vec<f32>>,
+    ) -> Result<()> {
+        // Build dynamic query based on which embeddings are provided
+        let mut updates = Vec::new();
+        let mut param_num = 2; // $1 is fid
+
+        if profile_embedding.is_some() {
+            updates.push(format!("profile_embedding = ${}", param_num));
+            param_num += 1;
+        }
+        if bio_embedding.is_some() {
+            updates.push(format!("bio_embedding = ${}", param_num));
+            param_num += 1;
+        }
+        if interests_embedding.is_some() {
+            updates.push(format!("interests_embedding = ${}", param_num));
+        }
+
+        if updates.is_empty() {
+            return Ok(()); // Nothing to update
+        }
+
+        let query_str = format!(
+            "UPDATE user_profiles SET {} WHERE fid = $1",
+            updates.join(", ")
+        );
+
+        let mut query = sqlx::query(&query_str).bind(fid);
+
+        if let Some(pe) = profile_embedding {
+            query = query.bind(pe);
+        }
+        if let Some(be) = bio_embedding {
+            query = query.bind(be);
+        }
+        if let Some(ie) = interests_embedding {
+            query = query.bind(ie);
+        }
+
+        query.execute(&self.pool).await?;
+        Ok(())
+    }
+
+    /// Semantic search for profiles using vector similarity
+    pub async fn semantic_search_profiles(
+        &self,
+        query_embedding: Vec<f32>,
+        limit: i64,
+        similarity_threshold: Option<f32>,
+    ) -> Result<Vec<UserProfile>> {
+        let threshold = similarity_threshold.unwrap_or(0.8);
+        
+        let profiles = sqlx::query_as::<_, UserProfile>(
+            r#"
+            SELECT *
+            FROM user_profiles
+            WHERE profile_embedding IS NOT NULL
+                AND (profile_embedding <=> $1::vector) < $2
+            ORDER BY profile_embedding <=> $1::vector
+            LIMIT $3
+            "#
+        )
+        .bind(query_embedding)
+        .bind(threshold)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(profiles)
+    }
+
+    /// Semantic search for profiles by bio
+    pub async fn semantic_search_profiles_by_bio(
+        &self,
+        query_embedding: Vec<f32>,
+        limit: i64,
+        similarity_threshold: Option<f32>,
+    ) -> Result<Vec<UserProfile>> {
+        let threshold = similarity_threshold.unwrap_or(0.8);
+        
+        let profiles = sqlx::query_as::<_, UserProfile>(
+            r#"
+            SELECT *
+            FROM user_profiles
+            WHERE bio_embedding IS NOT NULL
+                AND (bio_embedding <=> $1::vector) < $2
+            ORDER BY bio_embedding <=> $1::vector
+            LIMIT $3
+            "#
+        )
+        .bind(query_embedding)
+        .bind(threshold)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(profiles)
+    }
+
+    /// Hybrid search combining vector similarity and text search
+    pub async fn hybrid_search_profiles(
+        &self,
+        query_embedding: Option<Vec<f32>>,
+        text_query: Option<String>,
+        limit: i64,
+    ) -> Result<Vec<UserProfile>> {
+        match (query_embedding, text_query) {
+            (Some(embedding), Some(text)) => {
+                // Combined vector + text search
+                let profiles = sqlx::query_as::<_, UserProfile>(
+                    r#"
+                    SELECT *, 
+                           (profile_embedding <=> $1::vector) as vector_distance,
+                           CASE 
+                               WHEN username ILIKE $2 THEN 1.0
+                               WHEN display_name ILIKE $2 THEN 0.9
+                               WHEN bio ILIKE $2 THEN 0.8
+                               ELSE 0.0
+                           END as text_score
+                    FROM user_profiles
+                    WHERE profile_embedding IS NOT NULL
+                        AND (username ILIKE $2 OR display_name ILIKE $2 OR bio ILIKE $2)
+                    ORDER BY (profile_embedding <=> $1::vector) * 0.5 + (1.0 - text_score) * 0.5
+                    LIMIT $3
+                    "#
+                )
+                .bind(embedding)
+                .bind(format!("%{}%", text))
+                .bind(limit)
+                .fetch_all(&self.pool)
+                .await?;
+                Ok(profiles)
+            }
+            (Some(embedding), None) => {
+                // Vector search only
+                self.semantic_search_profiles(embedding, limit, None).await
+            }
+            (None, Some(text)) => {
+                // Text search only
+                let query = UserProfileQuery {
+                    fid: None,
+                    username: None,
+                    display_name: None,
+                    bio: None,
+                    location: None,
+                    twitter_username: None,
+                    github_username: None,
+                    limit: Some(limit),
+                    offset: None,
+                    start_timestamp: None,
+                    end_timestamp: None,
+                    sort_by: None,
+                    sort_order: None,
+                    search_term: Some(text),
+                };
+                self.list_user_profiles(query).await
+            }
+            (None, None) => {
+                // No search criteria
+                Ok(Vec::new())
+            }
+        }
+    }
 }

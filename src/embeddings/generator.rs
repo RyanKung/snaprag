@@ -1,0 +1,220 @@
+//! Embedding generation service with caching and batch processing
+
+use super::client::{EmbeddingClient, EmbeddingProvider};
+use super::{EmbeddingConfig, MAX_BATCH_SIZE};
+use crate::errors::Result;
+use std::sync::Arc;
+use tracing::{info, warn};
+
+/// Service for generating embeddings with caching and optimization
+pub struct EmbeddingService {
+    client: Arc<EmbeddingClient>,
+    config: EmbeddingConfig,
+}
+
+impl EmbeddingService {
+    /// Create a new embedding service
+    pub fn new(config: &crate::config::AppConfig) -> Result<Self> {
+        let embedding_config = EmbeddingConfig::from_app_config(config);
+        let client = EmbeddingClient::new(
+            embedding_config.provider,
+            embedding_config.model.clone(),
+            embedding_config.endpoint.clone(),
+            embedding_config.api_key.clone(),
+        )?;
+
+        Ok(Self {
+            client: Arc::new(client),
+            config: embedding_config,
+        })
+    }
+
+    /// Create from custom config
+    pub fn from_config(config: EmbeddingConfig) -> Result<Self> {
+        let client = EmbeddingClient::new(
+            config.provider,
+            config.model.clone(),
+            config.endpoint.clone(),
+            config.api_key.clone(),
+        )?;
+
+        Ok(Self {
+            client: Arc::new(client),
+            config,
+        })
+    }
+
+    /// Generate embedding for a single text
+    pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
+        if text.trim().is_empty() {
+            warn!("Attempted to generate embedding for empty text");
+            return Ok(vec![0.0; self.config.dimension]);
+        }
+
+        self.client.generate(text).await
+    }
+
+    /// Generate embeddings for multiple texts in batch
+    pub async fn generate_batch(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Filter out empty texts and track their positions
+        let mut filtered_texts = Vec::new();
+        let mut empty_positions = Vec::new();
+
+        for (i, text) in texts.iter().enumerate() {
+            if text.trim().is_empty() {
+                empty_positions.push(i);
+            } else {
+                filtered_texts.push(*text);
+            }
+        }
+
+        // Generate embeddings for non-empty texts
+        let mut embeddings = if !filtered_texts.is_empty() {
+            if filtered_texts.len() <= MAX_BATCH_SIZE {
+                self.client.generate_batch(filtered_texts).await?
+            } else {
+                // Split into chunks
+                let mut all_embeddings = Vec::new();
+                for chunk in filtered_texts.chunks(MAX_BATCH_SIZE) {
+                    let chunk_embeddings = self.client.generate_batch(chunk.to_vec()).await?;
+                    all_embeddings.extend(chunk_embeddings);
+                }
+                all_embeddings
+            }
+        } else {
+            Vec::new()
+        };
+
+        // Insert zero vectors for empty texts at correct positions
+        let zero_vector = vec![0.0; self.config.dimension];
+        for pos in empty_positions.iter().rev() {
+            embeddings.insert(*pos, zero_vector.clone());
+        }
+
+        Ok(embeddings)
+    }
+
+    /// Generate embedding for user profile (combines multiple fields)
+    pub async fn generate_profile_embedding(
+        &self,
+        username: Option<&str>,
+        display_name: Option<&str>,
+        bio: Option<&str>,
+        location: Option<&str>,
+    ) -> Result<Vec<f32>> {
+        let mut parts = Vec::new();
+
+        if let Some(u) = username {
+            if !u.trim().is_empty() {
+                parts.push(format!("Username: {}", u));
+            }
+        }
+        if let Some(d) = display_name {
+            if !d.trim().is_empty() {
+                parts.push(format!("Name: {}", d));
+            }
+        }
+        if let Some(b) = bio {
+            if !b.trim().is_empty() {
+                parts.push(format!("Bio: {}", b));
+            }
+        }
+        if let Some(l) = location {
+            if !l.trim().is_empty() {
+                parts.push(format!("Location: {}", l));
+            }
+        }
+
+        if parts.is_empty() {
+            return Ok(vec![0.0; self.config.dimension]);
+        }
+
+        let combined = parts.join(". ");
+        self.generate(&combined).await
+    }
+
+    /// Generate embedding for bio text
+    pub async fn generate_bio_embedding(&self, bio: Option<&str>) -> Result<Vec<f32>> {
+        match bio {
+            Some(b) if !b.trim().is_empty() => self.generate(b).await,
+            _ => Ok(vec![0.0; self.config.dimension]),
+        }
+    }
+
+    /// Generate embedding for interests (from bio or other fields)
+    pub async fn generate_interests_embedding(
+        &self,
+        bio: Option<&str>,
+        twitter: Option<&str>,
+        github: Option<&str>,
+    ) -> Result<Vec<f32>> {
+        let mut parts = Vec::new();
+
+        if let Some(b) = bio {
+            if !b.trim().is_empty() {
+                parts.push(b.to_string());
+            }
+        }
+        if let Some(t) = twitter {
+            if !t.trim().is_empty() {
+                parts.push(format!("Twitter: {}", t));
+            }
+        }
+        if let Some(g) = github {
+            if !g.trim().is_empty() {
+                parts.push(format!("GitHub: {}", g));
+            }
+        }
+
+        if parts.is_empty() {
+            return Ok(vec![0.0; self.config.dimension]);
+        }
+
+        let combined = parts.join(". ");
+        self.generate(&combined).await
+    }
+
+    /// Get the embedding dimension
+    pub fn dimension(&self) -> usize {
+        self.config.dimension
+    }
+
+    /// Get the model name
+    pub fn model(&self) -> &str {
+        &self.config.model
+    }
+
+    /// Get the provider
+    pub fn provider(&self) -> EmbeddingProvider {
+        self.config.provider
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_text_handling() {
+        // This test verifies the logic without making API calls
+        let texts = vec!["", "hello", "", "world"];
+        let mut filtered = Vec::new();
+        let mut empty_pos = Vec::new();
+
+        for (i, t) in texts.iter().enumerate() {
+            if t.trim().is_empty() {
+                empty_pos.push(i);
+            } else {
+                filtered.push(*t);
+            }
+        }
+
+        assert_eq!(filtered, vec!["hello", "world"]);
+        assert_eq!(empty_pos, vec![0, 2]);
+    }
+}
+
