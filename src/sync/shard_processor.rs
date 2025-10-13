@@ -183,8 +183,9 @@ impl ShardProcessor {
         let mut tx = self.database.pool().begin().await?;
 
         // Ensure all FIDs exist
-        for fid in batched.fids_to_ensure {
-            sqlx::query(
+        let mut profiles_created = 0;
+        for fid in &batched.fids_to_ensure {
+            let result = sqlx::query(
                 r#"
                 INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at)
                 VALUES ($1, $2, $3)
@@ -196,6 +197,14 @@ impl ShardProcessor {
             .bind(chrono::Utc::now())
             .execute(&mut *tx)
             .await?;
+
+            if result.rows_affected() > 0 {
+                profiles_created += 1;
+            }
+        }
+
+        if profiles_created > 0 {
+            tracing::debug!("Created {} new profiles", profiles_created);
         }
 
         // Batch insert casts

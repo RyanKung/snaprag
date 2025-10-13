@@ -2,11 +2,11 @@
   "pid": 91690,
   "status": "running",
   "start_time": 1760386658,
-  "last_update": 1760386928,
+  "last_update": 1760387023,
   "progress": {
     "current_shard": 1,
-    "current_block": 13200,
-    "total_blocks_processed": 13199,
+    "current_block": 18070,
+    "total_blocks_processed": 18069,
     "total_messages_processed": 0,
     "sync_range": {
       "from_block": 0,
