@@ -120,6 +120,15 @@ pub enum SyncCommands {
         /// End block number (default: latest)
         #[arg(long)]
         to: Option<u64>,
+        /// Shard IDs to sync (comma-separated, e.g., "1,2")
+        #[arg(long)]
+        shard: Option<String>,
+        /// Batch size for fetching blocks (default: from config)
+        #[arg(long)]
+        batch: Option<u32>,
+        /// Sync interval in milliseconds (default: from config)
+        #[arg(long)]
+        interval: Option<u64>,
     },
     /// Test single block synchronization
     Test {

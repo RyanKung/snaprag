@@ -248,19 +248,61 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
             print_info("Starting full synchronization (historical + real-time)...");
             snaprag.start_sync().await?;
         }
-        SyncCommands::Start { from, to } => {
+        SyncCommands::Start {
+            from,
+            to,
+            shard,
+            batch,
+            interval,
+        } => {
             let from_block = from.unwrap_or(0);
             let to_block = to.unwrap_or(u64::MAX);
 
+            // Parse shard IDs if provided
+            let shard_ids = if let Some(shard_str) = shard {
+                shard_str
+                    .split(',')
+                    .filter_map(|s| s.trim().parse::<u32>().ok())
+                    .collect::<Vec<_>>()
+            } else {
+                vec![] // Use default from config
+            };
+
+            // Apply command-line overrides to config
+            if batch.is_some() || interval.is_some() || !shard_ids.is_empty() {
+                snaprag.override_sync_config(shard_ids.clone(), batch, interval)?;
+            }
+
             if let Some(to_val) = to {
                 print_info(&format!(
-                    "Starting synchronization from block {} to block {}...",
-                    from_block, to_val
+                    "Starting synchronization from block {} to block {}{}{}...",
+                    from_block,
+                    to_val,
+                    if let Some(b) = batch {
+                        format!(" (batch: {})", b)
+                    } else {
+                        String::new()
+                    },
+                    if !shard_ids.is_empty() {
+                        format!(" (shards: {:?})", shard_ids)
+                    } else {
+                        String::new()
+                    }
                 ));
             } else {
                 print_info(&format!(
-                    "Starting synchronization from block {} to latest...",
-                    from_block
+                    "Starting synchronization from block {} to latest{}{}...",
+                    from_block,
+                    if let Some(b) = batch {
+                        format!(" (batch: {})", b)
+                    } else {
+                        String::new()
+                    },
+                    if !shard_ids.is_empty() {
+                        format!(" (shards: {:?})", shard_ids)
+                    } else {
+                        String::new()
+                    }
                 ));
             }
 

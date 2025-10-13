@@ -102,6 +102,25 @@ impl SnapRag {
         &self.database
     }
 
+    /// Override sync configuration from command-line arguments
+    pub fn override_sync_config(
+        &mut self,
+        shard_ids: Vec<u32>,
+        batch_size: Option<u32>,
+        interval_ms: Option<u64>,
+    ) -> Result<()> {
+        if !shard_ids.is_empty() {
+            self.config.sync.shard_ids = shard_ids;
+        }
+        if let Some(batch) = batch_size {
+            self.config.sync.batch_size = batch;
+        }
+        if let Some(interval) = interval_ms {
+            self.config.sync.sync_interval_ms = interval;
+        }
+        Ok(())
+    }
+
     /// Start data synchronization
     pub async fn start_sync(&mut self) -> Result<()> {
         let sync_service = Arc::new(SyncService::new(&self.config, self.database.clone()).await?);
