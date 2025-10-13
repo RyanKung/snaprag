@@ -69,10 +69,10 @@ overflow-checks = true
 # Strict clippy configuration for tests
 [lints.clippy]
 # Allow warnings in generated code but be strict in our code
-all = "warn"
-pedantic = "warn"
-nursery = "warn"
-cargo = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
 # Allow some specific warnings that are common in test code
 unused_io_amount = "allow"
 unused_self = "allow"

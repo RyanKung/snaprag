@@ -122,9 +122,10 @@ impl Retriever {
     }
 
     /// Search with automatic method selection
+    /// Currently defaults to hybrid search for best results
     pub async fn auto_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
-        // For now, default to hybrid search
-        // TODO: Implement smarter selection based on query type
+        // Future enhancement: Could analyze query characteristics to select optimal search method
+        // (e.g., keyword-heavy queries -> semantic, specific terms -> full-text)
         self.hybrid_search(query, limit).await
     }
 }
@@ -163,13 +164,23 @@ impl Reranker {
             })
             .collect();
 
-        final_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+        // Sort by score descending, treating NaN as lowest value
+        final_results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         final_results
     }
 
     /// Simple score-based reranking
     pub fn rerank_by_score(mut results: Vec<SearchResult>) -> Vec<SearchResult> {
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+        // Sort by score descending, treating NaN as lowest value
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 }

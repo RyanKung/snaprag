@@ -1,22 +1,29 @@
-//! SnapRAG Build Script
+//! `SnapRAG` Build Script
 //!
 //! This build script handles:
-//! 1. SQLx compilation by setting SQLX_OFFLINE=true to avoid database connection issues during build
+//! 1. `SQLx` compilation by setting `SQLX_OFFLINE=true` to avoid database connection issues during build
 //! 2. Protobuf compilation for gRPC services
 
 use std::env;
 use std::fs;
 
 fn main() {
+    // Enable verbose build output with VERBOSE_BUILD=1
+    let verbose = env::var("VERBOSE_BUILD").unwrap_or_else(|_| "0".to_string()) == "1";
+
     // Check if we should use offline mode
     let use_offline = env::var("SQLX_OFFLINE").unwrap_or_else(|_| "false".to_string()) == "true";
 
     if use_offline {
         println!("cargo:rustc-env=SQLX_OFFLINE=true");
-        println!("cargo:warning=Using SQLX_OFFLINE mode - make sure .sqlx/ directory exists with prepared queries");
+        if verbose {
+            println!("cargo:warning=Using SQLX_OFFLINE mode - make sure .sqlx/ directory exists with prepared queries");
+        }
     } else {
         // Try to use database connection for live query validation
-        println!("cargo:warning=Attempting live SQLx query validation (may fail if database is unavailable)");
+        if verbose {
+            println!("cargo:warning=Attempting live SQLx query validation (may fail if database is unavailable)");
+        }
     }
 
     // Check if DATABASE_URL is already set
@@ -29,25 +36,27 @@ fn main() {
             // Try to read database URL from config.toml
             match read_database_url_from_config() {
                 Ok(database_url) => {
-                    println!("cargo:rustc-env=DATABASE_URL={}", database_url);
+                    println!("cargo:rustc-env=DATABASE_URL={database_url}");
 
                     // Also set it for the current process so sqlx can use it
                     env::set_var("DATABASE_URL", &database_url);
 
-                    println!(
-                        "cargo:warning=Using database URL from config.toml for SQLx compilation"
-                    );
-                    println!(
-                        "cargo:warning=Runtime database connection is configured via config.toml"
-                    );
+                    if verbose {
+                        println!(
+                            "cargo:warning=Using database URL from config.toml for SQLx compilation"
+                        );
+                        println!(
+                            "cargo:warning=Runtime database connection is configured via config.toml"
+                        );
+                    }
                 }
                 Err(e) => {
-                    println!("cargo:warning=Failed to read config.toml: {}", e);
+                    println!("cargo:warning=Failed to read config.toml: {e}");
                     println!("cargo:warning=Please set DATABASE_URL environment variable or ensure config.toml exists");
 
                     // Fallback to a generic URL for compilation (won't work for actual queries)
                     let fallback_url = "postgresql://user:pass@localhost/db";
-                    println!("cargo:rustc-env=DATABASE_URL={}", fallback_url);
+                    println!("cargo:rustc-env=DATABASE_URL={fallback_url}");
                     env::set_var("DATABASE_URL", fallback_url);
                 }
             }
@@ -115,15 +124,19 @@ fn compile_protobufs() {
         return;
     }
 
-    println!(
-        "cargo:warning=Compiling {} protobuf files",
-        existing_proto_files.len()
-    );
+    let verbose = env::var("VERBOSE_BUILD").unwrap_or_else(|_| "0".to_string()) == "1";
+
+    if verbose {
+        println!(
+            "cargo:warning=Compiling {} protobuf files",
+            existing_proto_files.len()
+        );
+    }
 
     // Create output directory
     let out_dir = "src/generated";
     if let Err(e) = fs::create_dir_all(out_dir) {
-        println!("cargo:warning=Failed to create output directory: {}", e);
+        println!("cargo:warning=Failed to create output directory: {e}");
         return;
     }
 
@@ -134,17 +147,17 @@ fn compile_protobufs() {
         .include("proto/")
         .run()
     {
-        Ok(_) => {
-            println!(
-                "cargo:warning=Successfully compiled {} protobuf files",
-                existing_proto_files.len()
-            );
+        Ok(()) => {
+            if verbose {
+                let count = existing_proto_files.len();
+                println!("cargo:warning=Successfully compiled {count} protobuf files");
+            }
 
             // Add #[allow] attributes to generated files to suppress warnings
-            add_allow_attributes_to_generated_files(out_dir);
+            add_allow_attributes_to_generated_files(out_dir, verbose);
         }
         Err(e) => {
-            println!("cargo:warning=Failed to compile protobuf files: {}", e);
+            println!("cargo:warning=Failed to compile protobuf files: {e}");
             println!("cargo:warning=Continuing build without protobuf support");
         }
     }
@@ -154,8 +167,19 @@ fn compile_protobufs() {
 }
 
 /// Add #[allow] attributes to generated protobuf files to suppress warnings
-fn add_allow_attributes_to_generated_files(out_dir: &str) {
-    let allow_attributes = "#![allow(unused_lifetimes)]\n#![allow(elided_lifetimes_in_paths)]\n#![allow(clippy::all)]\n#![allow(unknown_lints)]\n#![allow(renamed_and_removed_lints)]\n";
+fn add_allow_attributes_to_generated_files(out_dir: &str, verbose: bool) {
+    // Comprehensive allow attributes for generated code to suppress all warnings
+    let allow_attributes = "\
+#![allow(clippy::all)]
+#![allow(clippy::pedantic)]
+#![allow(clippy::nursery)]
+#![allow(unused_lifetimes)]
+#![allow(elided_lifetimes_in_paths)]
+#![allow(unused_parens)]
+#![allow(unknown_lints)]
+#![allow(renamed_and_removed_lints)]
+#![allow(warnings)]
+";
 
     // List of generated files that need the allow attributes
     let generated_files = [
@@ -173,34 +197,34 @@ fn add_allow_attributes_to_generated_files(out_dir: &str) {
     ];
 
     for file_name in &generated_files {
-        let file_path = format!("{}/{}", out_dir, file_name);
+        let file_path = format!("{out_dir}/{file_name}");
         if let Ok(mut content) = fs::read_to_string(&file_path) {
             // Remove old box_pointers allow attribute if it exists
             content = content.replace("#![allow(box_pointers)]\n", "");
 
             // Check if the file already has our allow attributes
-            if !content.contains("#![allow(unused_lifetimes)]") {
-                let modified_content = format!("{}\n{}", allow_attributes, content);
-                if let Err(e) = fs::write(&file_path, modified_content) {
-                    println!(
-                        "cargo:warning=Failed to add allow attributes to {}: {}",
-                        file_name, e
-                    );
-                } else {
-                    println!("cargo:warning=Added allow attributes to {}", file_name);
-                }
-            } else {
+            if content.contains("#![allow(unused_lifetimes)]") {
                 // File already has allow attributes, just remove box_pointers if present
                 if content.contains("#![allow(box_pointers)]") {
                     let modified_content = content.replace("#![allow(box_pointers)]\n", "");
                     if let Err(e) = fs::write(&file_path, modified_content) {
                         println!(
-                            "cargo:warning=Failed to remove box_pointers from {}: {}",
-                            file_name, e
+                            "cargo:warning=Failed to remove box_pointers from {file_name}: {e}"
                         );
                     } else {
-                        println!("cargo:warning=Removed box_pointers from {}", file_name);
+                        println!("cargo:warning=Removed box_pointers from {file_name}");
                     }
+                }
+            } else {
+                let modified_content = format!("{allow_attributes}\n{content}");
+                if let Err(e) = fs::write(&file_path, modified_content) {
+                    if verbose {
+                        println!(
+                            "cargo:warning=Failed to add allow attributes to {file_name}: {e}"
+                        );
+                    }
+                } else if verbose {
+                    println!("cargo:warning=Added allow attributes to {file_name}");
                 }
             }
         }
@@ -209,6 +233,7 @@ fn add_allow_attributes_to_generated_files(out_dir: &str) {
 
 /// Generate gRPC client code using tonic-build
 fn generate_grpc_client() {
+    let verbose = env::var("VERBOSE_BUILD").unwrap_or_else(|_| "0".to_string()) == "1";
     let out_dir = "src/generated";
 
     // Generate gRPC client for the main RPC service
@@ -217,14 +242,16 @@ fn generate_grpc_client() {
             .out_dir(out_dir)
             .compile(&["proto/rpc.proto"], &["proto/"])
         {
-            Ok(_) => {
-                println!("cargo:warning=Successfully generated gRPC client code");
+            Ok(()) => {
+                if verbose {
+                    println!("cargo:warning=Successfully generated gRPC client code");
+                }
 
                 // Add allow attributes to gRPC generated files
-                add_allow_attributes_to_grpc_files(out_dir);
+                add_allow_attributes_to_grpc_files(out_dir, verbose);
             }
             Err(e) => {
-                println!("cargo:warning=Failed to generate gRPC client: {}", e);
+                println!("cargo:warning=Failed to generate gRPC client: {e}");
                 println!("cargo:warning=Continuing build without gRPC client");
             }
         }
@@ -232,41 +259,52 @@ fn generate_grpc_client() {
 }
 
 /// Add #[allow] attributes to gRPC generated files
-fn add_allow_attributes_to_grpc_files(out_dir: &str) {
-    let allow_attributes = "#![allow(unused_lifetimes)]\n#![allow(elided_lifetimes_in_paths)]\n#![allow(clippy::all)]\n#![allow(unknown_lints)]\n#![allow(renamed_and_removed_lints)]\n";
+fn add_allow_attributes_to_grpc_files(out_dir: &str, verbose: bool) {
+    // Comprehensive allow attributes for generated gRPC code to suppress all warnings
+    let allow_attributes = "\
+#![allow(clippy::all)]
+#![allow(clippy::pedantic)]
+#![allow(clippy::nursery)]
+#![allow(unused_lifetimes)]
+#![allow(elided_lifetimes_in_paths)]
+#![allow(unused_parens)]
+#![allow(unknown_lints)]
+#![allow(renamed_and_removed_lints)]
+#![allow(warnings)]
+";
 
     // List of gRPC generated files
     let grpc_files = ["rpc.rs"];
 
     for file_name in &grpc_files {
-        let file_path = format!("{}/{}", out_dir, file_name);
+        let file_path = format!("{out_dir}/{file_name}");
         if let Ok(mut content) = fs::read_to_string(&file_path) {
             // Remove old box_pointers allow attribute if it exists
             content = content.replace("#![allow(box_pointers)]\n", "");
 
             // Check if the file already has our allow attributes
-            if !content.contains("#![allow(unused_lifetimes)]") {
-                let modified_content = format!("{}\n{}", allow_attributes, content);
-                if let Err(e) = fs::write(&file_path, modified_content) {
-                    println!(
-                        "cargo:warning=Failed to add allow attributes to {}: {}",
-                        file_name, e
-                    );
-                } else {
-                    println!("cargo:warning=Added allow attributes to {}", file_name);
-                }
-            } else {
+            if content.contains("#![allow(unused_lifetimes)]") {
                 // File already has allow attributes, just remove box_pointers if present
                 if content.contains("#![allow(box_pointers)]") {
                     let modified_content = content.replace("#![allow(box_pointers)]\n", "");
                     if let Err(e) = fs::write(&file_path, modified_content) {
                         println!(
-                            "cargo:warning=Failed to remove box_pointers from {}: {}",
-                            file_name, e
+                            "cargo:warning=Failed to remove box_pointers from {file_name}: {e}"
                         );
                     } else {
-                        println!("cargo:warning=Removed box_pointers from {}", file_name);
+                        println!("cargo:warning=Removed box_pointers from {file_name}");
                     }
+                }
+            } else {
+                let modified_content = format!("{allow_attributes}\n{content}");
+                if let Err(e) = fs::write(&file_path, modified_content) {
+                    if verbose {
+                        println!(
+                            "cargo:warning=Failed to add allow attributes to {file_name}: {e}"
+                        );
+                    }
+                } else if verbose {
+                    println!("cargo:warning=Added allow attributes to {file_name}");
                 }
             }
         }

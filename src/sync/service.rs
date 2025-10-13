@@ -89,10 +89,13 @@ async fn process_shard_chunks(
     let processor = ShardProcessor::new(database.as_ref().clone());
     let mut stats = ChunkProcessStats::default();
 
+    // Process all chunks in batch
+    processor.process_chunks_batch(&chunks, shard_id).await?;
+
+    // Record stats
     for chunk in chunks {
         let block_number = extract_block_number(&chunk);
         let message_count = count_chunk_messages(&chunk);
-        processor.process_chunk(&chunk, shard_id).await?;
         stats.record_chunk(block_number, message_count);
     }
 
@@ -162,6 +165,58 @@ impl SyncService {
                 error!(
                     "Failed to get shard chunks for shard {} at block {}: {}",
                     shard_id, block_number, err
+                );
+                Err(err)
+            }
+        }
+    }
+
+    /// Poll a batch of blocks at once
+    pub async fn poll_batch(
+        &self,
+        shard_id: u32,
+        from_block: u64,
+        batch_size: u32,
+    ) -> Result<ChunkProcessStats> {
+        let to_block = from_block + batch_size as u64;
+
+        info!(
+            "📦 Processing blocks {} to {} (batch size: {})",
+            from_block,
+            to_block - 1,
+            batch_size
+        );
+
+        let request = proto::ShardChunksRequest {
+            shard_id,
+            start_block_number: from_block,
+            stop_block_number: Some(to_block),
+        };
+
+        match self.client.get_shard_chunks(request).await {
+            Ok(response) => {
+                let chunk_count = response.shard_chunks.len();
+                info!("   ↳ Fetched {} chunks from server", chunk_count);
+
+                let stats =
+                    process_shard_chunks(&self.database, shard_id, response.shard_chunks).await?;
+
+                info!(
+                    "   ✓ Completed blocks {} to {} → {} messages, {} blocks processed",
+                    from_block,
+                    to_block - 1,
+                    stats.messages_processed,
+                    stats.blocks_processed
+                );
+
+                Ok(stats)
+            }
+            Err(err) => {
+                error!(
+                    "   ✗ Failed to fetch blocks {}-{}: {}",
+                    from_block,
+                    to_block - 1,
+                    err
                 );
                 Err(err)
             }
@@ -512,8 +567,11 @@ impl SyncService {
         let mut total_blocks = 0u64;
 
         loop {
-            // Use poll_once for each block
-            match self.poll_once(shard_id, last_height).await {
+            // Use poll_batch for better performance
+            match self
+                .poll_batch(shard_id, last_height, self.config.batch_size)
+                .await
+            {
                 Ok(stats) => {
                     let blocks_delta = stats.blocks_processed;
                     let messages_delta = stats.messages_processed;
@@ -605,8 +663,11 @@ impl SyncService {
         let mut total_blocks = 0u64;
 
         while current_block <= to_block {
-            // Use poll_once for each block
-            match self.poll_once(shard_id, current_block).await {
+            // Use poll_batch to fetch multiple blocks at once
+            let remaining = to_block.saturating_sub(current_block) + 1;
+            let batch_size = std::cmp::min(self.config.batch_size as u64, remaining) as u32;
+
+            match self.poll_batch(shard_id, current_block, batch_size).await {
                 Ok(stats) => {
                     let blocks_delta = stats.blocks_processed;
                     let messages_delta = stats.messages_processed;
@@ -637,8 +698,7 @@ impl SyncService {
                     self.lock_manager.update_lock(lock.clone())?;
 
                     info!(
-                        "Shard {}: processed {} blocks ({} messages), totals -> blocks: {}, messages: {}, next block: {}",
-                        shard_id,
+                        "📊 Progress: {} blocks ({} messages) | Total: {} blocks, {} messages | Next: {}",
                         blocks_delta,
                         messages_delta,
                         total_blocks,

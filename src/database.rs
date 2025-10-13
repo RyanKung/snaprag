@@ -27,9 +27,9 @@ impl Database {
     }
 
     /// Run database migrations
+    /// Note: Migrations are currently managed manually via SQL files in /migrations
+    /// Future enhancement: Could integrate with sqlx migrations or refinery
     pub async fn migrate(&self) -> Result<()> {
-        // For now, just return Ok since we manually ran the migration
-        // TODO: Implement proper migration runner
         Ok(())
     }
 
@@ -518,19 +518,28 @@ impl Database {
         let profiles = sqlx::query_as::<_, UserProfile>(
             r#"
             SELECT 
+                id,
                 fid,
                 username,
                 display_name,
                 bio,
                 pfp_url,
-                website_url,
+                banner_url,
                 location,
+                website_url,
                 twitter_username,
                 github_username,
-                banner_url,
                 primary_address_ethereum,
                 primary_address_solana,
-                last_updated_at
+                profile_token,
+                profile_embedding,
+                bio_embedding,
+                interests_embedding,
+                last_updated_timestamp,
+                last_updated_at,
+                shard_id,
+                block_height,
+                transaction_fid
             FROM user_profiles 
             ORDER BY last_updated_at DESC
             LIMIT $1
@@ -546,23 +555,33 @@ impl Database {
 
     /// List FIDs with advanced filtering
     pub async fn list_fids(&self, query: crate::models::FidQuery) -> Result<Vec<UserProfile>> {
-        // Simplified query for now
+        // Simplified query - select all columns
         let profiles = sqlx::query_as::<_, UserProfile>(
             r#"
             SELECT 
+                id,
                 fid,
                 username,
                 display_name,
                 bio,
                 pfp_url,
-                website_url,
+                banner_url,
                 location,
+                website_url,
                 twitter_username,
                 github_username,
                 banner_url,
                 primary_address_ethereum,
                 primary_address_solana,
-                last_updated_at
+                profile_token,
+                profile_embedding,
+                bio_embedding,
+                interests_embedding,
+                last_updated_timestamp,
+                last_updated_at,
+                shard_id,
+                block_height,
+                transaction_fid
             FROM user_profiles 
             ORDER BY fid ASC
             LIMIT $1
@@ -996,6 +1015,51 @@ impl Database {
         Ok(activity)
     }
 
+    /// Batch insert user activities for performance
+    pub async fn batch_insert_activities(
+        &self,
+        activities: Vec<(i64, String, Option<serde_json::Value>, i64, Option<Vec<u8>>)>,
+    ) -> Result<()> {
+        if activities.is_empty() {
+            return Ok(());
+        }
+
+        // Build VALUES clause dynamically
+        let mut query = String::from(
+            "INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash) VALUES "
+        );
+
+        let params_per_row = 5;
+        let value_clauses: Vec<String> = (0..activities.len())
+            .map(|i| {
+                let base = i * params_per_row;
+                format!(
+                    "(${}, ${}, ${}, ${}, ${})",
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5
+                )
+            })
+            .collect();
+
+        query.push_str(&value_clauses.join(", "));
+
+        let mut q = sqlx::query(&query);
+        for (fid, activity_type, activity_data, timestamp, message_hash) in activities {
+            q = q
+                .bind(fid)
+                .bind(activity_type)
+                .bind(activity_data)
+                .bind(timestamp)
+                .bind(message_hash);
+        }
+
+        q.execute(&self.pool).await?;
+        Ok(())
+    }
+
     /// Get user activity timeline
     pub async fn get_user_activity_timeline(
         &self,
@@ -1406,11 +1470,11 @@ impl Database {
         bind_values.push(Box::new(offset));
 
         // For now, use a simplified approach with basic parameters
-        let casts = if query.fid.is_some() {
+        let casts = if let Some(fid) = query.fid {
             sqlx::query_as::<_, crate::models::Cast>(
                 "SELECT * FROM casts WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
             )
-            .bind(query.fid.unwrap())
+            .bind(fid)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)
@@ -1529,42 +1593,47 @@ impl Database {
         sql.push_str(&format!(" OFFSET ${}", param_count));
 
         // Execute query with parameters
-        let links = if query.fid.is_some() && query.target_fid.is_some() {
-            sqlx::query_as::<_, crate::models::Link>(
-                "SELECT * FROM links WHERE fid = $1 AND target_fid = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
-            )
-            .bind(query.fid.unwrap())
-            .bind(query.target_fid.unwrap())
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
-        } else if query.fid.is_some() {
-            sqlx::query_as::<_, crate::models::Link>(
-                "SELECT * FROM links WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
-            )
-            .bind(query.fid.unwrap())
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
-        } else if query.target_fid.is_some() {
-            sqlx::query_as::<_, crate::models::Link>(
-                "SELECT * FROM links WHERE target_fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
-            )
-            .bind(query.target_fid.unwrap())
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
-        } else {
-            sqlx::query_as::<_, crate::models::Link>(
-                "SELECT * FROM links ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
-            )
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
+        let links = match (query.fid, query.target_fid) {
+            (Some(fid), Some(target_fid)) => {
+                sqlx::query_as::<_, crate::models::Link>(
+                    "SELECT * FROM links WHERE fid = $1 AND target_fid = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
+                )
+                .bind(fid)
+                .bind(target_fid)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (Some(fid), None) => {
+                sqlx::query_as::<_, crate::models::Link>(
+                    "SELECT * FROM links WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+                )
+                .bind(fid)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (None, Some(target_fid)) => {
+                sqlx::query_as::<_, crate::models::Link>(
+                    "SELECT * FROM links WHERE target_fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+                )
+                .bind(target_fid)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (None, None) => {
+                sqlx::query_as::<_, crate::models::Link>(
+                    "SELECT * FROM links ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+                )
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
         };
 
         Ok(links)
@@ -1701,42 +1770,47 @@ impl Database {
         sql.push_str(&format!(" OFFSET ${}", param_count));
 
         // Execute query with parameters
-        let user_data = if query.fid.is_some() && query.data_type.is_some() {
-            sqlx::query_as::<_, crate::models::UserData>(
-                "SELECT * FROM user_data WHERE fid = $1 AND data_type = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
-            )
-            .bind(query.fid.unwrap())
-            .bind(query.data_type.unwrap())
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
-        } else if query.fid.is_some() {
-            sqlx::query_as::<_, crate::models::UserData>(
-                "SELECT * FROM user_data WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
-            )
-            .bind(query.fid.unwrap())
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
-        } else if query.data_type.is_some() {
-            sqlx::query_as::<_, crate::models::UserData>(
-                "SELECT * FROM user_data WHERE data_type = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
-            )
-            .bind(query.data_type.unwrap())
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
-        } else {
-            sqlx::query_as::<_, crate::models::UserData>(
-                "SELECT * FROM user_data ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
-            )
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
+        let user_data = match (query.fid, query.data_type) {
+            (Some(fid), Some(data_type)) => {
+                sqlx::query_as::<_, crate::models::UserData>(
+                    "SELECT * FROM user_data WHERE fid = $1 AND data_type = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
+                )
+                .bind(fid)
+                .bind(data_type)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (Some(fid), None) => {
+                sqlx::query_as::<_, crate::models::UserData>(
+                    "SELECT * FROM user_data WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+                )
+                .bind(fid)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (None, Some(data_type)) => {
+                sqlx::query_as::<_, crate::models::UserData>(
+                    "SELECT * FROM user_data WHERE data_type = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+                )
+                .bind(data_type)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
+            (None, None) => {
+                sqlx::query_as::<_, crate::models::UserData>(
+                    "SELECT * FROM user_data ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+                )
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.pool)
+                .await?
+            }
         };
 
         Ok(user_data)

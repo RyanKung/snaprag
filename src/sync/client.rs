@@ -23,13 +23,9 @@ use crate::generated::request_response::GetInfoRequest;
 use crate::generated::request_response::GetInfoResponse;
 use crate::generated::request_response::ShardChunksRequest;
 use crate::generated::request_response::ShardChunksResponse;
-use crate::generated::request_response::SubscribeRequest;
 use crate::Result;
 
-// Import generated protobuf types (these would be generated from .proto files)
-// For now, we'll use placeholder types until we generate the actual protobuf bindings
-
-/// Placeholder for generated protobuf types
+/// Legacy proto types for backward compatibility
 pub mod proto {
     use serde::Deserialize;
     use serde::Serialize;
@@ -129,13 +125,6 @@ pub mod proto {
     }
 
     // Request/Response types
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct BlocksRequest {
-        pub shard_id: u32,
-        pub start_block_number: u64,
-        pub stop_block_number: Option<u64>,
-    }
-
     #[derive(Debug, Clone, Serialize, Deserialize, Default)]
     pub struct ShardChunksRequest {
         pub shard_id: u32,
@@ -177,65 +166,9 @@ pub mod proto {
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct SubscribeRequest {
-        pub event_types: Vec<i32>, // HubEventType enum values
-        pub from_id: Option<u64>,
-        pub shard_index: Option<u32>,
-    }
-
-    // Replication service types
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetShardSnapshotMetadataRequest {
-        pub shard_id: u32,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetShardSnapshotMetadataResponse {
-        pub snapshots: Vec<ShardSnapshotMetadata>,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct ShardSnapshotMetadata {
-        pub shard_id: u32,
-        pub height: u64,
-        pub timestamp: u64,
-        pub shard_chunk: Option<ShardChunk>,
-        pub block: Option<Block>,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetShardTransactionsRequest {
-        pub shard_id: u32,
-        pub height: u64,
-        pub trie_virtual_shard: u32,
-        pub page_token: Option<String>,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct GetShardTransactionsResponse {
-        pub trie_messages: Vec<ShardTrieEntryWithMessage>,
-        pub fid_account_roots: Vec<FidAccountRootHash>,
-        pub next_page_token: Option<String>,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct FidsResponse {
         pub fids: Vec<u64>,
         pub next_page_token: Option<String>,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct ShardTrieEntryWithMessage {
-        pub trie_key: Vec<u8>,
-        pub user_message: Option<Message>,
-        pub on_chain_event: Option<OnChainEvent>,
-        pub fname_transfer: Option<FnameTransfer>,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct FidAccountRootHash {
-        pub fid: u64,
-        pub account_root: Vec<u8>,
     }
 }
 
@@ -325,15 +258,8 @@ impl SnapchainClient {
             }),
             peer_id: grpc_response.peer_id,
             num_shards: grpc_response.num_shards,
-            shard_infos: vec![], // TODO: Parse from response if available
+            shard_infos: vec![], // gRPC response doesn't include shard_infos
         })
-    }
-
-    /// Get blocks for a shard
-    pub async fn get_blocks(&self, _request: proto::BlocksRequest) -> Result<Vec<proto::Block>> {
-        // TODO: Implement actual gRPC streaming call
-        // For now, return empty result
-        Ok(vec![])
     }
 
     /// Get shard chunks for a shard
@@ -430,40 +356,6 @@ impl SnapchainClient {
         }
 
         Ok(proto_response)
-    }
-
-    /// Subscribe to real-time events
-    pub async fn subscribe(
-        &self,
-        _request: proto::SubscribeRequest,
-    ) -> Result<Vec<proto::HubEvent>> {
-        // TODO: Implement actual gRPC streaming call
-        // For now, return empty result
-        Ok(vec![])
-    }
-
-    /// Get shard snapshot metadata (for replication-based sync)
-    pub async fn get_shard_snapshot_metadata(
-        &self,
-        _request: proto::GetShardSnapshotMetadataRequest,
-    ) -> Result<proto::GetShardSnapshotMetadataResponse> {
-        // TODO: Implement actual gRPC call
-        // For now, return empty result
-        Ok(proto::GetShardSnapshotMetadataResponse { snapshots: vec![] })
-    }
-
-    /// Get shard transactions (for replication-based sync)
-    pub async fn get_shard_transactions(
-        &self,
-        _request: proto::GetShardTransactionsRequest,
-    ) -> Result<proto::GetShardTransactionsResponse> {
-        // TODO: Implement actual gRPC call
-        // For now, return empty result
-        Ok(proto::GetShardTransactionsResponse {
-            trie_messages: vec![],
-            fid_account_roots: vec![],
-            next_page_token: None,
-        })
     }
 
     /// Get links by target FID (like your curl example)

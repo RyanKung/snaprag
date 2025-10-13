@@ -365,7 +365,7 @@ async fn test_sync_user_message_blocks() -> Result<()> {
             "Must process at least one block"
         );
         assert!(
-            lock.progress.total_messages_processed >= 0,
+            true, // total_messages_processed is always >= 0
             "Message count must be non-negative"
         );
 
@@ -828,4 +828,152 @@ async fn test_cli_error_handling() -> Result<()> {
         Ok(())
     })
     .await
+}
+
+/// Test to scan blocks and find which ones contain UserDataAdd messages
+/// This helps identify good block ranges for syncing profile data
+#[tokio::test]
+#[ignore] // Run manually with: cargo test scan_for_user_data_blocks -- --ignored --nocapture
+async fn test_scan_for_user_data_blocks() -> Result<()> {
+    use crate::sync::client::SnapchainClient;
+
+    // Initialize logging for test
+    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
+
+    // Load configuration
+    let config = AppConfig::load()?;
+
+    // Create gRPC client
+    let client = SnapchainClient::new(&config.sync.snapchain_grpc_endpoint).await?;
+
+    println!("\n🔍 Scanning blocks for UserDataAdd messages (type=11)...\n");
+    println!(
+        "{:<12} {:<15} {:<15} {:<15} {:<15}",
+        "Block", "Transactions", "Messages", "UserDataAdd", "CastAdd"
+    );
+    println!("{}", "=".repeat(75));
+
+    // Scan ranges to find UserDataAdd messages
+    // Focus on a smaller range first to test
+    let scan_ranges = vec![
+        (1250000, 1260000, 100),  // Known range with messages
+        (1000000, 1100000, 5000), // Earlier
+        (1500000, 1600000, 5000), // Later
+    ];
+
+    let mut blocks_with_user_data = Vec::new();
+    let mut scanned_count = 0;
+    let mut error_count = 0;
+
+    for (start, end, step) in scan_ranges {
+        println!("\nScanning range {}-{} (step {})...", start, end, step);
+
+        for block in (start..end).step_by(step) {
+            let request = crate::sync::client::proto::ShardChunksRequest {
+                shard_id: 1,
+                start_block_number: block,
+                stop_block_number: Some(block + 1), // Exclusive end, like poll_once
+            };
+
+            match client.get_shard_chunks(request).await {
+                Ok(response) => {
+                    scanned_count += 1;
+
+                    // Debug: print response info for first few blocks
+                    if scanned_count <= 3 {
+                        println!(
+                            "DEBUG: Block {} returned {} chunks",
+                            block,
+                            response.shard_chunks.len()
+                        );
+                    }
+
+                    if let Some(chunk) = response.shard_chunks.first() {
+                        let tx_count = chunk.transactions.len();
+                        let mut total_messages = 0;
+                        let mut user_data_add_count = 0;
+                        let mut cast_add_count = 0;
+                        let mut message_types = std::collections::HashMap::new();
+
+                        for tx in &chunk.transactions {
+                            total_messages += tx.user_messages.len();
+
+                            for msg in &tx.user_messages {
+                                if let Some(data) = &msg.data {
+                                    *message_types.entry(data.r#type).or_insert(0) += 1;
+                                    match data.r#type {
+                                        11 => user_data_add_count += 1, // UserDataAdd
+                                        1 => cast_add_count += 1,       // CastAdd
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+
+                        // Always print first 5 blocks or blocks with messages
+                        if scanned_count <= 5 || total_messages > 0 {
+                            let types_str: String = if message_types.is_empty() {
+                                "none".to_string()
+                            } else {
+                                message_types
+                                    .iter()
+                                    .map(|(t, c)| format!("{}:{}", t, c))
+                                    .collect::<Vec<_>>()
+                                    .join(",")
+                            };
+                            println!(
+                                "{:<12} {:<15} {:<15} {:<15} types:[{}]",
+                                block, tx_count, total_messages, user_data_add_count, types_str
+                            );
+                        }
+
+                        if user_data_add_count > 0 {
+                            blocks_with_user_data.push((
+                                block,
+                                user_data_add_count,
+                                cast_add_count,
+                            ));
+                        }
+                    }
+                }
+                Err(e) => {
+                    error_count += 1;
+                    if error_count < 5 {
+                        eprintln!("Error scanning block {}: {}", block, e);
+                    }
+                    continue;
+                }
+            }
+
+            // Add small delay to avoid overwhelming the server
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        }
+    }
+
+    println!("\n{}", "=".repeat(75));
+    println!("\n📊 Summary:");
+    println!("Scanned: {} blocks", scanned_count);
+    println!("Errors: {} blocks", error_count);
+    println!(
+        "Found {} blocks with UserDataAdd messages",
+        blocks_with_user_data.len()
+    );
+
+    if !blocks_with_user_data.is_empty() {
+        println!("\n💡 Recommended sync ranges:");
+        let first = blocks_with_user_data.first().unwrap().0;
+        let last = blocks_with_user_data.last().unwrap().0;
+        println!(
+            "   cargo run -- sync start --from {} --to {}",
+            first,
+            first + 10000
+        );
+        println!(
+            "   cargo run -- sync start --from {} --to {}",
+            last,
+            last + 10000
+        );
+    }
+
+    Ok(())
 }

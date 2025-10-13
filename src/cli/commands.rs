@@ -9,7 +9,7 @@ use clap::ValueEnum;
 #[command(about = "SnapRAG CLI tool for database queries and data synchronization")]
 #[command(version)]
 pub struct Cli {
-    /// Enable verbose debug logging
+    /// Enable verbose debug logging (default: info level)
     #[arg(short, long)]
     pub verbose: bool,
 

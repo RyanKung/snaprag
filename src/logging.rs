@@ -31,25 +31,26 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
         let level = &config.logging.level;
         EnvFilter::new(&format!("{},snaprag={}", level, level))
     } else {
-        // Fallback to environment variable or default
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,snaprag=debug"))
+        // Fallback to environment variable or default to info level
+        // Only show warnings from third-party libraries, info from snaprag
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn,snaprag=info"))
     };
 
     // Set up file appender for all logs
     let file_appender = tracing_appender::rolling::daily("logs", "snaprag.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    // Set up console appender with colors
+    // Set up console appender - simpler format for cleaner output
     let console_layer = fmt::layer()
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .with_file(true)
-        .with_line_number(true)
-        .with_span_events(FmtSpan::CLOSE)
+        .with_target(false) // Don't show target for cleaner console output
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(false) // Don't show file paths in console
+        .with_line_number(false)
+        .with_span_events(FmtSpan::NONE)
         .with_writer(std::io::stderr);
 
-    // Set up file layer
+    // Set up file layer - keep detailed info in log files
     let file_layer = fmt::layer()
         .with_target(true)
         .with_thread_ids(true)
@@ -94,23 +95,28 @@ pub fn init_logging_with_level(level: &str) -> Result<()> {
     }
 
     // Set up environment filter with custom level
-    let env_filter = EnvFilter::new(&format!("{},snaprag={}", level, level));
+    // Even in debug mode, keep third-party libraries at info level to reduce noise
+    let env_filter = if level == "debug" {
+        EnvFilter::new("info,snaprag=debug,sqlx=info,h2=info,tonic=info,hyper=info,tower=info")
+    } else {
+        EnvFilter::new(&format!("{},snaprag={}", level, level))
+    };
 
     // Set up file appender for all logs
     let file_appender = tracing_appender::rolling::daily("logs", "snaprag.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    // Set up console appender with colors
+    // Set up console appender - show details in verbose/debug mode
     let console_layer = fmt::layer()
-        .with_target(true)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .with_file(true)
-        .with_line_number(true)
-        .with_span_events(FmtSpan::CLOSE)
+        .with_target(true) // Show target in debug mode
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(false)
+        .with_line_number(false)
+        .with_span_events(FmtSpan::NONE)
         .with_writer(std::io::stderr);
 
-    // Set up file layer
+    // Set up file layer - keep detailed info in log files
     let file_layer = fmt::layer()
         .with_target(true)
         .with_thread_ids(true)

@@ -283,14 +283,14 @@ impl LlmClient {
             .ok_or_else(|| SnapragError::LlmError("No response from OpenAI".to_string()))
     }
 
-    /// OpenAI streaming (placeholder)
+    /// OpenAI streaming (not yet implemented)
+    /// Returns an error indicating streaming is not available
     async fn generate_openai_stream(
         &self,
         _prompt: &str,
         _temperature: f32,
         _max_tokens: usize,
     ) -> Result<StreamingResponse> {
-        // TODO: Implement streaming
         Err(SnapragError::LlmError(
             "OpenAI streaming not yet implemented".to_string(),
         ))
@@ -423,14 +423,14 @@ impl LlmClient {
         Ok(result.message.content)
     }
 
-    /// Ollama streaming (placeholder)
+    /// Ollama streaming (not yet implemented)
+    /// Returns an error indicating streaming is not available
     async fn generate_ollama_stream(
         &self,
         _prompt: &str,
         _temperature: f32,
         _max_tokens: usize,
     ) -> Result<StreamingResponse> {
-        // TODO: Implement streaming
         Err(SnapragError::LlmError(
             "Ollama streaming not yet implemented".to_string(),
         ))

@@ -123,19 +123,36 @@ impl ProcessMonitor {
     fn get_process_start_time(&self, pid: u32) -> Result<Duration> {
         use std::process::Command;
 
+        // Use ps to get elapsed time in seconds (etime format: seconds)
         let output = Command::new("ps")
-            .args(&["-o", "lstart=", "-p", &pid.to_string()])
+            .args(&["-o", "etimes=", "-p", &pid.to_string()])
             .output()
             .map_err(|e| {
                 crate::SnapRagError::Custom(format!("Failed to get process start time: {}", e))
             })?;
 
-        let start_time_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !output.status.success() {
+            return Err(crate::SnapRagError::Custom(format!(
+                "Process {} not found",
+                pid
+            )));
+        }
 
-        // Parse the start time (format: "Mon DD HH:MM:SS YYYY")
-        // For simplicity, we'll use a basic approach
-        // In a real implementation, you'd want to parse this properly
-        Ok(Duration::from_secs(0)) // Placeholder
+        let elapsed_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let elapsed_secs: u64 = elapsed_str.parse().map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to parse elapsed time: {}", e))
+        })?;
+
+        // Calculate start time as (now - elapsed)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+
+        if let Some(start_time) = now.checked_sub(Duration::from_secs(elapsed_secs)) {
+            Ok(start_time)
+        } else {
+            Ok(Duration::from_secs(0))
+        }
     }
 
     /// Check if process is idle (simplified)
