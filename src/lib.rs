@@ -128,7 +128,24 @@ impl SnapRag {
 
     /// Get sync status
     pub fn get_sync_status(&self) -> Result<Option<crate::sync::lock_file::SyncLockFile>> {
-        if let Some(sync_service) = &self.sync_service {
+        // Always try to read from lock file first, regardless of whether this instance has a sync_service
+        // This allows status commands to see sync processes started by other instances
+        use crate::sync::lock_file::SyncLockManager;
+        let lock_manager = SyncLockManager::new();
+        
+        if lock_manager.lock_exists() {
+            match lock_manager.read_lock() {
+                Ok(lock) => Ok(Some(lock)),
+                Err(_) => {
+                    // Fallback to sync_service if lock file read failed
+                    if let Some(sync_service) = &self.sync_service {
+                        sync_service.get_sync_status()
+                    } else {
+                        Ok(None)
+                    }
+                }
+            }
+        } else if let Some(sync_service) = &self.sync_service {
             sync_service.get_sync_status()
         } else {
             Ok(None)
