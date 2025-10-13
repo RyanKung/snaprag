@@ -238,6 +238,8 @@ pub fn print_dashboard(stats: &StatisticsResult) {
     println!();
     println!("🎯 Key Metrics:");
     println!("  Total Users: {}", stats.total_fids);
+    println!("  Total Activities: {}", stats.total_activities);
+    println!("  Total Casts: {}", stats.total_casts);
     println!(
         "  Complete Profiles: {} ({:.1}%)",
         stats.profiles_with_username,
@@ -268,6 +270,25 @@ pub fn print_dashboard(stats: &StatisticsResult) {
         stats.profiles_with_ethereum_address
     );
     println!("  💰 With Solana: {}", stats.profiles_with_solana_address);
+
+    println!();
+    println!("📊 Activity Breakdown:");
+    for activity_stat in stats.activities_by_type.iter().take(5) {
+        println!(
+            "  {} {}: {}",
+            match activity_stat.activity_type.as_str() {
+                "cast_add" => "✍️",
+                "reaction_add" => "❤️",
+                "link_add" => "👥",
+                "link_remove" => "👋",
+                "cast_remove" => "🗑️",
+                "verification_add" => "✅",
+                _ => "📌",
+            },
+            activity_stat.activity_type,
+            activity_stat.count
+        );
+    }
 
     println!();
     println!("🆕 Recent Activity:");

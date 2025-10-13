@@ -132,7 +132,7 @@ impl SnapRag {
         // This allows status commands to see sync processes started by other instances
         use crate::sync::lock_file::SyncLockManager;
         let lock_manager = SyncLockManager::new();
-        
+
         if lock_manager.lock_exists() {
             match lock_manager.read_lock() {
                 Ok(lock) => Ok(Some(lock)),

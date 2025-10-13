@@ -396,6 +396,17 @@ pub struct StatisticsResult {
     pub recent_registrations: Vec<ProfileRegistration>,
     pub top_usernames: Vec<UsernameStats>,
     pub growth_by_period: Vec<GrowthStats>,
+    // Activity statistics
+    pub total_activities: i64,
+    pub total_casts: i64,
+    pub activities_by_type: Vec<ActivityTypeStats>,
+}
+
+/// Activity type statistics
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ActivityTypeStats {
+    pub activity_type: String,
+    pub count: i64,
 }
 
 /// Profile registration data

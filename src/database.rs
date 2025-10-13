@@ -705,6 +705,29 @@ impl Database {
             growth_rate: 0.0,
         }];
 
+        // Get activity statistics
+        let total_activities =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_activity_timeline")
+                .fetch_one(&self.pool)
+                .await?;
+
+        let total_casts = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let activities_by_type = sqlx::query_as::<_, crate::models::ActivityTypeStats>(
+            r#"
+            SELECT 
+                activity_type,
+                COUNT(*) as count
+            FROM user_activity_timeline
+            GROUP BY activity_type
+            ORDER BY count DESC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
         Ok(crate::models::StatisticsResult {
             total_fids,
             total_profiles: total_fids,
@@ -721,6 +744,9 @@ impl Database {
             recent_registrations,
             top_usernames,
             growth_by_period,
+            total_activities,
+            total_casts,
+            activities_by_type,
         })
     }
 }

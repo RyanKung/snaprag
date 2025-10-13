@@ -458,16 +458,24 @@ impl ShardProcessor {
                     timestamp,
                     Some(message_hash.to_vec()),
                 ));
-                
+
                 // Also update profile fields directly in the same transaction
                 // Parse and store user data updates
                 if let Some(body) = &data.body {
                     if let Some(user_data_body) = body.get("user_data_body") {
-                        if let Some(data_type) = user_data_body.get("type").and_then(|v| v.as_i64()) {
-                            if let Some(value) = user_data_body.get("value").and_then(|v| v.as_str()) {
+                        if let Some(data_type) = user_data_body.get("type").and_then(|v| v.as_i64())
+                        {
+                            if let Some(value) =
+                                user_data_body.get("value").and_then(|v| v.as_str())
+                            {
                                 // Store for later batch processing
                                 // For now, we'll need to handle this in flush_batched_data
-                                tracing::debug!("UserDataAdd type {} for FID {}: {}", data_type, fid, value);
+                                tracing::debug!(
+                                    "UserDataAdd type {} for FID {}: {}",
+                                    data_type,
+                                    fid,
+                                    value
+                                );
                             }
                         }
                     }
