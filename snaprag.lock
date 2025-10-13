@@ -1,16 +1,16 @@
 {
-  "pid": 85957,
-  "status": "running",
-  "start_time": 1760386039,
-  "last_update": 1760386245,
+  "pid": 90609,
+  "status": "completed",
+  "start_time": 1760386539,
+  "last_update": 1760386540,
   "progress": {
     "current_shard": 1,
-    "current_block": 8500,
-    "total_blocks_processed": 8499,
-    "total_messages_processed": 0,
+    "current_block": 1250011,
+    "total_blocks_processed": 11,
+    "total_messages_processed": 37,
     "sync_range": {
-      "from_block": 0,
-      "to_block": null
+      "from_block": 1250000,
+      "to_block": 1250010
     }
   },
   "error_message": null
