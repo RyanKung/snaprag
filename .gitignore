@@ -125,3 +125,9 @@ assistant_*.txt
 # Submodules (should not be managed by git)
 snapchain/
 labels/labels/
+
+# SnapRAG runtime files
+snaprag.lock
+snaprag_sync_state.json
+*.lock
+!Cargo.lock
