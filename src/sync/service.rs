@@ -664,7 +664,7 @@ impl SyncService {
 
         while current_block <= to_block {
             // Use poll_batch to fetch multiple blocks at once
-            let remaining = to_block.saturating_sub(current_block) + 1;
+            let remaining = to_block.saturating_sub(current_block).saturating_add(1);
             let batch_size = std::cmp::min(self.config.batch_size as u64, remaining) as u32;
 
             match self.poll_batch(shard_id, current_block, batch_size).await {
