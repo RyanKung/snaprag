@@ -108,10 +108,32 @@ impl DeterministicBlockRegistry {
                 .with_message_type(5, 1), // LinkAdd
         );
 
-        // Note: System messages (FID registration) not found in scanned ranges
-        // They likely exist in very early blocks (0-1000) or are rare
-        // To find them, run: cargo test scan_message_types -- --ignored --nocapture
-        // with different scan ranges
+        // Block 1251400: First block with CastRemove
+        blocks.push(
+            DeterministicBlock::new(1251400, 1, "First CastRemove message").with_message_type(2, 1), // CastRemove
+        );
+
+        // Block 10000300: First block with ReactionRemove
+        blocks.push(
+            DeterministicBlock::new(10000300, 1, "First ReactionRemove message")
+                .with_transactions(6)
+                .with_message_type(4, 1) // ReactionRemove
+                .with_message_type(3, 5), // ReactionAdd (also present)
+        );
+
+        // Note: Still missing message types from scans:
+        // - Type 8: VerificationRemove (very rare, need much wider scan)
+        // - System messages: FID registration, Storage, Signers
+        //   (likely in very early blocks or specific event ranges)
+        //
+        // To continue discovering:
+        // 1. Run: cargo test scan_message_types -- --ignored --nocapture
+        // 2. Adjust scan_ranges to cover different block ranges
+        // 3. Look for SYS:[...] in output for system messages
+        //
+        // Current coverage: 8 out of ~12 user message types
+        // CastAdd(1), CastRemove(2), ReactionAdd(3), ReactionRemove(4),
+        // LinkAdd(5), LinkRemove(6), VerificationAdd(7), UserDataAdd(11)
 
         Self { blocks }
     }
@@ -155,14 +177,23 @@ async fn scan_message_types() -> Result<()> {
     println!("\n🔍 Scanning for Message Type Distribution");
     println!("==========================================\n");
 
-    // Define scan ranges
+    // Define scan ranges to find all message types
+    // Adjust these ranges based on what message types you're looking for
     let scan_ranges = vec![
-        ("Early blocks (0-100)", 0, 100, 10),
-        ("Block 1000-1500", 1000, 1500, 50),
+        ("Very early blocks (0-100)", 0, 100, 10),
+        ("Early blocks (100-1000)", 100, 1000, 50),
+        ("Mid blocks (1000-5000)", 1000, 5000, 100),
         (
-            "User activity start (1250000-1251000)",
+            "User activity start (1250000-1255000)",
             1250000,
-            1251000,
+            1255000,
+            50,
+        ),
+        ("Later blocks (5000000-5001000)", 5000000, 5001000, 100),
+        (
+            "Very late blocks (10000000-10001000)",
+            10000000,
+            10001000,
             100,
         ),
     ];
