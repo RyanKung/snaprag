@@ -1363,41 +1363,50 @@ impl ShardProcessor {
         let from_fid = fname_transfer.from_fid as i64;
         let to_fid = fname_transfer.to_fid as i64;
 
-        tracing::info!(
+        tracing::debug!(
             "📛 Fname Transfer: {} transferred fname from FID {} to FID {}",
             fname_transfer.id,
             from_fid,
             to_fid
         );
 
-        // Ensure both FIDs exist
-        batched.fids_to_ensure.insert(from_fid);
-        batched.fids_to_ensure.insert(to_fid);
+        // Skip FID=0 (system/initialization data)
+        // Only process valid FIDs
+        if from_fid > 0 {
+            batched.fids_to_ensure.insert(from_fid);
+        }
+        if to_fid > 0 {
+            batched.fids_to_ensure.insert(to_fid);
+        }
 
-        // Record activity for both FIDs
+        // Only record activities for valid FIDs (> 0)
         let timestamp = chrono::Utc::now().timestamp();
 
-        batched.activities.push((
-            from_fid,
-            "fname_transfer_out".to_string(),
-            Some(serde_json::json!({
-                "transfer_id": fname_transfer.id,
-                "to_fid": to_fid,
-            })),
-            timestamp,
-            None,
-        ));
+        if from_fid > 0 {
+            batched.activities.push((
+                from_fid,
+                "fname_transfer_out".to_string(),
+                Some(serde_json::json!({
+                    "transfer_id": fname_transfer.id,
+                    "to_fid": to_fid,
+                })),
+                timestamp,
+                None,
+            ));
+        }
 
-        batched.activities.push((
-            to_fid,
-            "fname_transfer_in".to_string(),
-            Some(serde_json::json!({
-                "transfer_id": fname_transfer.id,
-                "from_fid": from_fid,
-            })),
-            timestamp,
-            None,
-        ));
+        if to_fid > 0 {
+            batched.activities.push((
+                to_fid,
+                "fname_transfer_in".to_string(),
+                Some(serde_json::json!({
+                    "transfer_id": fname_transfer.id,
+                    "from_fid": from_fid,
+                })),
+                timestamp,
+                None,
+            ));
+        }
 
         Ok(())
     }

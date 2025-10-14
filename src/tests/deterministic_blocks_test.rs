@@ -25,6 +25,7 @@ pub struct DeterministicBlock {
     pub expected_message_types: HashMap<i32, usize>, // message_type -> count
     pub has_system_messages: bool,
     pub expected_system_event_types: HashMap<i32, usize>, // event_type -> count (for system msgs)
+    pub block_timestamp: Option<u64>,                     // Expected block timestamp for validation
 }
 
 impl DeterministicBlock {
@@ -38,6 +39,7 @@ impl DeterministicBlock {
             expected_message_types: HashMap::new(),
             has_system_messages: false,
             expected_system_event_types: HashMap::new(),
+            block_timestamp: None,
         }
     }
 
@@ -63,6 +65,12 @@ impl DeterministicBlock {
     pub fn with_system_event_type(mut self, event_type: i32, count: usize) -> Self {
         self.expected_system_event_types.insert(event_type, count);
         self.has_system_messages = true;
+        self
+    }
+
+    /// Set expected block timestamp (for timestamp validation)
+    pub fn with_block_timestamp(mut self, timestamp: u64) -> Self {
+        self.block_timestamp = Some(timestamp);
         self
     }
 }
@@ -693,10 +701,56 @@ async fn process_and_verify_internal() -> Result<()> {
 
         println!("  🔄 Processing block {}...", det_block.block_number);
 
+        // Get block info before processing for timestamp validation
+        let temp_client = SnapchainClient::new(&config.sync.snapchain_grpc_endpoint).await?;
+        let request = proto::ShardChunksRequest {
+            shard_id: det_block.shard_id,
+            start_block_number: det_block.block_number,
+            stop_block_number: Some(det_block.block_number + 1),
+        };
+        let pre_process_response = temp_client.get_shard_chunks(request).await?;
+        let block_timestamp = pre_process_response
+            .shard_chunks
+            .first()
+            .and_then(|c| c.header.as_ref())
+            .map(|h| h.timestamp)
+            .unwrap_or(0);
+
         // Process single block
         sync_service
             .poll_once(det_block.shard_id, det_block.block_number)
             .await?;
+
+        // === STRICT VALIDATION: FID Values ===
+        // Get FIDs from user messages (not system messages which may have FID=0)
+        let user_message_fids: Vec<i64> = sqlx::query_scalar(
+            "SELECT DISTINCT fid FROM user_activity_timeline 
+             WHERE activity_type NOT IN ('id_register', 'storage_rent', 'signer_add', 'fname_transfer')
+             ORDER BY fid"
+        )
+        .fetch_all(database.pool())
+        .await?;
+
+        for fid in &user_message_fids {
+            assert!(
+                *fid > 0,
+                "Block {}: User message FIDs must be positive (found {})",
+                det_block.block_number,
+                fid
+            );
+            assert!(
+                *fid < 100_000_000,
+                "Block {}: FID {} exceeds reasonable range (max 100M)",
+                det_block.block_number,
+                fid
+            );
+        }
+        if !user_message_fids.is_empty() {
+            println!(
+                "    ✓ FID range validation: {} user FIDs, all in valid range (1-100M)",
+                user_message_fids.len()
+            );
+        }
 
         // === SANITY CHECK: Verify no unexpected activity types ===
         // Only validate user message activities when user messages are specified
@@ -869,7 +923,7 @@ async fn process_and_verify_internal() -> Result<()> {
                 det_block.block_number, expected_count, activity_type_name, actual_count
             );
 
-            // Cross-validate: All activities should have valid timestamps
+            // Cross-validate: All activities should have valid timestamps (not NULL/0)
             let activities_with_invalid_ts: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) FROM user_activity_timeline 
                  WHERE activity_type = $1 AND (timestamp IS NULL OR timestamp = 0)",
@@ -879,13 +933,155 @@ async fn process_and_verify_internal() -> Result<()> {
             .await?;
             assert_eq!(
                 activities_with_invalid_ts, 0,
-                "Block {}: All {} activities should have valid timestamps",
+                "Block {}: All {} activities should have valid timestamps (not NULL/0)",
                 det_block.block_number, activity_type_name
             );
 
+            // Cross-validate: Timestamps are within reasonable range
+            // Note: Farcaster timestamps are seconds since Farcaster epoch (2021-01-01)
+            // NOT Unix timestamps
+            if block_timestamp > 0 {
+                // Check for negative timestamps
+                let negative_timestamps: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM user_activity_timeline 
+                     WHERE activity_type = $1 AND timestamp < 0",
+                )
+                .bind(activity_type_name)
+                .fetch_one(database.pool())
+                .await?;
+                assert_eq!(
+                    negative_timestamps, 0,
+                    "Block {}: {} activities have negative timestamps",
+                    det_block.block_number, activity_type_name
+                );
+
+                // Check for unreasonably large timestamps (> 10 years from Farcaster epoch)
+                // 10 years = ~315M seconds
+                let future_timestamps: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM user_activity_timeline 
+                     WHERE activity_type = $1 AND timestamp > 315360000",
+                )
+                .bind(activity_type_name)
+                .fetch_one(database.pool())
+                .await?;
+                assert_eq!(
+                    future_timestamps, 0,
+                    "Block {}: {} activities have timestamps > 10 years from Farcaster epoch",
+                    det_block.block_number, activity_type_name
+                );
+            }
+
             println!(
-                "    ✓ {}: {} (expected: {}, valid timestamps: ✓)",
+                "    ✓ {}: {} (expected: {}, valid timestamps: ✓, range: ✓)",
                 activity_type_name, actual_count, expected_count
+            );
+        }
+
+        // === STRICT VALIDATION: Deletion Effects ===
+        // If block contains CastRemove, verify casts are actually deleted
+        if let Some(remove_count) = det_block.expected_message_types.get(&2) {
+            // For CastRemove, we expect the cast to NOT be in casts table
+            // But we should see the activity record
+            let cast_remove_activities: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type = 'cast_remove'",
+            )
+            .fetch_one(database.pool())
+            .await?;
+
+            assert_eq!(
+                cast_remove_activities, *remove_count as i64,
+                "Block {}: CastRemove activity count mismatch",
+                det_block.block_number
+            );
+
+            // Note: We can't verify the cast was deleted without knowing the original cast hash
+            // This is a limitation - ideally we'd process block N-1, then block N, and verify deletion
+            println!(
+                "    ✓ cast_remove operations: {} (deletion logged)",
+                cast_remove_activities
+            );
+        }
+
+        // === STRICT VALIDATION: Data Sampling (random field completeness checks) ===
+        // If we have casts, sample one and verify field completeness
+        if cast_count > 0 {
+            #[derive(sqlx::FromRow)]
+            struct CastSample {
+                fid: i64,
+                message_hash: Vec<u8>,
+                timestamp: i64,
+            }
+
+            let sample: CastSample =
+                sqlx::query_as("SELECT fid, message_hash, timestamp FROM casts LIMIT 1")
+                    .fetch_one(database.pool())
+                    .await?;
+
+            assert!(sample.fid > 0, "Cast FID must be positive");
+            assert!(
+                !sample.message_hash.is_empty(),
+                "Cast must have message_hash"
+            );
+            assert!(sample.timestamp > 0, "Cast must have valid timestamp");
+
+            println!(
+                "    ✓ Data sampling: Cast fields complete (fid={}, hash_len={}, ts={})",
+                sample.fid,
+                sample.message_hash.len(),
+                sample.timestamp
+            );
+        }
+
+        // If we have user profiles, sample and verify
+        if profile_count > 0 {
+            #[derive(sqlx::FromRow)]
+            struct ProfileSample {
+                fid: i64,
+                last_updated_timestamp: Option<i64>,
+            }
+
+            let sample: ProfileSample =
+                sqlx::query_as("SELECT fid, last_updated_timestamp FROM user_profiles LIMIT 1")
+                    .fetch_one(database.pool())
+                    .await?;
+
+            assert!(sample.fid > 0, "Profile FID must be positive");
+            // last_updated_timestamp can be NULL for minimal profiles
+
+            println!(
+                "    ✓ Data sampling: Profile fields valid (fid={})",
+                sample.fid
+            );
+        }
+
+        // Sample activities and verify required fields
+        if total_unique_fids > 0 {
+            #[derive(sqlx::FromRow)]
+            struct ActivitySample {
+                fid: i64,
+                activity_type: String,
+                timestamp: i64,
+            }
+
+            let sample: ActivitySample = sqlx::query_as(
+                "SELECT fid, activity_type, timestamp FROM user_activity_timeline LIMIT 1",
+            )
+            .fetch_one(database.pool())
+            .await?;
+
+            assert!(
+                sample.fid > 0 || sample.activity_type.contains("fname_transfer"),
+                "Activity FID must be positive (or fname_transfer with FID=0)"
+            );
+            assert!(
+                !sample.activity_type.is_empty(),
+                "Activity type must not be empty"
+            );
+            assert!(sample.timestamp != 0, "Activity timestamp must be set");
+
+            println!(
+                "    ✓ Data sampling: Activity fields complete (type={}, fid={}, ts={})",
+                sample.activity_type, sample.fid, sample.timestamp
             );
         }
 
