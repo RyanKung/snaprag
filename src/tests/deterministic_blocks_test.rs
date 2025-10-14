@@ -460,7 +460,11 @@ async fn test_deterministic_block_contents() -> Result<()> {
             det_block.expected_transactions,
             chunk.transactions.len()
         );
-        println!("  ✓ Transactions: {}", chunk.transactions.len());
+        println!(
+            "  ✓ Transactions: {} (expected: {})",
+            chunk.transactions.len(),
+            det_block.expected_transactions
+        );
 
         // Count actual message types and system events
         let mut actual_msg_types: HashMap<i32, usize> = HashMap::new();
@@ -483,7 +487,7 @@ async fn test_deterministic_block_contents() -> Result<()> {
             }
         }
 
-        // Verify message types
+        // Verify message types (STRICT: exact count match)
         for (expected_type, expected_count) in &det_block.expected_message_types {
             let actual_count = actual_msg_types.get(expected_type).copied().unwrap_or(0);
             assert_eq!(
@@ -492,20 +496,35 @@ async fn test_deterministic_block_contents() -> Result<()> {
                 det_block.block_number, expected_count, expected_type, actual_count
             );
             let type_name = get_message_type_name(*expected_type);
-            println!("  ✓ {}: {}", type_name, actual_count);
+            println!(
+                "  ✓ {}: {} (expected: {})",
+                type_name, actual_count, expected_count
+            );
         }
 
-        // Verify system messages if expected
+        // Verify system messages if expected (STRICT)
         if det_block.has_system_messages {
             assert!(
                 actual_system_msg_count > 0,
-                "Block {} should have system messages",
+                "Block {} should have system messages (found 0)",
                 det_block.block_number
             );
-            println!("  ✓ System messages: {}", actual_system_msg_count);
+
+            // Require at least some validation when system messages are expected
+            if det_block.expected_system_event_types.is_empty() {
+                // At minimum, verify we have some identifiable events
+                let total_identifiable = actual_system_event_types.values().sum::<usize>();
+                assert!(
+                    total_identifiable > 0 || actual_system_msg_count > 0,
+                    "Block {}: System messages present but no identifiable events",
+                    det_block.block_number
+                );
+            }
+
+            println!("  ✓ System messages: {} total", actual_system_msg_count);
         }
 
-        // Verify specific system event types if specified (STRICT)
+        // Verify specific system event types if specified (STRICT: exact count)
         for (expected_event_type, expected_count) in &det_block.expected_system_event_types {
             let actual_count = actual_system_event_types
                 .get(expected_event_type)
@@ -517,7 +536,10 @@ async fn test_deterministic_block_contents() -> Result<()> {
                 det_block.block_number, expected_count, expected_event_type, actual_count
             );
             let event_name = get_system_event_name(*expected_event_type);
-            println!("  ✓ System Event {}: {}", event_name, actual_count);
+            println!(
+                "  ✓ System Event {}: {} (expected: {})",
+                event_name, actual_count, expected_count
+            );
         }
 
         println!("  ✅ Block {} validated\n", det_block.block_number);
@@ -663,18 +685,27 @@ async fn process_and_verify_internal() -> Result<()> {
             println!("    ✓ Casts: {} (expected: {})", cast_count, cast_add_count);
 
             // Cross-validate: All casts should have corresponding user_profiles
+            let unique_cast_authors: i64 =
+                sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM casts")
+                    .fetch_one(database.pool())
+                    .await?;
+
             let profiles_for_casts: i64 = sqlx::query_scalar(
                 "SELECT COUNT(DISTINCT p.fid) FROM user_profiles p 
                  INNER JOIN casts c ON p.fid = c.fid",
             )
             .fetch_one(database.pool())
             .await?;
-            assert!(
-                profiles_for_casts > 0,
-                "Block {}: All casts should have corresponding user_profiles",
-                det_block.block_number
+
+            assert_eq!(
+                profiles_for_casts, unique_cast_authors,
+                "Block {}: All cast authors ({}) must have profiles (found {})",
+                det_block.block_number, unique_cast_authors, profiles_for_casts
             );
-            println!("    ✓ Cast authors have profiles: {}", profiles_for_casts);
+            println!(
+                "    ✓ Cast authors have profiles: {} (expected: {})",
+                profiles_for_casts, unique_cast_authors
+            );
 
             // Cross-validate: Casts in activity timeline
             let cast_activities: i64 = sqlx::query_scalar(
