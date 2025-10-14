@@ -113,27 +113,57 @@ impl DeterministicBlockRegistry {
             DeterministicBlock::new(1251400, 1, "First CastRemove message").with_message_type(2, 1), // CastRemove
         );
 
-        // Block 10000300: First block with ReactionRemove
+        // Block 5009700: First block with ReactionRemove (from comprehensive scan)
         blocks.push(
-            DeterministicBlock::new(10000300, 1, "First ReactionRemove message")
-                .with_transactions(6)
-                .with_message_type(4, 1) // ReactionRemove
-                .with_message_type(3, 5), // ReactionAdd (also present)
+            DeterministicBlock::new(5009700, 1, "First ReactionRemove message")
+                .with_message_type(4, 1), // ReactionRemove
         );
 
-        // Note: Still missing message types from scans:
-        // - Type 8: VerificationRemove (very rare, need much wider scan)
-        // - System messages: FID registration, Storage, Signers
-        //   (likely in very early blocks or specific event ranges)
+        // ========== SYSTEM MESSAGES (ON-CHAIN EVENTS) ==========
+
+        // Block 1: Fname Transfers (very first block!)
+        blocks.push(
+            DeterministicBlock::new(1, 1, "Early Fname Transfers")
+                .with_transactions(1000)
+                .with_system_messages(),
+        );
+
+        // Block 10: First Storage Rent event
+        blocks.push(
+            DeterministicBlock::new(10, 1, "First Storage Rent")
+                .with_transactions(1000)
+                .with_system_messages(),
+        );
+
+        // Block 32900: First FID Registration and Signer events
+        blocks.push(
+            DeterministicBlock::new(32900, 1, "FID Registration and Signer events")
+                .with_system_messages(),
+        );
+
+        // Note: Still missing rare user message types:
+        // - Type 8: VerificationRemove (very rare)
+        // - Type 14: LinkBody
+        // - Type 15: UsernameProof
+        // - Type 16: FrameAction
         //
-        // To continue discovering:
-        // 1. Run: cargo test scan_message_types -- --ignored --nocapture
-        // 2. Adjust scan_ranges to cover different block ranges
-        // 3. Look for SYS:[...] in output for system messages
+        // These may require scanning much later blocks or may not exist in current data.
         //
-        // Current coverage: 8 out of ~12 user message types
-        // CastAdd(1), CastRemove(2), ReactionAdd(3), ReactionRemove(4),
-        // LinkAdd(5), LinkRemove(6), VerificationAdd(7), UserDataAdd(11)
+        // Tools to use:
+        // 1. cargo test scan_message_types -- --ignored --nocapture
+        // 2. cargo run --bin scan_for_system_messages
+        //
+        // **Current Coverage:**
+        // User Messages: 8/16 types (50%)
+        //   ✅ CastAdd(1), CastRemove(2), ReactionAdd(3), ReactionRemove(4)
+        //   ✅ LinkAdd(5), LinkRemove(6), VerificationAdd(7), UserDataAdd(11)
+        //   ⏳ VerificationRemove(8), LinkBody(14), UsernameProof(15), FrameAction(16)
+        //
+        // System Events: 3/3 common types (100%)
+        //   ✅ Signer(1), FID Register(3), Storage Rent(4)
+        //   ✅ Fname Transfers
+        //
+        // Total: 9 deterministic blocks covering 11+ event/message types
 
         Self { blocks }
     }
@@ -178,24 +208,16 @@ async fn scan_message_types() -> Result<()> {
     println!("==========================================\n");
 
     // Define scan ranges to find all message types
-    // Adjust these ranges based on what message types you're looking for
+    // Comprehensive scan to find rare types and system messages
     let scan_ranges = vec![
-        ("Very early blocks (0-100)", 0, 100, 10),
-        ("Early blocks (100-1000)", 100, 1000, 50),
-        ("Mid blocks (1000-5000)", 1000, 5000, 100),
-        (
-            "User activity start (1250000-1255000)",
-            1250000,
-            1255000,
-            50,
-        ),
-        ("Later blocks (5000000-5001000)", 5000000, 5001000, 100),
-        (
-            "Very late blocks (10000000-10001000)",
-            10000000,
-            10001000,
-            100,
-        ),
+        ("Genesis blocks (0-100)", 0, 100, 1), // Every block - system msgs
+        ("Early blocks (100-1000)", 100, 1000, 10), // Frequent scan
+        ("Early-mid (1000-10000)", 1000, 10000, 100), // Moderate scan
+        ("Mid blocks (10000-100000)", 10000, 100000, 1000), // Sparse scan
+        ("User activity (1250000-1260000)", 1250000, 1260000, 50), // Dense scan
+        ("Later activity (5000000-5010000)", 5000000, 5010000, 100),
+        ("Very late (10000000-10010000)", 10000000, 10010000, 100),
+        ("Recent blocks (15000000-15010000)", 15000000, 15010000, 100),
     ];
 
     let mut found_blocks: HashMap<i32, Vec<u64>> = HashMap::new();

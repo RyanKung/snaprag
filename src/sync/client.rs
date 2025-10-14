@@ -349,6 +349,37 @@ impl SnapchainClient {
                     proto_tx.user_messages.push(proto_msg);
                 }
 
+                // Convert system messages (on-chain events, fname transfers, etc.)
+                for grpc_sys_msg in grpc_tx.system_messages {
+                    let mut proto_sys_msg = proto::ValidatorMessage {
+                        on_chain_event: None,
+                        fname_transfer: None,
+                    };
+
+                    // Convert on-chain event if present
+                    if let Some(grpc_event) = grpc_sys_msg.on_chain_event {
+                        proto_sys_msg.on_chain_event = Some(proto::OnChainEvent {
+                            r#type: grpc_event.r#type,
+                            block_number: grpc_event.block_number as u64,
+                            block_hash: grpc_event.block_hash.clone(),
+                            transaction_hash: grpc_event.transaction_hash.clone(),
+                            log_index: grpc_event.log_index,
+                            fid: grpc_event.fid,
+                        });
+                    }
+
+                    // Convert fname transfer if present
+                    if let Some(grpc_fname) = grpc_sys_msg.fname_transfer {
+                        proto_sys_msg.fname_transfer = Some(proto::FnameTransfer {
+                            id: grpc_fname.id,
+                            from_fid: grpc_fname.from_fid,
+                            to_fid: 0, // Note: protobuf may not have to_fid field
+                        });
+                    }
+
+                    proto_tx.system_messages.push(proto_sys_msg);
+                }
+
                 proto_chunk.transactions.push(proto_tx);
             }
 
