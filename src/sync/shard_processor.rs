@@ -15,6 +15,7 @@ use crate::sync::client::proto::Message as FarcasterMessage;
 use crate::sync::client::proto::MessageData;
 use crate::sync::client::proto::ShardChunk;
 use crate::sync::client::proto::Transaction;
+use crate::sync::client::proto::ValidatorMessage;
 use crate::Result;
 
 /// Batched data for bulk insert
@@ -332,6 +333,12 @@ impl ShardProcessor {
         // Collect user messages data
         for (msg_idx, message) in transaction.user_messages.iter().enumerate() {
             self.collect_message_data(message, &shard_block_info, msg_idx, batched)
+                .await?;
+        }
+
+        // Process system messages (on-chain events, fname transfers, etc.)
+        for system_msg in &transaction.system_messages {
+            self.process_system_message(system_msg, &shard_block_info, batched)
                 .await?;
         }
 
@@ -1217,6 +1224,180 @@ impl ShardProcessor {
                 warn!("Failed to ensure profile for FID {}: {}", fid, e);
             }
         }
+
+        Ok(())
+    }
+
+    /// Process system message (on-chain events, fname transfers, etc.)
+    async fn process_system_message(
+        &self,
+        system_msg: &ValidatorMessage,
+        shard_block_info: &ShardBlockInfo,
+        batched: &mut BatchedData,
+    ) -> Result<()> {
+        // Process on-chain events
+        if let Some(on_chain_event) = &system_msg.on_chain_event {
+            self.process_on_chain_event(on_chain_event, shard_block_info, batched)
+                .await?;
+        }
+
+        // Process fname transfers
+        if let Some(fname_transfer) = &system_msg.fname_transfer {
+            self.process_fname_transfer(fname_transfer, shard_block_info, batched)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Process on-chain event (FID registration, storage, signers, etc.)
+    async fn process_on_chain_event(
+        &self,
+        event: &crate::sync::client::proto::OnChainEvent,
+        _shard_block_info: &ShardBlockInfo,
+        batched: &mut BatchedData,
+    ) -> Result<()> {
+        let fid = event.fid as i64;
+        let event_type = event.r#type;
+
+        // Ensure FID exists
+        batched.fids_to_ensure.insert(fid);
+
+        // Use current timestamp as fallback for activity timestamp
+        let timestamp = chrono::Utc::now().timestamp();
+
+        match event_type {
+            3 => {
+                // EVENT_TYPE_ID_REGISTER - FID注册
+                tracing::info!(
+                    "🆕 FID Registration: FID {} registered at block {}",
+                    fid,
+                    event.block_number
+                );
+
+                batched.activities.push((
+                    fid,
+                    "fid_register".to_string(),
+                    Some(serde_json::json!({
+                        "event_type": "id_register",
+                        "block_number": event.block_number,
+                        "transaction_hash": hex::encode(&event.transaction_hash),
+                        "log_index": event.log_index,
+                    })),
+                    timestamp,
+                    Some(event.transaction_hash.clone()),
+                ));
+            }
+            4 => {
+                // EVENT_TYPE_STORAGE_RENT - 存储租赁
+                tracing::debug!(
+                    "💾 Storage Rent: FID {} purchased storage at block {}",
+                    fid,
+                    event.block_number
+                );
+
+                batched.activities.push((
+                    fid,
+                    "storage_rent".to_string(),
+                    Some(serde_json::json!({
+                        "event_type": "storage_rent",
+                        "block_number": event.block_number,
+                    })),
+                    timestamp,
+                    Some(event.transaction_hash.clone()),
+                ));
+            }
+            1 => {
+                // EVENT_TYPE_SIGNER - 密钥管理
+                tracing::debug!(
+                    "🔑 Signer Event: FID {} signer event at block {}",
+                    fid,
+                    event.block_number
+                );
+
+                batched.activities.push((
+                    fid,
+                    "signer_event".to_string(),
+                    Some(serde_json::json!({
+                        "event_type": "signer",
+                        "block_number": event.block_number,
+                    })),
+                    timestamp,
+                    Some(event.transaction_hash.clone()),
+                ));
+            }
+            5 => {
+                // EVENT_TYPE_TIER_PURCHASE - 订阅购买
+                tracing::debug!(
+                    "⭐ Tier Purchase: FID {} at block {}",
+                    fid,
+                    event.block_number
+                );
+
+                batched.activities.push((
+                    fid,
+                    "tier_purchase".to_string(),
+                    Some(serde_json::json!({
+                        "event_type": "tier_purchase",
+                        "block_number": event.block_number,
+                    })),
+                    timestamp,
+                    Some(event.transaction_hash.clone()),
+                ));
+            }
+            _ => {
+                tracing::debug!("Unknown on-chain event type {} for FID {}", event_type, fid);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Process fname transfer
+    async fn process_fname_transfer(
+        &self,
+        fname_transfer: &crate::sync::client::proto::FnameTransfer,
+        _shard_block_info: &ShardBlockInfo,
+        batched: &mut BatchedData,
+    ) -> Result<()> {
+        let from_fid = fname_transfer.from_fid as i64;
+        let to_fid = fname_transfer.to_fid as i64;
+
+        tracing::info!(
+            "📛 Fname Transfer: {} transferred fname from FID {} to FID {}",
+            fname_transfer.id,
+            from_fid,
+            to_fid
+        );
+
+        // Ensure both FIDs exist
+        batched.fids_to_ensure.insert(from_fid);
+        batched.fids_to_ensure.insert(to_fid);
+
+        // Record activity for both FIDs
+        let timestamp = chrono::Utc::now().timestamp();
+
+        batched.activities.push((
+            from_fid,
+            "fname_transfer_out".to_string(),
+            Some(serde_json::json!({
+                "transfer_id": fname_transfer.id,
+                "to_fid": to_fid,
+            })),
+            timestamp,
+            None,
+        ));
+
+        batched.activities.push((
+            to_fid,
+            "fname_transfer_in".to_string(),
+            Some(serde_json::json!({
+                "transfer_id": fname_transfer.id,
+                "from_fid": from_fid,
+            })),
+            timestamp,
+            None,
+        ));
 
         Ok(())
     }
