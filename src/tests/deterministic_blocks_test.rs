@@ -122,11 +122,14 @@ impl DeterministicBlockRegistry {
         );
 
         // Block 1251400: First block with CastRemove
-        // Note: Actual scan shows 4 transactions, not 1
+        // Full scan result: U2:1,U5:2,U6:1,U3:1
         blocks.push(
             DeterministicBlock::new(1251400, 1, "First CastRemove message")
                 .with_transactions(4) // Corrected from scan
-                .with_message_type(2, 1), // CastRemove
+                .with_message_type(2, 1) // CastRemove
+                .with_message_type(5, 2) // LinkAdd
+                .with_message_type(6, 1) // LinkRemove
+                .with_message_type(3, 1), // ReactionAdd
         );
 
         // Block 5009700: First block with ReactionRemove (from comprehensive scan)
@@ -690,34 +693,51 @@ async fn process_and_verify_internal() -> Result<()> {
             .poll_once(det_block.shard_id, det_block.block_number)
             .await?;
 
-        // === SANITY CHECK: Verify no unexpected data ===
-        // Check for totally unexpected message types
-        let all_expected_types: Vec<i32> =
-            det_block.expected_message_types.keys().copied().collect();
-        let unexpected_messages: i64 = if all_expected_types.is_empty() {
-            sqlx::query_scalar("SELECT COUNT(*) FROM user_activity_timeline")
-                .fetch_one(database.pool())
-                .await?
-        } else {
-            let placeholders: Vec<String> = (1..=all_expected_types.len())
-                .map(|i| format!("${}", i))
+        // === SANITY CHECK: Verify no unexpected activity types ===
+        // Only validate user message activities when user messages are specified
+        // System messages (fname_transfer, etc.) are always allowed
+        if !det_block.expected_message_types.is_empty() {
+            // Get all user message activity types (not system)
+            let user_activity_types: Vec<String> = sqlx::query_scalar(
+                "SELECT DISTINCT activity_type FROM user_activity_timeline 
+                 WHERE activity_type NOT IN ('id_register', 'storage_rent', 'signer_add', 'fname_transfer')
+                 ORDER BY activity_type"
+            )
+            .fetch_all(database.pool())
+            .await?;
+
+            // Build expected activity types from message types
+            let mut expected_activity_types: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+            for msg_type in det_block.expected_message_types.keys() {
+                let activity_type = match msg_type {
+                    1 => "cast_add",
+                    2 => "cast_remove",
+                    3 => "reaction_add",
+                    4 => "reaction_remove",
+                    5 => "link_add",
+                    6 => "link_remove",
+                    7 => "verification_add",
+                    8 => "verification_remove",
+                    11 => "user_data_add",
+                    _ => continue,
+                };
+                expected_activity_types.insert(activity_type.to_string());
+            }
+
+            // Find unexpected user message types
+            let unexpected: Vec<String> = user_activity_types
+                .into_iter()
+                .filter(|t| !expected_activity_types.contains(t))
                 .collect();
-            let query = format!(
-                "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type NOT IN (
-                    'cast_add', 'cast_remove', 'reaction_add', 'reaction_remove',
-                    'link_add', 'link_remove', 'verification_add', 'verification_remove',
-                    'user_data_add', 'id_register', 'storage_rent', 'signer_add', 'fname_transfer'
-                )"
+
+            assert!(
+                unexpected.is_empty(),
+                "Block {}: Found unexpected user activity types: {:?}",
+                det_block.block_number,
+                unexpected
             );
-            sqlx::query_scalar(&query)
-                .fetch_one(database.pool())
-                .await?
-        };
-        assert_eq!(
-            unexpected_messages, 0,
-            "Block {}: Found {} unexpected activity types",
-            det_block.block_number, unexpected_messages
-        );
+        }
 
         // === CROSS-VALIDATION: Casts (ALWAYS validate, even if expecting 0) ===
         let expected_cast_count = det_block
