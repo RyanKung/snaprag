@@ -78,6 +78,10 @@ impl DeterministicBlockRegistry {
     pub fn new() -> Self {
         let mut blocks = vec![];
 
+        // STRICT REQUIREMENT: Every block must specify at least:
+        // 1. expected_transactions (>0)
+        // 2. At least ONE of: expected_message_types OR has_system_messages
+
         // Block 1250000: First block with user messages
         // Discovered via scanning - contains multiple message types
         blocks.push(
@@ -194,6 +198,20 @@ impl DeterministicBlockRegistry {
         //
         // Total: 10 deterministic blocks covering 13 message/event types
         // Scanned ranges: Blocks 0 to 27,000,000
+
+        // Validate all blocks have minimum required specifications
+        for block in &blocks {
+            assert!(
+                block.expected_transactions > 0,
+                "Block {} must have expected_transactions specified",
+                block.block_number
+            );
+            assert!(
+                !block.expected_message_types.is_empty() || block.has_system_messages,
+                "Block {} must specify at least message types OR system messages",
+                block.block_number
+            );
+        }
 
         Self { blocks }
     }
@@ -672,18 +690,55 @@ async fn process_and_verify_internal() -> Result<()> {
             .poll_once(det_block.shard_id, det_block.block_number)
             .await?;
 
-        // === CROSS-VALIDATION: Casts ===
-        if let Some(cast_add_count) = det_block.expected_message_types.get(&1) {
-            let cast_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM casts")
+        // === SANITY CHECK: Verify no unexpected data ===
+        // Check for totally unexpected message types
+        let all_expected_types: Vec<i32> =
+            det_block.expected_message_types.keys().copied().collect();
+        let unexpected_messages: i64 = if all_expected_types.is_empty() {
+            sqlx::query_scalar("SELECT COUNT(*) FROM user_activity_timeline")
                 .fetch_one(database.pool())
-                .await?;
-            assert_eq!(
-                cast_count, *cast_add_count as i64,
-                "Block {} should create {} casts (got {})",
-                det_block.block_number, cast_add_count, cast_count
+                .await?
+        } else {
+            let placeholders: Vec<String> = (1..=all_expected_types.len())
+                .map(|i| format!("${}", i))
+                .collect();
+            let query = format!(
+                "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type NOT IN (
+                    'cast_add', 'cast_remove', 'reaction_add', 'reaction_remove',
+                    'link_add', 'link_remove', 'verification_add', 'verification_remove',
+                    'user_data_add', 'id_register', 'storage_rent', 'signer_add', 'fname_transfer'
+                )"
             );
-            println!("    ✓ Casts: {} (expected: {})", cast_count, cast_add_count);
+            sqlx::query_scalar(&query)
+                .fetch_one(database.pool())
+                .await?
+        };
+        assert_eq!(
+            unexpected_messages, 0,
+            "Block {}: Found {} unexpected activity types",
+            det_block.block_number, unexpected_messages
+        );
 
+        // === CROSS-VALIDATION: Casts (ALWAYS validate, even if expecting 0) ===
+        let expected_cast_count = det_block
+            .expected_message_types
+            .get(&1)
+            .copied()
+            .unwrap_or(0);
+        let cast_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM casts")
+            .fetch_one(database.pool())
+            .await?;
+        assert_eq!(
+            cast_count, expected_cast_count as i64,
+            "Block {} should have {} casts (got {})",
+            det_block.block_number, expected_cast_count, cast_count
+        );
+        println!(
+            "    ✓ Casts: {} (expected: {})",
+            cast_count, expected_cast_count
+        );
+
+        if cast_count > 0 {
             // Cross-validate: All casts should have corresponding user_profiles
             let unique_cast_authors: i64 =
                 sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM casts")
@@ -714,11 +769,14 @@ async fn process_and_verify_internal() -> Result<()> {
             .fetch_one(database.pool())
             .await?;
             assert_eq!(
-                cast_activities, *cast_add_count as i64,
+                cast_activities, expected_cast_count as i64,
                 "Block {}: Cast count should match activity timeline",
                 det_block.block_number
             );
-            println!("    ✓ Casts in activity timeline: {}", cast_activities);
+            println!(
+                "    ✓ Casts in activity timeline: {} (expected: {})",
+                cast_activities, expected_cast_count
+            );
         }
 
         // === CROSS-VALIDATION: Activities and User Profiles ===
