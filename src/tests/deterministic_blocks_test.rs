@@ -133,21 +133,26 @@ impl DeterministicBlockRegistry {
         );
 
         // Block 5009700: First block with ReactionRemove (from comprehensive scan)
+        // Full scan result: U3:1,U4:1,U6:4,U5:3
         blocks.push(
             DeterministicBlock::new(5009700, 1, "First ReactionRemove message")
                 .with_transactions(8) // Corrected from scan: actual count is 8
-                .with_message_type(4, 1), // ReactionRemove
+                .with_message_type(4, 1) // ReactionRemove
+                .with_message_type(3, 1) // ReactionAdd
+                .with_message_type(6, 4) // LinkRemove
+                .with_message_type(5, 3), // LinkAdd
         );
 
         // Block 1319500: First VerificationRemove (very rare type!)
+        // Full scan result: U4:1,U1:2,U6:1,U8:1,U3:3
         blocks.push(
             DeterministicBlock::new(1319500, 1, "First VerificationRemove message")
                 .with_transactions(8)
                 .with_message_type(8, 1) // VerificationRemove
-                .with_message_type(3, 3) // ReactionAdd
-                .with_message_type(1, 2) // CastAdd
                 .with_message_type(4, 1) // ReactionRemove
-                .with_message_type(6, 1), // LinkRemove
+                .with_message_type(1, 2) // CastAdd
+                .with_message_type(6, 1) // LinkRemove
+                .with_message_type(3, 3), // ReactionAdd
         );
 
         // ========== SYSTEM MESSAGES (ON-CHAIN EVENTS) ==========
