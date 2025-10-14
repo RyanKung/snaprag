@@ -24,6 +24,7 @@ pub struct DeterministicBlock {
     pub expected_transactions: usize,
     pub expected_message_types: HashMap<i32, usize>, // message_type -> count
     pub has_system_messages: bool,
+    pub expected_system_event_types: HashMap<i32, usize>, // event_type -> count (for system msgs)
 }
 
 impl DeterministicBlock {
@@ -36,6 +37,7 @@ impl DeterministicBlock {
             expected_transactions: 0,
             expected_message_types: HashMap::new(),
             has_system_messages: false,
+            expected_system_event_types: HashMap::new(),
         }
     }
 
@@ -51,8 +53,15 @@ impl DeterministicBlock {
         self
     }
 
-    /// Mark as having system messages
+    /// Mark as having system messages (generic, count > 0)
     pub fn with_system_messages(mut self) -> Self {
+        self.has_system_messages = true;
+        self
+    }
+
+    /// Add expected system event type count (stricter validation)
+    pub fn with_system_event_type(mut self, event_type: i32, count: usize) -> Self {
+        self.expected_system_event_types.insert(event_type, count);
         self.has_system_messages = true;
         self
     }
@@ -109,13 +118,17 @@ impl DeterministicBlockRegistry {
         );
 
         // Block 1251400: First block with CastRemove
+        // Note: Actual scan shows 4 transactions, not 1
         blocks.push(
-            DeterministicBlock::new(1251400, 1, "First CastRemove message").with_message_type(2, 1), // CastRemove
+            DeterministicBlock::new(1251400, 1, "First CastRemove message")
+                .with_transactions(4) // Corrected from scan
+                .with_message_type(2, 1), // CastRemove
         );
 
         // Block 5009700: First block with ReactionRemove (from comprehensive scan)
         blocks.push(
             DeterministicBlock::new(5009700, 1, "First ReactionRemove message")
+                .with_transactions(8) // Corrected from scan: actual count is 8
                 .with_message_type(4, 1), // ReactionRemove
         );
 
@@ -149,7 +162,8 @@ impl DeterministicBlockRegistry {
         // Block 32900: First FID Registration and Signer events
         blocks.push(
             DeterministicBlock::new(32900, 1, "FID Registration and Signer events")
-                .with_system_messages(),
+                .with_transactions(9) // Corrected from scan: actual count is 9
+                .with_system_messages(), // Generic check for now - counts vary
         );
 
         // Note: Still missing very new/rare message types:
@@ -361,12 +375,13 @@ async fn scan_message_types() -> Result<()> {
             11 => "UserDataAdd",
             _ => "Unknown",
         };
+        let first_block = blocks.first().expect("blocks list should not be empty");
         println!(
             "  Type {}: {} - Found in {} blocks (first: {})",
             msg_type,
             msg_name,
             blocks.len(),
-            blocks.first().unwrap_or(&0)
+            first_block
         );
     }
 
@@ -381,12 +396,13 @@ async fn scan_message_types() -> Result<()> {
             5 => "TierPurchase",
             _ => "Unknown",
         };
+        let first_block = blocks.first().expect("blocks list should not be empty");
         println!(
             "  Type {}: {} - Found in {} blocks (first: {})",
             actual_type,
             event_name,
             blocks.len(),
-            blocks.first().unwrap_or(&0)
+            first_block
         );
     }
 
@@ -430,21 +446,26 @@ async fn test_deterministic_block_contents() -> Result<()> {
 
         let chunk = &response.shard_chunks[0];
 
-        // Verify transaction count if specified
-        if det_block.expected_transactions > 0 {
-            assert_eq!(
-                chunk.transactions.len(),
-                det_block.expected_transactions,
-                "Block {} should have exactly {} transactions",
-                det_block.block_number,
-                det_block.expected_transactions
-            );
-            println!("  ✓ Transactions: {}", chunk.transactions.len());
-        }
+        // Verify transaction count (STRICT: must be specified for all blocks)
+        assert!(
+            det_block.expected_transactions > 0,
+            "Block {} must have expected_transactions specified (found 0)",
+            det_block.block_number
+        );
+        assert_eq!(
+            chunk.transactions.len(),
+            det_block.expected_transactions,
+            "Block {} should have exactly {} transactions, got {}",
+            det_block.block_number,
+            det_block.expected_transactions,
+            chunk.transactions.len()
+        );
+        println!("  ✓ Transactions: {}", chunk.transactions.len());
 
-        // Count actual message types
+        // Count actual message types and system events
         let mut actual_msg_types: HashMap<i32, usize> = HashMap::new();
         let mut actual_system_msg_count = 0;
+        let mut actual_system_event_types: HashMap<i32, usize> = HashMap::new();
 
         for tx in &chunk.transactions {
             for msg in &tx.user_messages {
@@ -453,6 +474,13 @@ async fn test_deterministic_block_contents() -> Result<()> {
                 }
             }
             actual_system_msg_count += tx.system_messages.len();
+
+            // Count system event types
+            for sys_msg in &tx.system_messages {
+                if let Some(event) = &sys_msg.on_chain_event {
+                    *actual_system_event_types.entry(event.r#type).or_insert(0) += 1;
+                }
+            }
         }
 
         // Verify message types
@@ -475,6 +503,21 @@ async fn test_deterministic_block_contents() -> Result<()> {
                 det_block.block_number
             );
             println!("  ✓ System messages: {}", actual_system_msg_count);
+        }
+
+        // Verify specific system event types if specified (STRICT)
+        for (expected_event_type, expected_count) in &det_block.expected_system_event_types {
+            let actual_count = actual_system_event_types
+                .get(expected_event_type)
+                .copied()
+                .unwrap_or(0);
+            assert_eq!(
+                actual_count, *expected_count,
+                "Block {} should have exactly {} system events of type {}, but found {}",
+                det_block.block_number, expected_count, expected_event_type, actual_count
+            );
+            let event_name = get_system_event_name(*expected_event_type);
+            println!("  ✓ System Event {}: {}", event_name, actual_count);
         }
 
         println!("  ✅ Block {} validated\n", det_block.block_number);
@@ -607,7 +650,7 @@ async fn process_and_verify_internal() -> Result<()> {
             .poll_once(det_block.shard_id, det_block.block_number)
             .await?;
 
-        // Verify casts (should match single block)
+        // === CROSS-VALIDATION: Casts ===
         if let Some(cast_add_count) = det_block.expected_message_types.get(&1) {
             let cast_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM casts")
                 .fetch_one(database.pool())
@@ -618,7 +661,71 @@ async fn process_and_verify_internal() -> Result<()> {
                 det_block.block_number, cast_add_count, cast_count
             );
             println!("    ✓ Casts: {} (expected: {})", cast_count, cast_add_count);
+
+            // Cross-validate: All casts should have corresponding user_profiles
+            let profiles_for_casts: i64 = sqlx::query_scalar(
+                "SELECT COUNT(DISTINCT p.fid) FROM user_profiles p 
+                 INNER JOIN casts c ON p.fid = c.fid",
+            )
+            .fetch_one(database.pool())
+            .await?;
+            assert!(
+                profiles_for_casts > 0,
+                "Block {}: All casts should have corresponding user_profiles",
+                det_block.block_number
+            );
+            println!("    ✓ Cast authors have profiles: {}", profiles_for_casts);
+
+            // Cross-validate: Casts in activity timeline
+            let cast_activities: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type = 'cast_add'",
+            )
+            .fetch_one(database.pool())
+            .await?;
+            assert_eq!(
+                cast_activities, *cast_add_count as i64,
+                "Block {}: Cast count should match activity timeline",
+                det_block.block_number
+            );
+            println!("    ✓ Casts in activity timeline: {}", cast_activities);
         }
+
+        // === CROSS-VALIDATION: Activities and User Profiles ===
+
+        // First, verify all FIDs in activities have profiles
+        let fids_without_profiles: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT a.fid) FROM user_activity_timeline a 
+             LEFT JOIN user_profiles p ON a.fid = p.fid 
+             WHERE p.fid IS NULL",
+        )
+        .fetch_one(database.pool())
+        .await?;
+        assert_eq!(
+            fids_without_profiles, 0,
+            "Block {}: All activity FIDs should have profiles (found {} without)",
+            det_block.block_number, fids_without_profiles
+        );
+
+        let total_unique_fids: i64 =
+            sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM user_activity_timeline")
+                .fetch_one(database.pool())
+                .await?;
+
+        let profile_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profiles")
+            .fetch_one(database.pool())
+            .await?;
+
+        assert!(
+            profile_count >= total_unique_fids,
+            "Block {}: Profile count ({}) should be >= unique FIDs ({})",
+            det_block.block_number,
+            profile_count,
+            total_unique_fids
+        );
+        println!(
+            "    ✓ User profiles: {} (covering {} unique FIDs)",
+            profile_count, total_unique_fids
+        );
 
         // Verify each expected message type created corresponding activities
         for (msg_type, expected_count) in &det_block.expected_message_types {
@@ -647,8 +754,23 @@ async fn process_and_verify_internal() -> Result<()> {
                 "Block {} should produce {} {} activities (got {})",
                 det_block.block_number, expected_count, activity_type_name, actual_count
             );
+
+            // Cross-validate: All activities should have valid timestamps
+            let activities_with_invalid_ts: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM user_activity_timeline 
+                 WHERE activity_type = $1 AND (timestamp IS NULL OR timestamp = 0)",
+            )
+            .bind(activity_type_name)
+            .fetch_one(database.pool())
+            .await?;
+            assert_eq!(
+                activities_with_invalid_ts, 0,
+                "Block {}: All {} activities should have valid timestamps",
+                det_block.block_number, activity_type_name
+            );
+
             println!(
-                "    ✓ {}: {} (expected: {})",
+                "    ✓ {}: {} (expected: {}, valid timestamps: ✓)",
                 activity_type_name, actual_count, expected_count
             );
         }
