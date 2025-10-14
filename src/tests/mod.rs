@@ -1,4 +1,5 @@
 pub mod database_tests;
+pub mod deterministic_blocks_test;
 pub mod grpc_shard_chunks_test;
 pub mod integration_sync_test;
 pub mod strict_test_config;
