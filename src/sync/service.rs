@@ -653,12 +653,33 @@ impl SyncService {
         to_block: u64,
         lock: &mut SyncLockFile,
     ) -> Result<()> {
+        // Check if we should resume from last saved progress
+        let last_saved_height = self.database.get_last_processed_height(shard_id).await?;
+
+        // Resume from last saved height if it's greater than requested from_block
+        // This allows automatic resume when sync is restarted
+        let resume_from = if from_block == 0 && last_saved_height > 0 {
+            info!(
+                "📍 Resuming shard {} from last saved height {} (instead of {})",
+                shard_id, last_saved_height, from_block
+            );
+            last_saved_height
+        } else if last_saved_height > from_block && last_saved_height < to_block {
+            info!(
+                "📍 Progress found for shard {}: resuming from block {} (was at {})",
+                shard_id, last_saved_height, from_block
+            );
+            last_saved_height
+        } else {
+            from_block
+        };
+
         info!(
             "Starting range sync for shard {} from block {} to block {}",
-            shard_id, from_block, to_block
+            shard_id, resume_from, to_block
         );
 
-        let mut current_block = from_block;
+        let mut current_block = resume_from;
         let mut total_messages = 0u64;
         let mut total_blocks = 0u64;
 
