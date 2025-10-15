@@ -729,9 +729,7 @@ impl ShardProcessor {
             }
         }
 
-        // Ensure user profile exists first
-        self.ensure_user_profile_exists(fid, timestamp).await?;
-
+        // User profile will be ensured in batch flush
         // Update user profile fields based on data_type
         // Farcaster UserDataType: 1=PFP, 2=DISPLAY_NAME, 3=BIO, 5=URL, 6=USERNAME
         match data_type {
@@ -838,9 +836,7 @@ impl ShardProcessor {
             timestamp
         );
 
-        // Ensure user profile exists (create minimal profile if not)
-        self.ensure_user_profile_exists(fid, timestamp).await?;
-
+        // User profile will be ensured in batch flush
         // Parse cast data from the body
         let mut text = None;
         let mut parent_hash = None;
@@ -1070,11 +1066,7 @@ impl ShardProcessor {
         }
 
         if let Some(target_fid) = target_fid {
-            // Ensure both source and target profiles exist
-            self.ensure_user_profile_exists(fid, timestamp).await?;
-            self.ensure_user_profile_exists(target_fid, timestamp)
-                .await?;
-
+            // Profiles will be ensured in batch flush
             // Insert link into database
             self.database
                 .upsert_link(
@@ -1286,7 +1278,7 @@ impl ShardProcessor {
 
                 batched.activities.push((
                     fid,
-                    "fid_register".to_string(),
+                    "id_register".to_string(),
                     Some(serde_json::json!({
                         "event_type": "id_register",
                         "block_number": event.block_number,

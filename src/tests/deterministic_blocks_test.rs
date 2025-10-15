@@ -989,7 +989,7 @@ async fn process_and_verify_internal() -> Result<()> {
             // Get all user message activity types (not system)
             let user_activity_types: Vec<String> = sqlx::query_scalar(
                 "SELECT DISTINCT activity_type FROM user_activity_timeline 
-                 WHERE activity_type NOT IN ('id_register', 'storage_rent', 'signer_add', 'fname_transfer')
+                 WHERE activity_type NOT IN ('id_register', 'storage_rent', 'signer_event', 'fname_transfer', 'fname_transfer_in', 'fname_transfer_out')
                  ORDER BY activity_type"
             )
             .fetch_all(database.pool())
