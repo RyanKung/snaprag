@@ -1,4 +1,5 @@
 use clap::Parser;
+use snaprag::cli::CastCommands;
 use snaprag::cli::Cli;
 use snaprag::cli::Commands;
 use snaprag::cli::EmbeddingsCommands;
@@ -109,6 +110,23 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
+        Commands::Cast(cast_command) => match cast_command {
+            CastCommands::Search {
+                query,
+                limit,
+                threshold,
+                detailed,
+            } => {
+                snaprag::cli::handle_cast_search(&snaprag, query, limit, threshold, detailed)
+                    .await?;
+            }
+            CastCommands::Recent { fid, limit } => {
+                snaprag::cli::handle_cast_recent(&snaprag, fid, limit).await?;
+            }
+            CastCommands::Thread { hash, depth } => {
+                snaprag::cli::handle_cast_thread(&snaprag, hash, depth).await?;
+            }
+        },
         Commands::Rag(rag_command) => match rag_command {
             RagCommands::Query {
                 query,
@@ -140,6 +158,9 @@ async fn main() -> Result<()> {
         Commands::Embeddings(embeddings_command) => match embeddings_command {
             EmbeddingsCommands::Backfill { force, batch_size } => {
                 snaprag::cli::handle_embeddings_backfill(&config, force, batch_size).await?;
+            }
+            EmbeddingsCommands::BackfillCasts { limit } => {
+                snaprag::cli::handle_cast_embeddings_backfill(&config, limit).await?;
             }
             EmbeddingsCommands::Generate { fid, verbose } => {
                 snaprag::cli::handle_embeddings_generate(&config, fid, verbose).await?;

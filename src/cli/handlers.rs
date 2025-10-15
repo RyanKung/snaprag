@@ -413,6 +413,270 @@ pub async fn handle_activity_command(
     Ok(())
 }
 
+/// Handle cast search command
+pub async fn handle_cast_search(
+    snaprag: &SnapRag,
+    query: String,
+    limit: usize,
+    threshold: f32,
+    detailed: bool,
+) -> Result<()> {
+    use crate::embeddings::EmbeddingService;
+
+    print_info(&format!("🔍 Searching casts: \"{}\"", query));
+
+    // Check if we have any cast embeddings
+    let embed_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cast_embeddings")
+        .fetch_one(snaprag.database().pool())
+        .await?;
+
+    if embed_count == 0 {
+        print_warning("⚠️  No cast embeddings found. Please run:");
+        println!("   snaprag embeddings backfill-casts");
+        return Ok(());
+    }
+
+    // Generate query embedding (create new service instance)
+    let config = AppConfig::load()?;
+    let embedding_service = EmbeddingService::new(&config)?;
+    let query_embedding = embedding_service.generate(&query).await?;
+
+    // Search casts
+    let results = snaprag
+        .database()
+        .semantic_search_casts(query_embedding, limit as i64, Some(threshold))
+        .await?;
+
+    if results.is_empty() {
+        print_warning(&format!(
+            "No casts found matching '{}' (threshold: {:.2})",
+            query, threshold
+        ));
+        return Ok(());
+    }
+
+    println!("\n📝 Found {} matching casts:\n", results.len());
+    println!("{}", "─".repeat(100));
+
+    for (idx, result) in results.iter().enumerate() {
+        // Get author profile
+        let author = snaprag.database().get_user_profile(result.fid).await?;
+        let author_display = if let Some(profile) = author {
+            if let Some(username) = profile.username {
+                format!("@{}", username)
+            } else if let Some(display_name) = profile.display_name {
+                display_name
+            } else {
+                format!("FID {}", result.fid)
+            }
+        } else {
+            format!("FID {}", result.fid)
+        };
+
+        // Format timestamp
+        let timestamp_str = chrono::DateTime::from_timestamp(result.timestamp, 0)
+            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        println!(
+            "{}. {} | {} | Similarity: {:.2}%",
+            idx + 1,
+            author_display,
+            timestamp_str,
+            result.similarity * 100.0
+        );
+
+        // Show cast text (truncate if needed)
+        let display_text = if result.text.len() > 200 && !detailed {
+            format!("{}...", &result.text[..200])
+        } else {
+            result.text.clone()
+        };
+        println!("   {}", display_text);
+
+        if detailed {
+            println!("   Hash: {}", hex::encode(&result.message_hash));
+            if result.parent_hash.is_some() {
+                println!(
+                    "   (Reply to: {})",
+                    hex::encode(result.parent_hash.as_ref().unwrap())
+                );
+            }
+        }
+        println!();
+    }
+
+    println!("{}", "─".repeat(100));
+    println!("💡 Tip: Use --threshold to adjust sensitivity, --detailed for full info");
+
+    Ok(())
+}
+
+/// Handle cast recent command
+pub async fn handle_cast_recent(snaprag: &SnapRag, fid: i64, limit: usize) -> Result<()> {
+    print_info(&format!("📝 Recent casts by FID {}", fid));
+
+    // Get profile
+    let profile = snaprag.database().get_user_profile(fid).await?;
+    if profile.is_none() {
+        print_error(&format!("❌ Profile not found for FID {}", fid));
+        return Ok(());
+    }
+
+    let profile = profile.unwrap();
+    println!("\n👤 Author:");
+    if let Some(username) = &profile.username {
+        println!("  @{}", username);
+    } else if let Some(display_name) = &profile.display_name {
+        println!("  {}", display_name);
+    } else {
+        println!("  FID {}", fid);
+    }
+    println!();
+
+    // Get casts
+    let casts = snaprag
+        .database()
+        .get_casts_by_fid(fid, Some(limit as i64), Some(0))
+        .await?;
+
+    if casts.is_empty() {
+        print_warning("No casts found for this user");
+        return Ok(());
+    }
+
+    println!("📅 Recent Casts ({} total):", casts.len());
+    println!("{}", "─".repeat(100));
+
+    for (idx, cast) in casts.iter().enumerate() {
+        let timestamp_str = chrono::DateTime::from_timestamp(cast.timestamp, 0)
+            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        println!("{}. {}", idx + 1, timestamp_str);
+        if let Some(text) = &cast.text {
+            println!("   {}", text);
+        } else {
+            println!("   (No text content)");
+        }
+
+        if cast.parent_hash.is_some() {
+            println!("   ↳ Reply");
+        }
+        println!();
+    }
+
+    println!("{}", "─".repeat(100));
+
+    Ok(())
+}
+
+/// Handle cast thread command
+pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -> Result<()> {
+    print_info(&format!("🧵 Loading cast thread for {}", &hash[..8]));
+
+    let message_hash = hex::decode(&hash)
+        .map_err(|_| crate::SnapRagError::Custom("Invalid hash format".to_string()))?;
+
+    // Get the root cast
+    let cast = snaprag
+        .database()
+        .get_cast_by_hash(message_hash.clone())
+        .await?;
+
+    if cast.is_none() {
+        print_error(&format!("❌ Cast not found: {}", hash));
+        return Ok(());
+    }
+
+    let cast = cast.unwrap();
+
+    // Get author
+    let author = snaprag.database().get_user_profile(cast.fid).await?;
+    let author_display = if let Some(profile) = author {
+        if let Some(username) = profile.username {
+            format!("@{}", username)
+        } else {
+            format!("FID {}", cast.fid)
+        }
+    } else {
+        format!("FID {}", cast.fid)
+    };
+
+    println!("\n📌 Root Cast by {}:", author_display);
+    if let Some(text) = &cast.text {
+        println!("{}", text);
+    }
+    println!();
+
+    // TODO: Implement thread traversal
+    // For now, just show if it's a reply
+    if cast.parent_hash.is_some() {
+        println!("↳ This cast is a reply");
+        println!(
+            "  Parent: {}",
+            hex::encode(cast.parent_hash.as_ref().unwrap())
+        );
+    }
+
+    println!("\n💡 Thread traversal coming soon!");
+    println!(
+        "   Will show full conversation tree up to {} levels deep",
+        depth
+    );
+
+    Ok(())
+}
+
+/// Handle cast embeddings backfill command
+pub async fn handle_cast_embeddings_backfill(
+    config: &AppConfig,
+    limit: Option<usize>,
+) -> Result<()> {
+    use std::sync::Arc;
+
+    use crate::database::Database;
+    use crate::embeddings::backfill_cast_embeddings;
+    use crate::embeddings::EmbeddingService;
+
+    print_info("🚀 Starting cast embeddings generation...");
+
+    // Create services
+    let database = Arc::new(Database::from_config(config).await?);
+    let embedding_service = Arc::new(EmbeddingService::new(config)?);
+
+    // Check how many casts need embeddings
+    let count = database.count_casts_without_embeddings().await?;
+
+    if count == 0 {
+        print_success("✅ All casts already have embeddings!");
+        return Ok(());
+    }
+
+    let process_count = limit.unwrap_or(count as usize);
+    println!("\n📊 Found {} casts without embeddings", count);
+    println!("   Processing: {} casts\n", process_count);
+
+    // Run backfill
+    let stats = backfill_cast_embeddings(database, embedding_service, limit).await?;
+
+    // Print results
+    println!("\n📈 Cast Embeddings Generation Complete:");
+    println!("   ✅ Success: {}", stats.success);
+    println!("   ⏭️  Skipped: {} (empty text)", stats.skipped);
+    if stats.failed > 0 {
+        println!("   ❌ Failed: {}", stats.failed);
+    }
+    println!("   📊 Success Rate: {:.1}%", stats.success_rate() * 100.0);
+
+    print_success(&format!(
+        "✅ Generated embeddings for {} casts!",
+        stats.success
+    ));
+
+    Ok(())
+}
+
 /// Handle sync command
 pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommands) -> Result<()> {
     match sync_command {

@@ -117,6 +117,9 @@ pub enum Commands {
         #[arg(short, long)]
         detailed: bool,
     },
+    /// Cast commands
+    #[command(subcommand)]
+    Cast(CastCommands),
     /// RAG (Retrieval-Augmented Generation) commands
     #[command(subcommand)]
     Rag(RagCommands),
@@ -169,6 +172,40 @@ pub enum SyncCommands {
 }
 
 #[derive(Subcommand)]
+pub enum CastCommands {
+    /// Search casts by semantic similarity
+    Search {
+        /// Search query
+        query: String,
+        /// Maximum number of results
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+        /// Minimum similarity threshold (0.0-1.0)
+        #[arg(long, default_value = "0.5")]
+        threshold: f32,
+        /// Show detailed information
+        #[arg(short, long)]
+        detailed: bool,
+    },
+    /// Get recent casts by FID
+    Recent {
+        /// FID to query
+        fid: i64,
+        /// Maximum number of casts
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+    },
+    /// Show cast thread (conversation)
+    Thread {
+        /// Cast hash (hex)
+        hash: String,
+        /// Maximum depth
+        #[arg(short, long, default_value = "10")]
+        depth: usize,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum RagCommands {
     /// Execute a RAG query
     Query {
@@ -213,6 +250,12 @@ pub enum EmbeddingsCommands {
         /// Process in batches of N profiles
         #[arg(short, long, default_value = "50")]
         batch_size: usize,
+    },
+    /// Generate embeddings for cast content
+    BackfillCasts {
+        /// Maximum number of casts to process
+        #[arg(short, long)]
+        limit: Option<usize>,
     },
     /// Generate embeddings for a specific profile
     Generate {

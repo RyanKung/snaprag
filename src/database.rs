@@ -1574,6 +1574,114 @@ impl Database {
         Ok(casts)
     }
 
+    /// Count casts without embeddings
+    pub async fn count_casts_without_embeddings(&self) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*) 
+            FROM casts c
+            LEFT JOIN cast_embeddings ce ON c.message_hash = ce.message_hash
+            WHERE c.text IS NOT NULL 
+              AND length(c.text) > 0
+              AND ce.id IS NULL
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
+
+    /// Get casts without embeddings
+    pub async fn get_casts_without_embeddings(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<crate::models::Cast>> {
+        let casts = sqlx::query_as::<_, crate::models::Cast>(
+            r#"
+            SELECT c.* 
+            FROM casts c
+            LEFT JOIN cast_embeddings ce ON c.message_hash = ce.message_hash
+            WHERE c.text IS NOT NULL 
+              AND length(c.text) > 0
+              AND ce.id IS NULL
+            ORDER BY c.timestamp DESC
+            LIMIT $1 OFFSET $2
+            "#,
+        )
+        .bind(limit as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(casts)
+    }
+
+    /// Store cast embedding
+    pub async fn store_cast_embedding(
+        &self,
+        message_hash: &[u8],
+        fid: i64,
+        text: &str,
+        embedding: &[f32],
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO cast_embeddings (message_hash, fid, text, embedding)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (message_hash) 
+            DO UPDATE SET 
+                embedding = EXCLUDED.embedding,
+                updated_at = NOW()
+            "#,
+        )
+        .bind(message_hash)
+        .bind(fid)
+        .bind(text)
+        .bind(embedding)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Semantic search for casts
+    pub async fn semantic_search_casts(
+        &self,
+        query_embedding: Vec<f32>,
+        limit: i64,
+        threshold: Option<f32>,
+    ) -> Result<Vec<crate::models::CastSearchResult>> {
+        let threshold_val = threshold.unwrap_or(0.0);
+
+        let results = sqlx::query_as::<_, crate::models::CastSearchResult>(
+            r#"
+            SELECT 
+                ce.message_hash,
+                ce.fid,
+                ce.text,
+                c.timestamp,
+                c.parent_hash,
+                c.embeds,
+                c.mentions,
+                1 - (ce.embedding <=> $1) as similarity
+            FROM cast_embeddings ce
+            INNER JOIN casts c ON ce.message_hash = c.message_hash
+            WHERE 1 - (ce.embedding <=> $1) > $2
+            ORDER BY ce.embedding <=> $1
+            LIMIT $3
+            "#,
+        )
+        .bind(&query_embedding)
+        .bind(threshold_val)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(results)
+    }
+
     /// Get cast by message hash
     pub async fn get_cast_by_hash(
         &self,

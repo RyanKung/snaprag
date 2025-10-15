@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use tracing::{info, warn};
+use tracing::info;
+use tracing::warn;
 
 use super::generator::EmbeddingService;
 use crate::database::Database;
@@ -37,10 +38,10 @@ pub async fn backfill_cast_embeddings(
 
     while processed < process_limit {
         let batch_size = std::cmp::min(BATCH_SIZE, process_limit - processed);
-        
+
         // Get batch of casts without embeddings
         let casts = db.get_casts_without_embeddings(batch_size, offset).await?;
-        
+
         if casts.is_empty() {
             break;
         }
@@ -60,18 +61,13 @@ pub async fn backfill_cast_embeddings(
             }
 
             let text = cast.text.as_ref().unwrap();
-            
+
             // Generate embedding
             match embedding_service.generate(text).await {
                 Ok(embedding) => {
                     // Store embedding in database
                     match db
-                        .store_cast_embedding(
-                            &cast.message_hash,
-                            cast.fid,
-                            text,
-                            &embedding,
-                        )
+                        .store_cast_embedding(&cast.message_hash, cast.fid, text, &embedding)
                         .await
                     {
                         Ok(_) => {
