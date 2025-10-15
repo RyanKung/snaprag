@@ -1315,8 +1315,8 @@ impl ShardProcessor {
         // Ensure FID exists
         batched.fids_to_ensure.insert(fid);
 
-        // Use current timestamp as fallback for activity timestamp
-        let timestamp = chrono::Utc::now().timestamp();
+        // Use block timestamp from the on-chain event (Unix timestamp)
+        let timestamp = event.block_timestamp as i64;
 
         match event_type {
             3 => {
@@ -1409,7 +1409,7 @@ impl ShardProcessor {
     async fn process_fname_transfer(
         &self,
         fname_transfer: &crate::sync::client::proto::FnameTransfer,
-        _shard_block_info: &ShardBlockInfo,
+        shard_block_info: &ShardBlockInfo,
         batched: &mut BatchedData,
     ) -> Result<()> {
         let from_fid = fname_transfer.from_fid as i64;
@@ -1431,8 +1431,8 @@ impl ShardProcessor {
             batched.fids_to_ensure.insert(to_fid);
         }
 
-        // Only record activities for valid FIDs (> 0)
-        let timestamp = chrono::Utc::now().timestamp();
+        // Use block timestamp from shard block info (Unix timestamp)
+        let timestamp = shard_block_info.timestamp as i64;
 
         if from_fid > 0 {
             batched.activities.push((

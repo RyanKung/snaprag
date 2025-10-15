@@ -84,6 +84,7 @@ pub mod proto {
         pub r#type: i32,
         pub block_number: u64,
         pub block_hash: Vec<u8>,
+        pub block_timestamp: u64, // Unix timestamp
         pub transaction_hash: Vec<u8>,
         pub log_index: u32,
         pub fid: u64,
@@ -362,6 +363,7 @@ impl SnapchainClient {
                             r#type: grpc_event.r#type,
                             block_number: grpc_event.block_number as u64,
                             block_hash: grpc_event.block_hash.clone(),
+                            block_timestamp: grpc_event.block_timestamp, // Unix timestamp from chain
                             transaction_hash: grpc_event.transaction_hash.clone(),
                             log_index: grpc_event.log_index,
                             fid: grpc_event.fid,
