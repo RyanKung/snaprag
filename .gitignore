@@ -4,6 +4,8 @@
 .env.*.local
 config.yaml
 config.toml
+config.local.toml
+config.test.toml
 
 # Rust build artifacts
 /target/
