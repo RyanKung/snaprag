@@ -183,29 +183,38 @@ impl ShardProcessor {
         // Start a transaction for the entire batch
         let mut tx = self.database.pool().begin().await?;
 
-        // Ensure all FIDs exist
-        let mut profiles_created = 0;
-        for fid in &batched.fids_to_ensure {
-            let result = sqlx::query(
-                r#"
-                INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (fid) DO NOTHING
-                "#,
-            )
-            .bind(fid)
-            .bind(0i64)
-            .bind(chrono::Utc::now())
-            .execute(&mut *tx)
-            .await?;
+        // Batch insert FIDs
+        if !batched.fids_to_ensure.is_empty() {
+            let now = chrono::Utc::now();
 
-            if result.rows_affected() > 0 {
-                profiles_created += 1;
+            // Build dynamic query for batch insert
+            let mut query = String::from(
+                "INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at) VALUES ",
+            );
+
+            let params_per_row = 3;
+            let fids: Vec<i64> = batched.fids_to_ensure.iter().copied().collect();
+            let value_clauses: Vec<String> = (0..fids.len())
+                .map(|i| {
+                    let base = i * params_per_row;
+                    format!("(${}, ${}, ${})", base + 1, base + 2, base + 3)
+                })
+                .collect();
+
+            query.push_str(&value_clauses.join(", "));
+            query.push_str(" ON CONFLICT (fid) DO NOTHING");
+
+            let mut q = sqlx::query(&query);
+            for _fid in &fids {
+                q = q.bind(_fid).bind(0i64).bind(now);
             }
-        }
 
-        if profiles_created > 0 {
-            tracing::debug!("Created {} new profiles", profiles_created);
+            let result = q.execute(&mut *tx).await?;
+            let profiles_created = result.rows_affected();
+
+            if profiles_created > 0 {
+                tracing::debug!("Created {} new profiles", profiles_created);
+            }
         }
 
         // Batch insert casts
