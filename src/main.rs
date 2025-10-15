@@ -147,6 +147,25 @@ async fn main() -> Result<()> {
                 )
                 .await?;
             }
+            RagCommands::QueryCasts {
+                query,
+                limit,
+                threshold,
+                temperature,
+                max_tokens,
+                verbose,
+            } => {
+                snaprag::cli::handle_rag_query_casts(
+                    &snaprag,
+                    query,
+                    limit,
+                    threshold,
+                    temperature,
+                    max_tokens,
+                    verbose,
+                )
+                .await?;
+            }
             RagCommands::Search {
                 query,
                 limit,

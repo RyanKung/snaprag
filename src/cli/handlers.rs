@@ -573,57 +573,233 @@ pub async fn handle_cast_recent(snaprag: &SnapRag, fid: i64, limit: usize) -> Re
 
 /// Handle cast thread command
 pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -> Result<()> {
-    print_info(&format!("🧵 Loading cast thread for {}", &hash[..8]));
+    print_info(&format!("🧵 Loading cast thread for {}...", &hash[..12]));
 
     let message_hash = hex::decode(&hash)
         .map_err(|_| crate::SnapRagError::Custom("Invalid hash format".to_string()))?;
 
-    // Get the root cast
-    let cast = snaprag
+    // Get the full thread
+    let thread = snaprag
         .database()
-        .get_cast_by_hash(message_hash.clone())
+        .get_cast_thread(message_hash, depth)
         .await?;
 
-    if cast.is_none() {
+    if thread.root.is_none() {
         print_error(&format!("❌ Cast not found: {}", hash));
         return Ok(());
     }
 
-    let cast = cast.unwrap();
+    let root_cast = thread.root.as_ref().unwrap();
 
-    // Get author
-    let author = snaprag.database().get_user_profile(cast.fid).await?;
-    let author_display = if let Some(profile) = author {
-        if let Some(username) = profile.username {
-            format!("@{}", username)
-        } else {
-            format!("FID {}", cast.fid)
+    println!("\n{}", "═".repeat(100));
+
+    // Show parent chain if any
+    if !thread.parents.is_empty() {
+        println!("⬆️  Parent Context ({} levels):\n", thread.parents.len());
+
+        for (idx, parent) in thread.parents.iter().enumerate() {
+            let indent = "  ".repeat(idx);
+            let author = snaprag.database().get_user_profile(parent.fid).await?;
+            let author_name = if let Some(p) = author {
+                p.username
+                    .or(p.display_name)
+                    .unwrap_or_else(|| format!("FID {}", parent.fid))
+            } else {
+                format!("FID {}", parent.fid)
+            };
+
+            println!("{}📝 {}", indent, author_name);
+            if let Some(text) = &parent.text {
+                let display_text = if text.len() > 100 {
+                    format!("{}...", &text[..100])
+                } else {
+                    text.clone()
+                };
+                println!("{}   {}", indent, display_text);
+            }
+            println!("{}   ↓", indent);
         }
+    }
+
+    // Show the target cast
+    let indent = "  ".repeat(thread.parents.len());
+    let author = snaprag.database().get_user_profile(root_cast.fid).await?;
+    let author_name = if let Some(p) = author {
+        p.username
+            .or(p.display_name)
+            .unwrap_or_else(|| format!("FID {}", root_cast.fid))
     } else {
-        format!("FID {}", cast.fid)
+        format!("FID {}", root_cast.fid)
     };
 
-    println!("\n📌 Root Cast by {}:", author_display);
-    if let Some(text) = &cast.text {
-        println!("{}", text);
-    }
-    println!();
+    let timestamp_str = chrono::DateTime::from_timestamp(root_cast.timestamp, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| "Unknown".to_string());
 
-    // TODO: Implement thread traversal
-    // For now, just show if it's a reply
-    if cast.parent_hash.is_some() {
-        println!("↳ This cast is a reply");
-        println!(
-            "  Parent: {}",
-            hex::encode(cast.parent_hash.as_ref().unwrap())
-        );
+    println!("\n{}🎯 {} | {}", indent, author_name, timestamp_str);
+    if let Some(text) = &root_cast.text {
+        println!("{}   {}", indent, text);
+    }
+    println!("{}   Hash: {}", indent, &hash[..16]);
+
+    // Show replies if any
+    if !thread.children.is_empty() {
+        println!("\n⬇️  Replies ({}):\n", thread.children.len());
+
+        for (idx, reply) in thread.children.iter().enumerate() {
+            let author = snaprag.database().get_user_profile(reply.fid).await?;
+            let author_name = if let Some(p) = author {
+                p.username
+                    .or(p.display_name)
+                    .unwrap_or_else(|| format!("FID {}", reply.fid))
+            } else {
+                format!("FID {}", reply.fid)
+            };
+
+            println!("{}. ↳ {}", idx + 1, author_name);
+            if let Some(text) = &reply.text {
+                let display_text = if text.len() > 100 {
+                    format!("{}...", &text[..100])
+                } else {
+                    text.clone()
+                };
+                println!("      {}", display_text);
+            }
+            println!();
+        }
     }
 
-    println!("\n💡 Thread traversal coming soon!");
+    println!("{}", "═".repeat(100));
     println!(
-        "   Will show full conversation tree up to {} levels deep",
-        depth
+        "\n📊 Thread Summary: {} parent(s), 1 target, {} reply/replies",
+        thread.parents.len(),
+        thread.children.len()
     );
+
+    Ok(())
+}
+
+/// Handle RAG query on casts
+pub async fn handle_rag_query_casts(
+    snaprag: &SnapRag,
+    query: String,
+    limit: usize,
+    threshold: f32,
+    temperature: f32,
+    max_tokens: usize,
+    verbose: bool,
+) -> Result<()> {
+    use crate::embeddings::EmbeddingService;
+    use crate::llm::LlmService;
+
+    print_info(&format!("🤖 RAG Query on Casts: \"{}\"", query));
+
+    // Check if we have embeddings
+    let embed_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cast_embeddings")
+        .fetch_one(snaprag.database().pool())
+        .await?;
+
+    if embed_count == 0 {
+        print_warning("⚠️  No cast embeddings found. Run: snaprag embeddings backfill-casts");
+        return Ok(());
+    }
+
+    // Step 1: Retrieve relevant casts
+    println!("\n🔍 Step 1: Retrieving relevant casts...");
+    let config = AppConfig::load()?;
+    let embedding_service = EmbeddingService::new(&config)?;
+    let query_embedding = embedding_service.generate(&query).await?;
+
+    let results = snaprag
+        .database()
+        .semantic_search_casts(query_embedding, limit as i64, Some(threshold))
+        .await?;
+
+    if results.is_empty() {
+        print_warning("No relevant casts found");
+        return Ok(());
+    }
+
+    println!("   ✓ Found {} relevant casts", results.len());
+
+    // Step 2: Assemble context from casts
+    println!("🔧 Step 2: Assembling context...");
+    let mut context = String::new();
+    context.push_str("Relevant Farcaster Casts:\n\n");
+
+    for (idx, result) in results.iter().enumerate() {
+        // Get author
+        let author = snaprag.database().get_user_profile(result.fid).await?;
+        let author_name = if let Some(profile) = author {
+            profile
+                .username
+                .or(profile.display_name)
+                .unwrap_or_else(|| format!("FID {}", result.fid))
+        } else {
+            format!("FID {}", result.fid)
+        };
+
+        context.push_str(&format!(
+            "Cast {}:\nAuthor: {}\nContent: {}\nSimilarity: {:.2}%\n\n",
+            idx + 1,
+            author_name,
+            result.text,
+            result.similarity * 100.0
+        ));
+    }
+
+    if verbose {
+        println!("   Context length: {} chars", context.len());
+    }
+
+    // Step 3: Generate answer with LLM
+    println!("💭 Step 3: Generating answer...");
+    let llm_service = LlmService::new(&config)?;
+
+    let prompt = format!(
+        r#"You are an expert Farcaster analyst helping users understand discussions and trends.
+
+Context: The following are Farcaster casts that may be relevant to the question:
+
+{}
+
+Question: {}
+
+Instructions:
+1. Provide a helpful answer based on the casts above
+2. Summarize the key points and themes
+3. Reference specific casts when relevant
+4. If the casts don't contain enough information, say so
+5. Be concise but insightful
+
+Answer:"#,
+        context, query
+    );
+
+    let answer = llm_service
+        .generate_with_params(&prompt, temperature, max_tokens)
+        .await?;
+
+    // Print results
+    println!("\n{}", "═".repeat(100));
+    println!("📝 Answer:\n");
+    println!("{}", answer.trim());
+    println!("\n{}", "═".repeat(100));
+
+    if verbose {
+        println!("\n📚 Sources ({} casts):", results.len());
+        for (idx, result) in results.iter().enumerate() {
+            println!(
+                "  {}. FID {} | Similarity: {:.2}% | \"{}...\"",
+                idx + 1,
+                result.fid,
+                result.similarity * 100.0,
+                result.text.chars().take(50).collect::<String>()
+            );
+        }
+    } else {
+        println!("\n💡 Use --verbose to see source casts");
+    }
 
     Ok(())
 }

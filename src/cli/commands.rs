@@ -207,7 +207,7 @@ pub enum CastCommands {
 
 #[derive(Subcommand)]
 pub enum RagCommands {
-    /// Execute a RAG query
+    /// Execute a RAG query (profiles)
     Query {
         /// The question to ask
         query: String,
@@ -217,6 +217,26 @@ pub enum RagCommands {
         /// Retrieval method (semantic, keyword, hybrid, auto)
         #[arg(short, long, default_value = "auto")]
         method: String,
+        /// LLM temperature (0.0 - 1.0)
+        #[arg(long, default_value = "0.7")]
+        temperature: f32,
+        /// Maximum tokens for response
+        #[arg(long, default_value = "2000")]
+        max_tokens: usize,
+        /// Show detailed sources
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// RAG query on cast content
+    QueryCasts {
+        /// The question to ask
+        query: String,
+        /// Maximum number of casts to retrieve
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+        /// Minimum similarity threshold (0.0-1.0)
+        #[arg(long, default_value = "0.5")]
+        threshold: f32,
         /// LLM temperature (0.0 - 1.0)
         #[arg(long, default_value = "0.7")]
         temperature: f32,

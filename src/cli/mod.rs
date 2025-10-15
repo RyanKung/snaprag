@@ -24,6 +24,7 @@ pub use handlers::handle_embeddings_stats;
 pub use handlers::handle_embeddings_test;
 pub use handlers::handle_list_command;
 pub use handlers::handle_rag_query;
+pub use handlers::handle_rag_query_casts;
 pub use handlers::handle_rag_search;
 pub use handlers::handle_reset_command;
 pub use handlers::handle_search_command;

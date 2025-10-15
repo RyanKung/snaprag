@@ -1695,6 +1695,79 @@ impl Database {
 
         Ok(cast)
     }
+
+    /// Get cast replies (children)
+    pub async fn get_cast_replies(
+        &self,
+        parent_hash: Vec<u8>,
+        limit: Option<i64>,
+    ) -> Result<Vec<crate::models::Cast>> {
+        let casts = sqlx::query_as::<_, crate::models::Cast>(
+            "SELECT * FROM casts WHERE parent_hash = $1 ORDER BY timestamp ASC LIMIT $2",
+        )
+        .bind(parent_hash)
+        .bind(limit.unwrap_or(100))
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(casts)
+    }
+
+    /// Get cast thread (recursive parents and children)
+    pub async fn get_cast_thread(
+        &self,
+        message_hash: Vec<u8>,
+        max_depth: usize,
+    ) -> Result<CastThread> {
+        let mut thread = CastThread {
+            root: None,
+            parents: Vec::new(),
+            children: Vec::new(),
+        };
+
+        // Get the target cast
+        let cast = self.get_cast_by_hash(message_hash.clone()).await?;
+        if cast.is_none() {
+            return Ok(thread);
+        }
+
+        let current_cast = cast.unwrap();
+        thread.root = Some(current_cast.clone());
+
+        // Traverse up to find parents
+        let mut current_parent = current_cast.parent_hash.clone();
+        let mut depth = 0;
+        while let Some(parent_hash) = current_parent {
+            if depth >= max_depth {
+                break;
+            }
+
+            if let Some(parent) = self.get_cast_by_hash(parent_hash.clone()).await? {
+                thread.parents.push(parent.clone());
+                current_parent = parent.parent_hash.clone();
+                depth += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Reverse parents so root is first
+        thread.parents.reverse();
+
+        // Get direct replies
+        let replies = self.get_cast_replies(message_hash, Some(50)).await?;
+        thread.children = replies;
+
+        Ok(thread)
+    }
+}
+
+/// Cast thread structure
+#[derive(Debug, Clone)]
+pub struct CastThread {
+    pub root: Option<crate::models::Cast>,
+    pub parents: Vec<crate::models::Cast>,
+    pub children: Vec<crate::models::Cast>,
 }
 
 /// Link CRUD operations
