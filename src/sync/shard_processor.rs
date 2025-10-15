@@ -32,6 +32,8 @@ struct BatchedData {
     )>,
     activities: Vec<(i64, String, Option<serde_json::Value>, i64, Option<Vec<u8>>)>,
     fids_to_ensure: HashSet<i64>,
+    // Profile field updates: (fid, field_name, value, timestamp)
+    profile_updates: Vec<(i64, String, Option<String>, i64)>,
 }
 
 /// Processor for handling shard chunks and extracting user data
@@ -64,6 +66,7 @@ impl ShardProcessor {
             casts: Vec::new(),
             activities: Vec::new(),
             fids_to_ensure: HashSet::new(),
+            profile_updates: Vec::new(),
         };
 
         for chunk in chunks {
@@ -145,6 +148,7 @@ impl ShardProcessor {
             casts: Vec::new(),
             activities: Vec::new(),
             fids_to_ensure: HashSet::new(),
+            profile_updates: Vec::new(),
         };
 
         // Process each transaction and collect data
@@ -174,10 +178,11 @@ impl ShardProcessor {
     /// Flush batched data to database
     async fn flush_batched_data(&self, batched: BatchedData) -> Result<()> {
         tracing::debug!(
-            "Flushing batch: {} FIDs, {} casts, {} activities",
+            "Flushing batch: {} FIDs, {} casts, {} activities, {} profile updates",
             batched.fids_to_ensure.len(),
             batched.casts.len(),
-            batched.activities.len()
+            batched.activities.len(),
+            batched.profile_updates.len()
         );
 
         // Start a transaction for the entire batch
@@ -311,6 +316,36 @@ impl ShardProcessor {
             }
 
             q.execute(&mut *tx).await?;
+        }
+
+        // Batch update profile fields
+        if !batched.profile_updates.is_empty() {
+            tracing::debug!(
+                "Batch updating {} profile fields",
+                batched.profile_updates.len()
+            );
+
+            for (fid, field_name, value, timestamp) in batched.profile_updates {
+                let now = chrono::Utc::now();
+
+                // Build dynamic SQL based on field name
+                let sql = format!(
+                    r#"
+                    UPDATE user_profiles 
+                    SET {} = $1, last_updated_timestamp = $2, last_updated_at = $3
+                    WHERE fid = $4
+                    "#,
+                    field_name
+                );
+
+                sqlx::query(&sql)
+                    .bind(value)
+                    .bind(timestamp)
+                    .bind(now)
+                    .bind(fid)
+                    .execute(&mut *tx)
+                    .await?;
+            }
         }
 
         // Commit the transaction
@@ -472,7 +507,7 @@ impl ShardProcessor {
                 ));
             }
             11 => {
-                // UserDataAdd - collect activity (profile updates handled separately)
+                // UserDataAdd - collect activity and profile updates
                 batched.activities.push((
                     fid,
                     "user_data_add".to_string(),
@@ -484,8 +519,7 @@ impl ShardProcessor {
                     Some(message_hash.to_vec()),
                 ));
 
-                // Also update profile fields directly in the same transaction
-                // Parse and store user data updates
+                // Parse and collect profile field updates
                 if let Some(body) = &data.body {
                     if let Some(user_data_body) = body.get("user_data_body") {
                         if let Some(data_type) = user_data_body.get("type").and_then(|v| v.as_i64())
@@ -493,14 +527,31 @@ impl ShardProcessor {
                             if let Some(value) =
                                 user_data_body.get("value").and_then(|v| v.as_str())
                             {
-                                // Store for later batch processing
-                                // For now, we'll need to handle this in flush_batched_data
-                                tracing::debug!(
-                                    "UserDataAdd type {} for FID {}: {}",
-                                    data_type,
-                                    fid,
-                                    value
-                                );
+                                // Map Farcaster UserDataType to field name
+                                // 1=PFP, 2=DISPLAY_NAME, 3=BIO, 5=URL, 6=USERNAME
+                                let field_name = match data_type {
+                                    1 => Some("pfp_url"),
+                                    2 => Some("display_name"),
+                                    3 => Some("bio"),
+                                    5 => Some("url"),
+                                    6 => Some("username"),
+                                    _ => None,
+                                };
+
+                                if let Some(field) = field_name {
+                                    batched.profile_updates.push((
+                                        fid,
+                                        field.to_string(),
+                                        Some(value.to_string()),
+                                        timestamp,
+                                    ));
+                                    tracing::debug!(
+                                        "Collected profile update: FID {} {} = {}",
+                                        fid,
+                                        field,
+                                        value
+                                    );
+                                }
                             }
                         }
                     }
