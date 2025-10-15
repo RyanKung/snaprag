@@ -100,6 +100,23 @@ pub enum Commands {
     Dashboard,
     /// Show current configuration
     Config,
+    /// Query user activity timeline by FID
+    Activity {
+        /// Farcaster ID to query
+        fid: i64,
+        /// Maximum number of activities to return
+        #[arg(short, long, default_value = "50")]
+        limit: i64,
+        /// Skip first N activities
+        #[arg(short, long, default_value = "0")]
+        offset: i64,
+        /// Filter by activity type (cast_add, reaction_add, link_add, etc.)
+        #[arg(short = 't', long)]
+        activity_type: Option<String>,
+        /// Show detailed JSON data
+        #[arg(short, long)]
+        detailed: bool,
+    },
     /// RAG (Retrieval-Augmented Generation) commands
     #[command(subcommand)]
     Rag(RagCommands),

@@ -241,6 +241,149 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     Ok(())
 }
 
+/// Handle activity command
+pub async fn handle_activity_command(
+    snaprag: &SnapRag,
+    fid: i64,
+    limit: i64,
+    offset: i64,
+    activity_type: Option<String>,
+    detailed: bool,
+) -> Result<()> {
+    print_info(&format!("🔍 Querying activity timeline for FID {}", fid));
+
+    // Check if profile exists
+    let profile = snaprag.database().get_user_profile(fid).await?;
+    if profile.is_none() {
+        print_error(&format!("❌ Profile not found for FID {}", fid));
+        return Ok(());
+    }
+
+    let profile = profile.unwrap();
+    println!("\n👤 Profile Information:");
+    if let Some(username) = &profile.username {
+        println!("  Username: @{}", username);
+    }
+    if let Some(display_name) = &profile.display_name {
+        println!("  Display Name: {}", display_name);
+    }
+    println!("  FID: {}", fid);
+    println!();
+
+    // Get activities
+    let activities = snaprag
+        .database()
+        .get_user_activity_timeline(
+            fid,
+            activity_type.clone(),
+            None, // start_timestamp
+            None, // end_timestamp
+            Some(limit),
+            Some(offset),
+        )
+        .await?;
+
+    if activities.is_empty() {
+        print_warning("No activities found for this user");
+        return Ok(());
+    }
+
+    // Group activities by type for summary
+    let mut type_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    for activity in &activities {
+        *type_counts
+            .entry(activity.activity_type.clone())
+            .or_insert(0) += 1;
+    }
+
+    // Print summary
+    println!("📊 Activity Summary ({} total):", activities.len());
+    let mut sorted_types: Vec<_> = type_counts.iter().collect();
+    sorted_types.sort_by(|a, b| b.1.cmp(a.1));
+    for (activity_type, count) in sorted_types {
+        let icon = match activity_type.as_str() {
+            "cast_add" => "✍️",
+            "cast_remove" => "🗑️",
+            "reaction_add" => "❤️",
+            "reaction_remove" => "💔",
+            "link_add" => "👥",
+            "link_remove" => "👋",
+            "verification_add" => "✅",
+            "verification_remove" => "❌",
+            "user_data_add" => "📝",
+            "id_register" => "🆕",
+            "storage_rent" => "💰",
+            "signer_event" => "🔑",
+            _ => "📌",
+        };
+        println!("  {} {}: {}", icon, activity_type, count);
+    }
+    println!();
+
+    // Print activity timeline
+    println!("📅 Activity Timeline:");
+    println!("{}", "─".repeat(100));
+
+    for (idx, activity) in activities.iter().enumerate() {
+        let icon = match activity.activity_type.as_str() {
+            "cast_add" => "✍️",
+            "cast_remove" => "🗑️",
+            "reaction_add" => "❤️",
+            "reaction_remove" => "💔",
+            "link_add" => "👥",
+            "link_remove" => "👋",
+            "verification_add" => "✅",
+            "verification_remove" => "❌",
+            "user_data_add" => "📝",
+            "id_register" => "🆕",
+            "storage_rent" => "💰",
+            "signer_event" => "🔑",
+            _ => "📌",
+        };
+
+        // Format timestamp
+        let timestamp_str = if activity.timestamp > 0 {
+            // Farcaster timestamps are relative to FARCASTER_EPOCH
+            const FARCASTER_EPOCH: i64 = 1609459200; // Jan 1, 2021 00:00:00 UTC
+            let unix_timestamp = FARCASTER_EPOCH + activity.timestamp;
+            chrono::DateTime::from_timestamp(unix_timestamp, 0)
+                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                .unwrap_or_else(|| activity.timestamp.to_string())
+        } else {
+            "N/A".to_string()
+        };
+
+        println!(
+            "{:3}. {} {} | {}",
+            offset + idx as i64 + 1,
+            icon,
+            activity.activity_type,
+            timestamp_str
+        );
+
+        if detailed {
+            if let Some(data) = &activity.activity_data {
+                println!(
+                    "     Data: {}",
+                    serde_json::to_string_pretty(data).unwrap_or_default()
+                );
+            }
+            if let Some(hash) = &activity.message_hash {
+                println!("     Hash: {}", hex::encode(hash));
+            }
+            println!();
+        }
+    }
+
+    println!("{}", "─".repeat(100));
+    println!(
+        "\n💡 Tip: Use --limit and --offset for pagination, --activity-type to filter, --detailed for full data"
+    );
+
+    Ok(())
+}
+
 /// Handle sync command
 pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommands) -> Result<()> {
     match sync_command {

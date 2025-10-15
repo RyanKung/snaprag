@@ -1105,7 +1105,11 @@ impl Database {
                 activity_type,
                 activity_data,
                 timestamp,
-                created_at
+                message_hash,
+                created_at,
+                shard_id,
+                block_height,
+                transaction_fid
             FROM user_activity_timeline 
             WHERE fid = $1
             ORDER BY timestamp DESC

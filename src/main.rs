@@ -92,6 +92,23 @@ async fn main() -> Result<()> {
         Commands::Config => {
             snaprag::cli::handle_config_command(&config).await?;
         }
+        Commands::Activity {
+            fid,
+            limit,
+            offset,
+            activity_type,
+            detailed,
+        } => {
+            snaprag::cli::handle_activity_command(
+                &snaprag,
+                fid,
+                limit,
+                offset,
+                activity_type,
+                detailed,
+            )
+            .await?;
+        }
         Commands::Rag(rag_command) => match rag_command {
             RagCommands::Query {
                 query,
