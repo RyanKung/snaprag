@@ -286,9 +286,8 @@ pub async fn handle_activity_command(
     // Show registration time if available
     if let Some(reg) = registration.first() {
         if reg.timestamp > 0 {
-            const FARCASTER_EPOCH: i64 = 1609459200; // Jan 1, 2021 00:00:00 UTC
-            let unix_timestamp = FARCASTER_EPOCH + reg.timestamp;
-            if let Some(dt) = chrono::DateTime::from_timestamp(unix_timestamp, 0) {
+            // Timestamp is already Unix timestamp, no need to add Farcaster epoch
+            if let Some(dt) = chrono::DateTime::from_timestamp(reg.timestamp, 0) {
                 println!("  🆕 Registered: {}", dt.format("%Y-%m-%d %H:%M:%S UTC"));
             }
         }
@@ -375,12 +374,9 @@ pub async fn handle_activity_command(
             _ => "📌",
         };
 
-        // Format timestamp
+        // Format timestamp (already Unix timestamp)
         let timestamp_str = if activity.timestamp > 0 {
-            // Farcaster timestamps are relative to FARCASTER_EPOCH
-            const FARCASTER_EPOCH: i64 = 1609459200; // Jan 1, 2021 00:00:00 UTC
-            let unix_timestamp = FARCASTER_EPOCH + activity.timestamp;
-            chrono::DateTime::from_timestamp(unix_timestamp, 0)
+            chrono::DateTime::from_timestamp(activity.timestamp, 0)
                 .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
                 .unwrap_or_else(|| activity.timestamp.to_string())
         } else {
