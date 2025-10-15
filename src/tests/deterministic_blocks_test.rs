@@ -254,7 +254,7 @@ impl DeterministicBlockRegistry {
     }
 }
 
-// ==================== TIER 1: SCANNER TOOL ====================
+// ==================== TIER 1: SCANNER TOOLS ====================
 
 /// Scan blocks to find those containing specific message types
 /// This is run manually to discover new deterministic blocks
@@ -440,6 +440,236 @@ async fn scan_message_types() -> Result<()> {
         );
     }
 
+    Ok(())
+}
+
+/// Scan for system messages (OnChainEvents) in early blocks
+/// This helps discover FID registrations, storage events, and signer events
+#[tokio::test]
+#[ignore] // Run with: cargo test scan_for_system_messages -- --ignored --nocapture
+async fn scan_for_system_messages() -> Result<()> {
+    use crate::sync::client::SnapchainClient;
+
+    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
+
+    println!("\n🔍 Scanning for System Messages (OnChainEvents)");
+    println!("================================================\n");
+
+    let config = AppConfig::load()?;
+    let client = SnapchainClient::new(&config.sync.snapchain_grpc_endpoint).await?;
+
+    // Focus on early blocks where FID registration happens
+    let scan_ranges = vec![
+        ("Genesis (0-1000)", 0, 1000, 1),        // Every single block
+        ("Early (1000-10000)", 1000, 10000, 10), // Every 10th block
+        ("Mid (10000-100000)", 10000, 100000, 100),
+    ];
+
+    let mut system_event_blocks: HashMap<i32, Vec<u64>> = HashMap::new();
+    let mut blocks_scanned = 0;
+
+    for (range_name, start, end, step) in scan_ranges {
+        println!("📊 Scanning {}...\n", range_name);
+
+        for block in (start..=end).step_by(step) {
+            blocks_scanned += 1;
+
+            let request = proto::ShardChunksRequest {
+                shard_id: 1,
+                start_block_number: block,
+                stop_block_number: Some(block + 1),
+            };
+
+            match client.get_shard_chunks(request).await {
+                Ok(response) => {
+                    if let Some(chunk) = response.shard_chunks.first() {
+                        let mut system_msg_count = 0;
+                        let mut event_types: HashMap<i32, usize> = HashMap::new();
+
+                        for tx in &chunk.transactions {
+                            for sys_msg in &tx.system_messages {
+                                system_msg_count += 1;
+
+                                if let Some(event) = &sys_msg.on_chain_event {
+                                    *event_types.entry(event.r#type).or_insert(0) += 1;
+                                    system_event_blocks
+                                        .entry(event.r#type)
+                                        .or_insert_with(Vec::new)
+                                        .push(block);
+                                }
+
+                                if sys_msg.fname_transfer.is_some() {
+                                    *event_types.entry(9999).or_insert(0) += 1;
+                                    system_event_blocks
+                                        .entry(9999)
+                                        .or_insert_with(Vec::new)
+                                        .push(block);
+                                }
+                            }
+                        }
+
+                        if system_msg_count > 0 {
+                            let events_str = event_types
+                                .iter()
+                                .map(|(t, c)| {
+                                    let name = match *t {
+                                        1 => "Signer",
+                                        2 => "SignerMigrated",
+                                        3 => "IdRegister",
+                                        4 => "StorageRent",
+                                        5 => "TierPurchase",
+                                        9999 => "FnameTransfer",
+                                        _ => "Unknown",
+                                    };
+                                    format!("{}:{}({})", t, c, name)
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+
+                            println!(
+                                "Block {:<10} - {} system messages: [{}]",
+                                block, system_msg_count, events_str
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error at block {}: {}", block, e);
+                }
+            }
+
+            if blocks_scanned % 100 == 0 {
+                println!("  ... scanned {} blocks so far", blocks_scanned);
+            }
+        }
+        println!();
+    }
+
+    // Print summary
+    println!("\n📋 Summary: System Events Found");
+    println!("==================================");
+
+    if system_event_blocks.is_empty() {
+        println!("⚠️  No system messages found in scanned ranges!");
+    } else {
+        for (event_type, blocks) in system_event_blocks.iter() {
+            let event_name = match event_type {
+                1 => "Signer Event",
+                2 => "Signer Migrated",
+                3 => "FID Registration",
+                4 => "Storage Rent",
+                5 => "Tier Purchase",
+                9999 => "Fname Transfer",
+                _ => "Unknown",
+            };
+
+            let first_block = blocks.first().expect("blocks list should not be empty");
+            println!(
+                "  Event Type {}: {} - Found in {} blocks",
+                event_type,
+                event_name,
+                blocks.len()
+            );
+            println!("    First occurrence: block {}", first_block);
+            if blocks.len() > 1 {
+                println!("    Sample blocks: {:?}", &blocks[..blocks.len().min(5)]);
+            }
+            println!();
+        }
+    }
+
+    println!(
+        "\n✅ Scan complete! Scanned {} blocks total.",
+        blocks_scanned
+    );
+
+    Ok(())
+}
+
+/// Scan latest blocks for new message types (UsernameProof, FrameAction, etc.)
+#[tokio::test]
+#[ignore] // Run with: cargo test scan_latest_blocks -- --ignored --nocapture
+async fn scan_latest_blocks() -> Result<()> {
+    use crate::sync::client::SnapchainClient;
+
+    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
+
+    println!("\n🔍 Scanning Latest Blocks for New Message Types");
+    println!("================================================\n");
+    println!("Target: UsernameProof(12), FrameAction(13), LinkCompactState(14), LendStorage(15)\n");
+
+    let config = AppConfig::load()?;
+    let client = SnapchainClient::new(&config.sync.snapchain_grpc_endpoint).await?;
+
+    let scan_ranges = vec![
+        ("Recent 18M-19M", 18_000_000, 19_000_000, 5000),
+        ("Recent 19M-20M", 19_000_000, 20_000_000, 5000),
+        ("Recent 20M-21M", 20_000_000, 21_000_000, 5000),
+        ("Latest 23M-24M", 23_000_000, 24_000_000, 5000),
+        ("Latest 25M-26M", 25_000_000, 26_000_000, 5000),
+    ];
+
+    let mut found_types: HashMap<i32, Vec<u64>> = HashMap::new();
+    let mut blocks_scanned = 0;
+
+    for (range_name, start, end, step) in scan_ranges {
+        println!("📊 Scanning {}...", range_name);
+
+        for block in (start..=end).step_by(step) {
+            blocks_scanned += 1;
+
+            let request = proto::ShardChunksRequest {
+                shard_id: 1,
+                start_block_number: block,
+                stop_block_number: Some(block + 1),
+            };
+
+            match client.get_shard_chunks(request).await {
+                Ok(response) => {
+                    if let Some(chunk) = response.shard_chunks.first() {
+                        for tx in &chunk.transactions {
+                            for msg in &tx.user_messages {
+                                if let Some(data) = &msg.data {
+                                    if data.r#type >= 12 && data.r#type <= 15 {
+                                        found_types
+                                            .entry(data.r#type)
+                                            .or_insert_with(Vec::new)
+                                            .push(block);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(_) => continue,
+            }
+
+            if blocks_scanned % 100 == 0 {
+                println!("  ... scanned {} blocks", blocks_scanned);
+            }
+        }
+    }
+
+    println!("\n📋 Summary");
+    println!("==========");
+
+    if found_types.is_empty() {
+        println!("⚠️  None of types 12-15 found");
+    } else {
+        for t in 12..=15 {
+            if let Some(blocks) = found_types.get(&t) {
+                let first_block = blocks.first().expect("blocks list should not be empty");
+                println!(
+                    "  ✅ Type {}: Found in {} blocks (first: {})",
+                    t,
+                    blocks.len(),
+                    first_block
+                );
+            }
+        }
+    }
+
+    println!("\n✅ Scanned {} blocks", blocks_scanned);
     Ok(())
 }
 
