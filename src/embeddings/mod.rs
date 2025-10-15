@@ -28,6 +28,8 @@ pub mod client;
 pub mod generator;
 
 pub use backfill::backfill_embeddings;
+pub use cast_backfill::backfill_cast_embeddings;
+pub use cast_backfill::CastBackfillStats;
 pub use client::EmbeddingClient;
 pub use client::EmbeddingProvider;
 pub use generator::EmbeddingService;

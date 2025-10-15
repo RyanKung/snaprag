@@ -167,6 +167,19 @@ pub struct UserActivityTimeline {
     pub transaction_fid: Option<i64>,
 }
 
+/// Cast search result with similarity score
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct CastSearchResult {
+    pub message_hash: Vec<u8>,
+    pub fid: i64,
+    pub text: String,
+    pub timestamp: i64,
+    pub parent_hash: Option<Vec<u8>>,
+    pub embeds: Option<serde_json::Value>,
+    pub mentions: Option<serde_json::Value>,
+    pub similarity: f32,
+}
+
 /// User profile trend record
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct UserProfileTrend {
