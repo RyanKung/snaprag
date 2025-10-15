@@ -260,6 +260,20 @@ pub async fn handle_activity_command(
     }
 
     let profile = profile.unwrap();
+
+    // Get registration activity
+    let registration = snaprag
+        .database()
+        .get_user_activity_timeline(
+            fid,
+            Some("id_register".to_string()),
+            None,
+            None,
+            Some(1),
+            Some(0),
+        )
+        .await?;
+
     println!("\n👤 Profile Information:");
     if let Some(username) = &profile.username {
         println!("  Username: @{}", username);
@@ -268,6 +282,25 @@ pub async fn handle_activity_command(
         println!("  Display Name: {}", display_name);
     }
     println!("  FID: {}", fid);
+
+    // Show registration time if available
+    if let Some(reg) = registration.first() {
+        if reg.timestamp > 0 {
+            const FARCASTER_EPOCH: i64 = 1609459200; // Jan 1, 2021 00:00:00 UTC
+            let unix_timestamp = FARCASTER_EPOCH + reg.timestamp;
+            if let Some(dt) = chrono::DateTime::from_timestamp(unix_timestamp, 0) {
+                println!("  🆕 Registered: {}", dt.format("%Y-%m-%d %H:%M:%S UTC"));
+            }
+        }
+
+        // Show registration block if available
+        if let Some(data) = &reg.activity_data {
+            if let Some(block) = data.get("block_number") {
+                println!("  📦 Registration Block: {}", block);
+            }
+        }
+    }
+
     println!();
 
     // Get activities

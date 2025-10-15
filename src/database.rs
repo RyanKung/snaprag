@@ -1090,38 +1090,68 @@ impl Database {
     pub async fn get_user_activity_timeline(
         &self,
         fid: i64,
-        _activity_type: Option<String>,
+        activity_type: Option<String>,
         _start_timestamp: Option<i64>,
         _end_timestamp: Option<i64>,
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> Result<Vec<UserActivityTimeline>> {
-        // Simplified query for now
-        let activities = sqlx::query_as::<_, UserActivityTimeline>(
-            r#"
-            SELECT 
-                id,
-                fid,
-                activity_type,
-                activity_data,
-                timestamp,
-                message_hash,
-                created_at,
-                shard_id,
-                block_height,
-                transaction_fid
-            FROM user_activity_timeline 
-            WHERE fid = $1
-            ORDER BY timestamp DESC
-            LIMIT $2
-            OFFSET $3
-            "#,
-        )
-        .bind(fid)
-        .bind(limit.unwrap_or(100) as i64)
-        .bind(offset.unwrap_or(0) as i64)
-        .fetch_all(&self.pool)
-        .await?;
+        let activities = if let Some(act_type) = activity_type {
+            // Query with activity type filter
+            sqlx::query_as::<_, UserActivityTimeline>(
+                r#"
+                SELECT 
+                    id,
+                    fid,
+                    activity_type,
+                    activity_data,
+                    timestamp,
+                    message_hash,
+                    created_at,
+                    shard_id,
+                    block_height,
+                    transaction_fid
+                FROM user_activity_timeline 
+                WHERE fid = $1 AND activity_type = $2
+                ORDER BY timestamp DESC
+                LIMIT $3
+                OFFSET $4
+                "#,
+            )
+            .bind(fid)
+            .bind(act_type)
+            .bind(limit.unwrap_or(100) as i64)
+            .bind(offset.unwrap_or(0) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            // Query all activities
+            sqlx::query_as::<_, UserActivityTimeline>(
+                r#"
+                SELECT 
+                    id,
+                    fid,
+                    activity_type,
+                    activity_data,
+                    timestamp,
+                    message_hash,
+                    created_at,
+                    shard_id,
+                    block_height,
+                    transaction_fid
+                FROM user_activity_timeline 
+                WHERE fid = $1
+                ORDER BY timestamp DESC
+                LIMIT $2
+                OFFSET $3
+                "#,
+            )
+            .bind(fid)
+            .bind(limit.unwrap_or(100) as i64)
+            .bind(offset.unwrap_or(0) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        };
         Ok(activities)
     }
 }
