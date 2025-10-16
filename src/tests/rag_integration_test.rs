@@ -279,11 +279,8 @@ async fn test_retrieval_consistency() -> Result<()> {
     assert_eq!(results1.len(), results2.len(), "Inconsistent result count");
 
     for (r1, r2) in results1.iter().zip(results2.iter()) {
-        assert_eq!(r1.fid, r2.fid, "Inconsistent FID ordering");
-        assert_eq!(
-            r1.similarity, r2.similarity,
-            "Inconsistent similarity scores"
-        );
+        assert_eq!(r1.profile.fid, r2.profile.fid, "Inconsistent FID ordering");
+        assert_eq!(r1.score, r2.score, "Inconsistent scores");
     }
 
     println!("\n✅ Retrieval Consistency Test:");
