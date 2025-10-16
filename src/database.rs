@@ -1647,7 +1647,7 @@ impl Database {
         Ok(())
     }
 
-    /// Semantic search for casts
+    /// Semantic search for casts with engagement metrics
     pub async fn semantic_search_casts(
         &self,
         query_embedding: Vec<f32>,
@@ -1656,7 +1656,21 @@ impl Database {
     ) -> Result<Vec<crate::models::CastSearchResult>> {
         let threshold_val = threshold.unwrap_or(0.0);
 
-        let results = sqlx::query_as::<_, crate::models::CastSearchResult>(
+        #[derive(sqlx::FromRow)]
+        struct RawResult {
+            message_hash: Vec<u8>,
+            fid: i64,
+            text: String,
+            timestamp: i64,
+            parent_hash: Option<Vec<u8>>,
+            embeds: Option<serde_json::Value>,
+            mentions: Option<serde_json::Value>,
+            similarity: f32,
+            reply_count: Option<i64>,
+            reaction_count: Option<i64>,
+        }
+
+        let raw_results = sqlx::query_as::<_, RawResult>(
             r#"
             SELECT 
                 ce.message_hash,
@@ -1666,7 +1680,11 @@ impl Database {
                 c.parent_hash,
                 c.embeds,
                 c.mentions,
-                1 - (ce.embedding <=> $1) as similarity
+                1 - (ce.embedding <=> $1) as similarity,
+                (SELECT COUNT(*) FROM casts WHERE parent_hash = ce.message_hash) as reply_count,
+                (SELECT COUNT(*) FROM user_activity_timeline 
+                 WHERE message_hash = ce.message_hash 
+                 AND activity_type = 'reaction_add') as reaction_count
             FROM cast_embeddings ce
             INNER JOIN casts c ON ce.message_hash = c.message_hash
             WHERE 1 - (ce.embedding <=> $1) > $2
@@ -1680,7 +1698,48 @@ impl Database {
         .fetch_all(&self.pool)
         .await?;
 
+        let results = raw_results
+            .into_iter()
+            .map(|r| crate::models::CastSearchResult {
+                message_hash: r.message_hash,
+                fid: r.fid,
+                text: r.text,
+                timestamp: r.timestamp,
+                parent_hash: r.parent_hash,
+                embeds: r.embeds,
+                mentions: r.mentions,
+                similarity: r.similarity,
+                reply_count: r.reply_count.unwrap_or(0),
+                reaction_count: r.reaction_count.unwrap_or(0),
+            })
+            .collect();
+
         Ok(results)
+    }
+
+    /// Get cast statistics (replies, reactions, etc.)
+    pub async fn get_cast_stats(
+        &self,
+        message_hash: &[u8],
+    ) -> Result<crate::models::CastStats> {
+        let stats = sqlx::query_as::<_, crate::models::CastStats>(
+            r#"
+            SELECT 
+                $1 as message_hash,
+                (SELECT COUNT(*) FROM casts WHERE parent_hash = $1) as reply_count,
+                (SELECT COUNT(*) FROM user_activity_timeline 
+                 WHERE message_hash = $1 
+                 AND activity_type = 'reaction_add') as reaction_count,
+                (SELECT COUNT(DISTINCT fid) FROM user_activity_timeline 
+                 WHERE message_hash = $1 
+                 AND activity_type = 'reaction_add') as unique_reactors
+            "#,
+        )
+        .bind(message_hash)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(stats)
     }
 
     /// Get cast by message hash

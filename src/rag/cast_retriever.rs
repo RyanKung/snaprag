@@ -138,7 +138,7 @@ impl CastRetriever {
         Ok(casts)
     }
 
-    /// Semantic search with FID filter
+    /// Semantic search with FID filter and engagement metrics
     pub async fn semantic_search_by_fid(
         &self,
         query: &str,
@@ -152,8 +152,22 @@ impl CastRetriever {
         let query_embedding = self.embedding_service.generate(query).await?;
         let threshold_val = threshold.unwrap_or(0.0);
 
-        // Search with FID filter
-        let results = sqlx::query_as::<_, CastSearchResult>(
+        #[derive(sqlx::FromRow)]
+        struct RawResult {
+            message_hash: Vec<u8>,
+            fid: i64,
+            text: String,
+            timestamp: i64,
+            parent_hash: Option<Vec<u8>>,
+            embeds: Option<serde_json::Value>,
+            mentions: Option<serde_json::Value>,
+            similarity: f32,
+            reply_count: Option<i64>,
+            reaction_count: Option<i64>,
+        }
+
+        // Search with FID filter and engagement metrics
+        let raw_results = sqlx::query_as::<_, RawResult>(
             r#"
             SELECT 
                 ce.message_hash,
@@ -163,7 +177,11 @@ impl CastRetriever {
                 c.parent_hash,
                 c.embeds,
                 c.mentions,
-                1 - (ce.embedding <=> $1) as similarity
+                1 - (ce.embedding <=> $1) as similarity,
+                (SELECT COUNT(*) FROM casts WHERE parent_hash = ce.message_hash) as reply_count,
+                (SELECT COUNT(*) FROM user_activity_timeline 
+                 WHERE message_hash = ce.message_hash 
+                 AND activity_type = 'reaction_add') as reaction_count
             FROM cast_embeddings ce
             INNER JOIN casts c ON ce.message_hash = c.message_hash
             WHERE ce.fid = $2 AND 1 - (ce.embedding <=> $1) > $3
@@ -178,14 +196,44 @@ impl CastRetriever {
         .fetch_all(self.database.pool())
         .await?;
 
+        let results = raw_results
+            .into_iter()
+            .map(|r| CastSearchResult {
+                message_hash: r.message_hash,
+                fid: r.fid,
+                text: r.text,
+                timestamp: r.timestamp,
+                parent_hash: r.parent_hash,
+                embeds: r.embeds,
+                mentions: r.mentions,
+                similarity: r.similarity,
+                reply_count: r.reply_count.unwrap_or(0),
+                reaction_count: r.reaction_count.unwrap_or(0),
+            })
+            .collect();
+
         Ok(results)
     }
 
-    /// Keyword search for casts
+    /// Keyword search for casts with engagement metrics
     pub async fn keyword_search(&self, query: &str, limit: usize) -> Result<Vec<CastSearchResult>> {
         debug!("Performing cast keyword search: {}", query);
 
-        let results = sqlx::query_as::<_, CastSearchResult>(
+        #[derive(sqlx::FromRow)]
+        struct RawResult {
+            message_hash: Vec<u8>,
+            fid: i64,
+            text: String,
+            timestamp: i64,
+            parent_hash: Option<Vec<u8>>,
+            embeds: Option<serde_json::Value>,
+            mentions: Option<serde_json::Value>,
+            similarity: f32,
+            reply_count: Option<i64>,
+            reaction_count: Option<i64>,
+        }
+
+        let raw_results = sqlx::query_as::<_, RawResult>(
             r#"
             SELECT 
                 c.message_hash,
@@ -195,7 +243,11 @@ impl CastRetriever {
                 c.parent_hash,
                 c.embeds,
                 c.mentions,
-                0.8 as similarity
+                0.8 as similarity,
+                (SELECT COUNT(*) FROM casts WHERE parent_hash = c.message_hash) as reply_count,
+                (SELECT COUNT(*) FROM user_activity_timeline 
+                 WHERE message_hash = c.message_hash 
+                 AND activity_type = 'reaction_add') as reaction_count
             FROM casts c
             WHERE c.text ILIKE $1
             ORDER BY c.timestamp DESC
@@ -206,6 +258,22 @@ impl CastRetriever {
         .bind(limit as i64)
         .fetch_all(self.database.pool())
         .await?;
+
+        let results = raw_results
+            .into_iter()
+            .map(|r| CastSearchResult {
+                message_hash: r.message_hash,
+                fid: r.fid,
+                text: r.text,
+                timestamp: r.timestamp,
+                parent_hash: r.parent_hash,
+                embeds: r.embeds,
+                mentions: r.mentions,
+                similarity: r.similarity,
+                reply_count: r.reply_count.unwrap_or(0),
+                reaction_count: r.reaction_count.unwrap_or(0),
+            })
+            .collect();
 
         Ok(results)
     }

@@ -167,8 +167,8 @@ pub struct UserActivityTimeline {
     pub transaction_fid: Option<i64>,
 }
 
-/// Cast search result with similarity score
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+/// Cast search result with similarity score and engagement metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CastSearchResult {
     pub message_hash: Vec<u8>,
     pub fid: i64,
@@ -178,6 +178,19 @@ pub struct CastSearchResult {
     pub embeds: Option<serde_json::Value>,
     pub mentions: Option<serde_json::Value>,
     pub similarity: f32,
+    #[serde(default)]
+    pub reply_count: i64,
+    #[serde(default)]
+    pub reaction_count: i64,
+}
+
+/// Cast statistics
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct CastStats {
+    pub message_hash: Vec<u8>,
+    pub reply_count: i64,
+    pub reaction_count: i64,
+    pub unique_reactors: i64,
 }
 
 /// User profile trend record
