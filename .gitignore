@@ -99,6 +99,7 @@ local/
 *.md
 !README.md
 !readme.md
+!IMPLEMENTATION_SUMMARY.md
 *.txt
 *.json
 
