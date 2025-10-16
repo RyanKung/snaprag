@@ -160,7 +160,7 @@ impl ProcessMonitor {
         // Process idle detection via last activity time
         // In a full implementation, could track per-process activity timestamps
         // For now, use the max_idle_time threshold
-        
+
         // Conservative approach: assume process is not idle unless explicitly proven
         // This prevents premature process termination
         Ok(false)

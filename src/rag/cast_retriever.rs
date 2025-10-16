@@ -85,9 +85,9 @@ impl CastRetriever {
             limit, offset
         );
 
-        // Use simplified query for recent casts
+        // Query recent casts with text content
         let casts = sqlx::query_as::<_, crate::models::Cast>(
-            "SELECT * FROM casts WHERE text IS NOT NULL ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+            "SELECT * FROM casts WHERE text IS NOT NULL AND text != '' ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
         )
         .bind(limit as i64)
         .bind(offset as i64)
