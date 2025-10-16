@@ -1,10 +1,16 @@
 //! Backfill embeddings for cast content
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use std::time::Instant;
 
-use futures::stream::{self, StreamExt};
-use tracing::{debug, info, warn};
+use futures::stream::StreamExt;
+use futures::stream::{
+    self,
+};
+use tracing::debug;
+use tracing::info;
+use tracing::warn;
 
 use super::generator::EmbeddingService;
 use crate::database::Database;
@@ -65,9 +71,7 @@ pub async fn backfill_cast_embeddings(
             .map(|cast| {
                 let db = Arc::clone(&db);
                 let embedding_service = Arc::clone(&embedding_service);
-                async move {
-                    process_single_cast_with_retry(cast, db, embedding_service, 3).await
-                }
+                async move { process_single_cast_with_retry(cast, db, embedding_service, 3).await }
             })
             .buffered(PARALLEL_TASKS) // Process 5 at a time
             .collect::<Vec<_>>()
@@ -130,7 +134,10 @@ async fn process_single_cast_with_retry(
 ) -> ProcessResult {
     // Skip casts without text
     if cast.text.is_none() || cast.text.as_ref().unwrap().trim().is_empty() {
-        debug!("Skipping cast {} (no text)", hex::encode(&cast.message_hash));
+        debug!(
+            "Skipping cast {} (no text)",
+            hex::encode(&cast.message_hash)
+        );
         return ProcessResult::Skipped;
     }
 

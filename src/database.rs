@@ -1718,10 +1718,7 @@ impl Database {
     }
 
     /// Get cast statistics (replies, reactions, etc.)
-    pub async fn get_cast_stats(
-        &self,
-        message_hash: &[u8],
-    ) -> Result<crate::models::CastStats> {
+    pub async fn get_cast_stats(&self, message_hash: &[u8]) -> Result<crate::models::CastStats> {
         let stats = sqlx::query_as::<_, crate::models::CastStats>(
             r#"
             SELECT 

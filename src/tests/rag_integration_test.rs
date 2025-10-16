@@ -20,7 +20,10 @@ use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::errors::Result;
 use crate::llm::LlmService;
-use crate::rag::{CastContextAssembler, CastRetriever, ContextAssembler, Retriever};
+use crate::rag::CastContextAssembler;
+use crate::rag::CastRetriever;
+use crate::rag::ContextAssembler;
+use crate::rag::Retriever;
 
 #[tokio::test]
 #[ignore] // Requires external services (DB, embeddings, LLM)
@@ -42,7 +45,7 @@ async fn test_profile_rag_pipeline() -> Result<()> {
     let embed_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM profile_embeddings")
         .fetch_one(db.pool())
         .await?;
-    
+
     assert!(
         embed_count > 0,
         "No profile embeddings found. Run: snaprag embeddings backfill"
@@ -97,7 +100,10 @@ async fn test_profile_rag_pipeline() -> Result<()> {
     println!("   Results: {} profiles", search_results.len());
     println!("   Context size: {} chars", context.len());
     println!("   Response length: {} chars", response.len());
-    println!("   Sample response: {}...", &response[..response.len().min(100)]);
+    println!(
+        "   Sample response: {}...",
+        &response[..response.len().min(100)]
+    );
 
     Ok(())
 }
@@ -122,7 +128,7 @@ async fn test_cast_rag_pipeline() -> Result<()> {
     let embed_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cast_embeddings")
         .fetch_one(db.pool())
         .await?;
-    
+
     assert!(
         embed_count > 0,
         "No cast embeddings found. Run: snaprag embeddings backfill-casts"
@@ -182,13 +188,17 @@ async fn test_cast_rag_pipeline() -> Result<()> {
     println!("\n✅ Cast RAG Pipeline Test:");
     println!("   Query: {}", query);
     println!("   Results: {} casts", search_results.len());
-    println!("   Total engagement: {} replies, {} reactions",
+    println!(
+        "   Total engagement: {} replies, {} reactions",
         search_results.iter().map(|r| r.reply_count).sum::<i64>(),
         search_results.iter().map(|r| r.reaction_count).sum::<i64>()
     );
     println!("   Context size: {} chars", context.len());
     println!("   Response length: {} chars", response.len());
-    println!("   Sample response: {}...", &response[..response.len().min(100)]);
+    println!(
+        "   Sample response: {}...",
+        &response[..response.len().min(100)]
+    );
 
     Ok(())
 }
@@ -209,10 +219,10 @@ async fn test_hybrid_search_quality() -> Result<()> {
 
     // Step 1: Semantic search
     let semantic_results = cast_retriever.semantic_search(query, 10, None).await?;
-    
+
     // Step 2: Keyword search
     let keyword_results = cast_retriever.keyword_search(query, 10).await?;
-    
+
     // Step 3: Hybrid search (should combine both)
     let hybrid_results = cast_retriever.hybrid_search(query, 10).await?;
 
@@ -227,7 +237,7 @@ async fn test_hybrid_search_quality() -> Result<()> {
     let similarities: Vec<f32> = hybrid_results.iter().map(|r| r.similarity).collect();
     let unique_similarities: std::collections::HashSet<_> =
         similarities.iter().map(|&s| (s * 100.0) as i32).collect();
-    
+
     assert!(
         unique_similarities.len() >= 2,
         "Hybrid search results lack diversity (may not be fusing properly)"
@@ -238,9 +248,13 @@ async fn test_hybrid_search_quality() -> Result<()> {
     println!("   Semantic results: {}", semantic_results.len());
     println!("   Keyword results: {}", keyword_results.len());
     println!("   Hybrid results: {}", hybrid_results.len());
-    println!("   Similarity range: {:.2} - {:.2}",
+    println!(
+        "   Similarity range: {:.2} - {:.2}",
         similarities.iter().cloned().fold(f32::INFINITY, f32::min),
-        similarities.iter().cloned().fold(f32::NEG_INFINITY, f32::max)
+        similarities
+            .iter()
+            .cloned()
+            .fold(f32::NEG_INFINITY, f32::max)
     );
 
     Ok(())
@@ -256,26 +270,28 @@ async fn test_retrieval_consistency() -> Result<()> {
     let retriever = Retriever::new(Arc::clone(&db), Arc::clone(&embedding_service));
 
     let query = "blockchain developers";
-    
+
     // Run search multiple times
     let results1 = retriever.semantic_search(query, 5).await?;
     let results2 = retriever.semantic_search(query, 5).await?;
-    
+
     // Results should be identical (same order, same scores)
-    assert_eq!(
-        results1.len(),
-        results2.len(),
-        "Inconsistent result count"
-    );
-    
+    assert_eq!(results1.len(), results2.len(), "Inconsistent result count");
+
     for (r1, r2) in results1.iter().zip(results2.iter()) {
         assert_eq!(r1.fid, r2.fid, "Inconsistent FID ordering");
-        assert_eq!(r1.similarity, r2.similarity, "Inconsistent similarity scores");
+        assert_eq!(
+            r1.similarity, r2.similarity,
+            "Inconsistent similarity scores"
+        );
     }
 
     println!("\n✅ Retrieval Consistency Test:");
     println!("   Query: {}", query);
-    println!("   Results: {} profiles (consistent across runs)", results1.len());
+    println!(
+        "   Results: {} profiles (consistent across runs)",
+        results1.len()
+    );
 
     Ok(())
 }
@@ -303,17 +319,14 @@ async fn test_cast_thread_retrieval() -> Result<()> {
     if let Some((hash, reply_count)) = cast_with_replies {
         // Get thread
         let thread = db.get_cast_thread(&hash, 5).await?;
-        
-        assert_eq!(
-            thread.root.message_hash, hash,
-            "Thread root mismatch"
-        );
-        
+
+        assert_eq!(thread.root.message_hash, hash, "Thread root mismatch");
+
         assert!(
             !thread.replies.is_empty(),
             "Thread has no replies despite reply_count > 0"
         );
-        
+
         assert!(
             thread.replies.len() as i64 <= reply_count,
             "More replies retrieved than expected"
@@ -323,7 +336,8 @@ async fn test_cast_thread_retrieval() -> Result<()> {
         println!("   Root hash: {}", hex::encode(&hash));
         println!("   Parent chain: {} casts", thread.parents.len());
         println!("   Replies: {} casts", thread.replies.len());
-        println!("   Total thread size: {} casts", 
+        println!(
+            "   Total thread size: {} casts",
             1 + thread.parents.len() + thread.replies.len()
         );
     } else {
@@ -332,4 +346,3 @@ async fn test_cast_thread_retrieval() -> Result<()> {
 
     Ok(())
 }
-
