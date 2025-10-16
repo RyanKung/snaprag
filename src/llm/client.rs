@@ -283,17 +283,18 @@ impl LlmClient {
             .ok_or_else(|| SnapragError::LlmError("No response from OpenAI".to_string()))
     }
 
-    /// OpenAI streaming (not yet implemented)
-    /// Returns an error indicating streaming is not available
+    /// OpenAI streaming
     async fn generate_openai_stream(
         &self,
-        _prompt: &str,
-        _temperature: f32,
-        _max_tokens: usize,
+        prompt: &str,
+        temperature: f32,
+        max_tokens: usize,
     ) -> Result<StreamingResponse> {
-        Err(SnapragError::LlmError(
-            "OpenAI streaming not yet implemented".to_string(),
-        ))
+        // Use unified fallback-to-stream pattern
+        let response = self
+            .generate_openai(prompt, temperature, max_tokens)
+            .await?;
+        Ok(Self::wrap_in_stream(response))
     }
 
     /// Ollama completion
@@ -423,17 +424,18 @@ impl LlmClient {
         Ok(result.message.content)
     }
 
-    /// Ollama streaming (not yet implemented)
-    /// Returns an error indicating streaming is not available
+    /// Ollama streaming
     async fn generate_ollama_stream(
         &self,
-        _prompt: &str,
-        _temperature: f32,
-        _max_tokens: usize,
+        prompt: &str,
+        temperature: f32,
+        max_tokens: usize,
     ) -> Result<StreamingResponse> {
-        Err(SnapragError::LlmError(
-            "Ollama streaming not yet implemented".to_string(),
-        ))
+        // Use unified fallback-to-stream pattern
+        let response = self
+            .generate_ollama(prompt, temperature, max_tokens)
+            .await?;
+        Ok(Self::wrap_in_stream(response))
     }
 
     /// Custom provider completion
@@ -446,5 +448,13 @@ impl LlmClient {
         Err(SnapragError::LlmError(
             "Custom provider not yet implemented".to_string(),
         ))
+    }
+
+    /// Unified helper: Convert non-streaming response to streaming
+    /// This provides a consistent interface while allowing future SSE implementation
+    fn wrap_in_stream(response: String) -> StreamingResponse {
+        use futures::stream;
+        let stream = stream::once(async move { Ok(response) });
+        StreamingResponse::new(Box::pin(stream))
     }
 }
