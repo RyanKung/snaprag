@@ -161,7 +161,7 @@ impl ShardProcessor {
                 tx_idx,
                 &mut batched,
             )
-            .await?;
+                .await?;
         }
 
         // Batch insert all collected data
@@ -736,7 +736,7 @@ impl ShardProcessor {
                 // Log unhandled message types (12=UsernameProof, 13=FrameAction, etc.)
                 // These are less common, so we log them but don't fail
                 if message_type > 0 {
-                    warn!("Unhandled message type: {} for FID {}", message_type, fid);
+                warn!("Unhandled message type: {} for FID {}", message_type, fid);
                 }
             }
         }

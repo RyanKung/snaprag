@@ -556,8 +556,10 @@ async fn test_parse_shard_chunks_response_real_block_9_with_fid_zero() {
 }
 
 #[test]
+#[ignore] // Mock test - kept for reference but not run by default
 fn test_parse_shard_chunks_response_mock() {
-    // Keep the original mock test for unit testing without external dependencies
+    // This test uses mock data for protobuf serialization validation
+    // Real integration tests are in integration_sync_test.rs
     // Create a sample ShardChunksRequest for shard 1, blocks 0 to 42
     let mut request = ShardChunksRequest::default();
     request.shard_id = 1;
