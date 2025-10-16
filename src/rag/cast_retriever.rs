@@ -96,4 +96,181 @@ impl CastRetriever {
 
         Ok(casts)
     }
+
+    /// Search casts with time range filter
+    pub async fn search_by_time_range(
+        &self,
+        start_timestamp: Option<i64>,
+        end_timestamp: Option<i64>,
+        limit: usize,
+    ) -> Result<Vec<crate::models::Cast>> {
+        debug!("Searching casts by time range");
+
+        let casts = if let (Some(start), Some(end)) = (start_timestamp, end_timestamp) {
+            sqlx::query_as::<_, crate::models::Cast>(
+                "SELECT * FROM casts WHERE text IS NOT NULL AND timestamp >= $1 AND timestamp <= $2 ORDER BY timestamp DESC LIMIT $3",
+            )
+            .bind(start)
+            .bind(end)
+            .bind(limit as i64)
+            .fetch_all(self.database.pool())
+            .await?
+        } else if let Some(start) = start_timestamp {
+            sqlx::query_as::<_, crate::models::Cast>(
+                "SELECT * FROM casts WHERE text IS NOT NULL AND timestamp >= $1 ORDER BY timestamp DESC LIMIT $2",
+            )
+            .bind(start)
+            .bind(limit as i64)
+            .fetch_all(self.database.pool())
+            .await?
+        } else if let Some(end) = end_timestamp {
+            sqlx::query_as::<_, crate::models::Cast>(
+                "SELECT * FROM casts WHERE text IS NOT NULL AND timestamp <= $1 ORDER BY timestamp DESC LIMIT $2",
+            )
+            .bind(end)
+            .bind(limit as i64)
+            .fetch_all(self.database.pool())
+            .await?
+        } else {
+            self.search_recent(limit, 0).await?
+        };
+
+        Ok(casts)
+    }
+
+    /// Semantic search with FID filter
+    pub async fn semantic_search_by_fid(
+        &self,
+        query: &str,
+        fid: i64,
+        limit: usize,
+        threshold: Option<f32>,
+    ) -> Result<Vec<CastSearchResult>> {
+        debug!("Performing cast semantic search for FID {}", fid);
+
+        // Generate query embedding
+        let query_embedding = self.embedding_service.generate(query).await?;
+        let threshold_val = threshold.unwrap_or(0.0);
+
+        // Search with FID filter
+        let results = sqlx::query_as::<_, CastSearchResult>(
+            r#"
+            SELECT 
+                ce.message_hash,
+                ce.fid,
+                ce.text,
+                c.timestamp,
+                c.parent_hash,
+                c.embeds,
+                c.mentions,
+                1 - (ce.embedding <=> $1) as similarity
+            FROM cast_embeddings ce
+            INNER JOIN casts c ON ce.message_hash = c.message_hash
+            WHERE ce.fid = $2 AND 1 - (ce.embedding <=> $1) > $3
+            ORDER BY ce.embedding <=> $1
+            LIMIT $4
+            "#,
+        )
+        .bind(&query_embedding)
+        .bind(fid)
+        .bind(threshold_val)
+        .bind(limit as i64)
+        .fetch_all(self.database.pool())
+        .await?;
+
+        Ok(results)
+    }
+
+    /// Keyword search for casts
+    pub async fn keyword_search(&self, query: &str, limit: usize) -> Result<Vec<CastSearchResult>> {
+        debug!("Performing cast keyword search: {}", query);
+
+        let results = sqlx::query_as::<_, CastSearchResult>(
+            r#"
+            SELECT 
+                c.message_hash,
+                c.fid,
+                COALESCE(c.text, '') as text,
+                c.timestamp,
+                c.parent_hash,
+                c.embeds,
+                c.mentions,
+                0.8 as similarity
+            FROM casts c
+            WHERE c.text ILIKE $1
+            ORDER BY c.timestamp DESC
+            LIMIT $2
+            "#,
+        )
+        .bind(format!("%{}%", query))
+        .bind(limit as i64)
+        .fetch_all(self.database.pool())
+        .await?;
+
+        Ok(results)
+    }
+
+    /// Hybrid search combining semantic and keyword
+    pub async fn hybrid_search(
+        &self,
+        query: &str,
+        limit: usize,
+        threshold: Option<f32>,
+    ) -> Result<Vec<CastSearchResult>> {
+        debug!("Performing cast hybrid search: {}", query);
+
+        // Run both searches in parallel
+        let semantic_results = self.semantic_search(query, limit, threshold);
+        let keyword_results = self.keyword_search(query, limit);
+
+        let (semantic, keyword) = tokio::try_join!(semantic_results, keyword_results)?;
+
+        // Merge and deduplicate results using RRF
+        let merged = Self::merge_results(semantic, keyword);
+
+        Ok(merged.into_iter().take(limit).collect())
+    }
+
+    /// Merge and rerank results from multiple sources
+    fn merge_results(
+        semantic: Vec<CastSearchResult>,
+        keyword: Vec<CastSearchResult>,
+    ) -> Vec<CastSearchResult> {
+        use std::collections::HashMap;
+
+        let mut scores: HashMap<Vec<u8>, (f32, CastSearchResult)> = HashMap::new();
+        let k = 60.0; // RRF constant
+
+        // Add semantic results
+        for (rank, result) in semantic.into_iter().enumerate() {
+            let rrf_score = 1.0 / (k + rank as f32 + 1.0);
+            scores.insert(result.message_hash.clone(), (rrf_score, result));
+        }
+
+        // Add/merge keyword results
+        for (rank, result) in keyword.into_iter().enumerate() {
+            let rrf_score = 1.0 / (k + rank as f32 + 1.0);
+            scores
+                .entry(result.message_hash.clone())
+                .and_modify(|(score, _)| *score += rrf_score)
+                .or_insert((rrf_score, result));
+        }
+
+        // Sort by combined score
+        let mut merged: Vec<_> = scores
+            .into_iter()
+            .map(|(_, (score, mut result))| {
+                result.similarity = score; // Use RRF score
+                result
+            })
+            .collect();
+
+        merged.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        merged
+    }
 }

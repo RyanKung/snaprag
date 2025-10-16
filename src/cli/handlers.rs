@@ -738,29 +738,12 @@ pub async fn handle_rag_query_casts(
         println!("   Context length: {} chars", context.len());
     }
 
-    // Step 3: Generate answer with LLM
+    // Step 3: Generate answer with LLM using enhanced prompts
     println!("💭 Step 3: Generating answer...");
     let llm_service = LlmService::new(&config)?;
 
-    let prompt = format!(
-        r#"You are an expert Farcaster analyst helping users understand discussions and trends.
-
-Context: The following are Farcaster casts that may be relevant to the question:
-
-{}
-
-Question: {}
-
-Instructions:
-1. Provide a helpful answer based on the casts above
-2. Summarize the key points and themes
-3. Reference specific casts when relevant
-4. If the casts don't contain enough information, say so
-5. Be concise but insightful
-
-Answer:"#,
-        context, query
-    );
+    // Use specialized cast RAG prompt
+    let prompt = crate::rag::build_cast_rag_prompt(&query, &context);
 
     let answer = llm_service
         .generate_with_params(&prompt, temperature, max_tokens)

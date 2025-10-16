@@ -9,6 +9,7 @@ use crate::embeddings::EmbeddingService;
 use crate::errors::Result;
 use crate::models::UserProfile;
 use crate::rag::MatchType;
+use crate::rag::RetrievalMethod;
 use crate::rag::SearchResult;
 
 /// Retriever for semantic and hybrid search
@@ -121,12 +122,46 @@ impl Retriever {
         Ok(results)
     }
 
-    /// Search with automatic method selection
-    /// Currently defaults to hybrid search for best results
+    /// Search with automatic method selection based on query characteristics
     pub async fn auto_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
-        // Future enhancement: Could analyze query characteristics to select optimal search method
-        // (e.g., keyword-heavy queries -> semantic, specific terms -> full-text)
-        self.hybrid_search(query, limit).await
+        // Analyze query to select optimal search method
+        let method = Self::analyze_query(query);
+
+        match method {
+            RetrievalMethod::Semantic => self.semantic_search(query, limit, None).await,
+            RetrievalMethod::Keyword => self.keyword_search(query, limit).await,
+            RetrievalMethod::Hybrid => self.hybrid_search(query, limit).await,
+            RetrievalMethod::Auto => self.hybrid_search(query, limit).await, // Fallback
+        }
+    }
+
+    /// Analyze query to determine optimal retrieval method
+    fn analyze_query(query: &str) -> RetrievalMethod {
+        let query_lower = query.to_lowercase();
+
+        // Check for specific patterns
+        let has_quotes = query.contains('"') || query.contains('\'');
+        let has_username = query.contains('@');
+        let has_exact_match = has_quotes || has_username;
+
+        // Check query characteristics
+        let words: Vec<&str> = query.split_whitespace().collect();
+        let word_count = words.len();
+
+        // Decision logic
+        if has_exact_match {
+            // Exact matches work better with keyword search
+            RetrievalMethod::Keyword
+        } else if word_count <= 2 {
+            // Short queries benefit from semantic expansion
+            RetrievalMethod::Semantic
+        } else if query_lower.contains("like") || query_lower.contains("similar") {
+            // Similarity queries are semantic by nature
+            RetrievalMethod::Semantic
+        } else {
+            // Default to hybrid for balanced results
+            RetrievalMethod::Hybrid
+        }
     }
 }
 

@@ -28,6 +28,7 @@
 pub mod cast_retriever;
 pub mod context;
 pub mod pipeline;
+pub mod prompts;
 pub mod retriever;
 
 pub use cast_retriever::CastRetriever;
@@ -37,6 +38,7 @@ pub use pipeline::RagQuery;
 pub use pipeline::RagResponse;
 pub use pipeline::RagService;
 pub use pipeline::RetrievalMethod;
+pub use prompts::*;
 pub use retriever::Retriever;
 
 use crate::errors::Result;
