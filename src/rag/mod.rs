@@ -25,10 +25,13 @@
 //! }
 //! ```
 
+pub mod cast_retriever;
 pub mod context;
 pub mod pipeline;
 pub mod retriever;
 
+pub use cast_retriever::CastRetriever;
+pub use context::CastContextAssembler;
 pub use context::ContextAssembler;
 pub use pipeline::RagQuery;
 pub use pipeline::RagResponse;

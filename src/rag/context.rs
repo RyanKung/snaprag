@@ -139,3 +139,113 @@ impl Default for ContextAssembler {
         Self::new(4000) // Default max context length
     }
 }
+
+/// Assembler for creating context from casts
+pub struct CastContextAssembler {
+    max_context_length: usize,
+}
+
+impl CastContextAssembler {
+    /// Create a new cast context assembler
+    pub fn new(max_context_length: usize) -> Self {
+        Self { max_context_length }
+    }
+
+    /// Assemble context from cast search results
+    pub fn assemble(&self, results: &[crate::models::CastSearchResult]) -> String {
+        let mut context = String::new();
+        let mut total_length = 0;
+
+        for (idx, result) in results.iter().enumerate() {
+            let entry = format!(
+                "\n[Cast {}]\nAuthor FID: {}\nSimilarity: {:.2}%\nContent: {}\n",
+                idx + 1,
+                result.fid,
+                result.similarity * 100.0,
+                result.text
+            );
+
+            if total_length + entry.len() > self.max_context_length {
+                break;
+            }
+
+            context.push_str(&entry);
+            total_length += entry.len();
+        }
+
+        context
+    }
+
+    /// Assemble context with author information
+    pub async fn assemble_with_authors(
+        &self,
+        results: &[crate::models::CastSearchResult],
+        database: &crate::database::Database,
+    ) -> crate::errors::Result<String> {
+        let mut context = String::new();
+        let mut total_length = 0;
+
+        for (idx, result) in results.iter().enumerate() {
+            // Get author information
+            let author = database.get_user_profile(result.fid).await?;
+            let author_display = if let Some(profile) = author {
+                profile
+                    .username
+                    .or(profile.display_name)
+                    .unwrap_or_else(|| format!("FID {}", result.fid))
+            } else {
+                format!("FID {}", result.fid)
+            };
+
+            let entry = format!(
+                "\n[Cast {}]\nAuthor: {}\nSimilarity: {:.2}%\nContent: {}\n",
+                idx + 1,
+                author_display,
+                result.similarity * 100.0,
+                result.text
+            );
+
+            if total_length + entry.len() > self.max_context_length {
+                break;
+            }
+
+            context.push_str(&entry);
+            total_length += entry.len();
+        }
+
+        Ok(context)
+    }
+
+    /// Create a summary of the retrieved casts
+    pub fn create_summary(&self, results: &[crate::models::CastSearchResult]) -> String {
+        if results.is_empty() {
+            return "No casts found.".to_string();
+        }
+
+        let mut summary = format!("Found {} relevant cast(s):\n\n", results.len());
+
+        for (idx, result) in results.iter().enumerate().take(5) {
+            let text_preview = if result.text.len() > 100 {
+                format!("{}...", &result.text[..100])
+            } else {
+                result.text.clone()
+            };
+
+            summary.push_str(&format!(
+                "{}. FID {} - Similarity: {:.2}%\n   {}\n\n",
+                idx + 1,
+                result.fid,
+                result.similarity * 100.0,
+                text_preview
+            ));
+        }
+
+        summary
+    }
+}
+
+impl Default for CastContextAssembler {
+    fn default() -> Self {
+        Self::new(8000) // Larger default for cast content
+    }
+}

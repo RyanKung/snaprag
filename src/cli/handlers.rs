@@ -689,8 +689,12 @@ pub async fn handle_rag_query_casts(
     max_tokens: usize,
     verbose: bool,
 ) -> Result<()> {
+    use std::sync::Arc;
+
     use crate::embeddings::EmbeddingService;
     use crate::llm::LlmService;
+    use crate::rag::CastContextAssembler;
+    use crate::rag::CastRetriever;
 
     print_info(&format!("🤖 RAG Query on Casts: \"{}\"", query));
 
@@ -704,15 +708,15 @@ pub async fn handle_rag_query_casts(
         return Ok(());
     }
 
-    // Step 1: Retrieve relevant casts
+    // Step 1: Retrieve relevant casts using CastRetriever
     println!("\n🔍 Step 1: Retrieving relevant casts...");
     let config = AppConfig::load()?;
-    let embedding_service = EmbeddingService::new(&config)?;
-    let query_embedding = embedding_service.generate(&query).await?;
+    let embedding_service = Arc::new(EmbeddingService::new(&config)?);
+    let database = Arc::new(Database::from_config(&config).await?);
+    let cast_retriever = CastRetriever::new(database, embedding_service);
 
-    let results = snaprag
-        .database()
-        .semantic_search_casts(query_embedding, limit as i64, Some(threshold))
+    let results = cast_retriever
+        .semantic_search(&query, limit, Some(threshold))
         .await?;
 
     if results.is_empty() {
@@ -722,31 +726,12 @@ pub async fn handle_rag_query_casts(
 
     println!("   ✓ Found {} relevant casts", results.len());
 
-    // Step 2: Assemble context from casts
+    // Step 2: Assemble context using CastContextAssembler
     println!("🔧 Step 2: Assembling context...");
-    let mut context = String::new();
-    context.push_str("Relevant Farcaster Casts:\n\n");
-
-    for (idx, result) in results.iter().enumerate() {
-        // Get author
-        let author = snaprag.database().get_user_profile(result.fid).await?;
-        let author_name = if let Some(profile) = author {
-            profile
-                .username
-                .or(profile.display_name)
-                .unwrap_or_else(|| format!("FID {}", result.fid))
-        } else {
-            format!("FID {}", result.fid)
-        };
-
-        context.push_str(&format!(
-            "Cast {}:\nAuthor: {}\nContent: {}\nSimilarity: {:.2}%\n\n",
-            idx + 1,
-            author_name,
-            result.text,
-            result.similarity * 100.0
-        ));
-    }
+    let context_assembler = CastContextAssembler::default();
+    let context = context_assembler
+        .assemble_with_authors(&results, snaprag.database())
+        .await?;
 
     if verbose {
         println!("   Context length: {} chars", context.len());
