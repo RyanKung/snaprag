@@ -32,7 +32,7 @@ async fn test_profile_rag_pipeline() -> Result<()> {
     let config = AppConfig::load()?;
 
     // Initialize services
-    let db = Arc::new(Database::connect(&config.database_url).await?);
+    let db = Arc::new(Database::from_config(&config).await?);
     let embedding_service = Arc::new(EmbeddingService::new(&config)?);
     let llm_service = Arc::new(LlmService::new(&config)?);
     let retriever = Retriever::new(Arc::clone(&db), Arc::clone(&embedding_service));
@@ -115,7 +115,7 @@ async fn test_cast_rag_pipeline() -> Result<()> {
     let config = AppConfig::load()?;
 
     // Initialize services
-    let db = Arc::new(Database::connect(&config.database_url).await?);
+    let db = Arc::new(Database::from_config(&config).await?);
     let embedding_service = Arc::new(EmbeddingService::new(&config)?);
     let llm_service = Arc::new(LlmService::new(&config)?);
     let cast_retriever = CastRetriever::new(Arc::clone(&db), Arc::clone(&embedding_service));
@@ -210,7 +210,7 @@ async fn test_hybrid_search_quality() -> Result<()> {
     let config = AppConfig::load()?;
 
     // Initialize services
-    let db = Arc::new(Database::connect(&config.database_url).await?);
+    let db = Arc::new(Database::from_config(&config).await?);
     let embedding_service = Arc::new(EmbeddingService::new(&config)?);
     let cast_retriever = CastRetriever::new(Arc::clone(&db), Arc::clone(&embedding_service));
 
@@ -265,7 +265,7 @@ async fn test_hybrid_search_quality() -> Result<()> {
 async fn test_retrieval_consistency() -> Result<()> {
     // This test verifies that retrieval is deterministic and consistent
     let config = AppConfig::load()?;
-    let db = Arc::new(Database::connect(&config.database_url).await?);
+    let db = Arc::new(Database::from_config(&config).await?);
     let embedding_service = Arc::new(EmbeddingService::new(&config)?);
     let retriever = Retriever::new(Arc::clone(&db), Arc::clone(&embedding_service));
 
@@ -301,7 +301,7 @@ async fn test_retrieval_consistency() -> Result<()> {
 async fn test_cast_thread_retrieval() -> Result<()> {
     // Test retrieving and assembling cast threads
     let config = AppConfig::load()?;
-    let db = Arc::new(Database::connect(&config.database_url).await?);
+    let db = Arc::new(Database::from_config(&config).await?);
 
     // Find a cast with replies
     let cast_with_replies: Option<(Vec<u8>, i64)> = sqlx::query_as(
