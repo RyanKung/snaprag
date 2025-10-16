@@ -100,6 +100,7 @@ local/
 !README.md
 !readme.md
 !IMPLEMENTATION_SUMMARY.md
+!SESSION_SUMMARY.md
 *.txt
 *.json
 
