@@ -58,11 +58,15 @@ impl LlmConfig {
             LlmProvider::Custom
         };
 
-        // Default model based on provider
-        let model = match provider {
-            LlmProvider::OpenAI => "gpt-4".to_string(),
-            LlmProvider::Ollama => "llama2".to_string(),
-            LlmProvider::Custom => "default".to_string(),
+        // Get model from config or use default based on provider
+        let model = if !config.llm_model().is_empty() {
+            config.llm_model().to_string()
+        } else {
+            match provider {
+                LlmProvider::OpenAI => "gpt-4".to_string(),
+                LlmProvider::Ollama => "gemma3:27b".to_string(),
+                LlmProvider::Custom => "default".to_string(),
+            }
         };
 
         Self {

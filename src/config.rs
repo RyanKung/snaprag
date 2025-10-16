@@ -45,6 +45,12 @@ pub struct SyncConfig {
 pub struct LlmConfig {
     pub llm_endpoint: String,
     pub llm_key: String,
+    #[serde(default = "default_llm_model")]
+    pub llm_model: String,
+}
+
+fn default_llm_model() -> String {
+    "gemma3:27b".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +181,11 @@ impl AppConfig {
     pub fn llm_key(&self) -> &str {
         &self.llm.llm_key
     }
+
+    /// Get LLM model
+    pub fn llm_model(&self) -> &str {
+        &self.llm.llm_model
+    }
 }
 
 impl Default for AppConfig {
@@ -211,6 +222,7 @@ impl Default for AppConfig {
             llm: LlmConfig {
                 llm_endpoint: "http://localhost:11434".to_string(),
                 llm_key: "ollama".to_string(),
+                llm_model: "gemma3:27b".to_string(),
             },
         }
     }
