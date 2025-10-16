@@ -10,6 +10,7 @@ use crate::cli::commands::EmbeddingsCommands;
 use crate::cli::commands::RagCommands;
 use crate::cli::commands::SyncCommands;
 use crate::cli::output::*;
+use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
