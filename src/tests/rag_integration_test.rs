@@ -52,7 +52,7 @@ async fn test_profile_rag_pipeline() -> Result<()> {
     );
 
     // Step 2: Semantic search for relevant profiles
-    let search_results = retriever.semantic_search(query, 5).await?;
+    let search_results = retriever.semantic_search(query, 5, None).await?;
     assert!(
         !search_results.is_empty(),
         "Semantic search returned no results"
@@ -272,8 +272,8 @@ async fn test_retrieval_consistency() -> Result<()> {
     let query = "blockchain developers";
 
     // Run search multiple times
-    let results1 = retriever.semantic_search(query, 5).await?;
-    let results2 = retriever.semantic_search(query, 5).await?;
+    let results1 = retriever.semantic_search(query, 5, None).await?;
+    let results2 = retriever.semantic_search(query, 5, None).await?;
 
     // Results should be identical (same order, same scores)
     assert_eq!(results1.len(), results2.len(), "Inconsistent result count");
