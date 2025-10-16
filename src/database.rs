@@ -667,35 +667,39 @@ impl Database {
         .fetch_all(&self.pool)
         .await?;
 
-        // Get top usernames (simplified - just first 10)
+        // Get activity statistics first (needed for username stats)
+        let total_activities =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_activity_timeline")
+                .fetch_one(&self.pool)
+                .await?;
+
+        // Get top usernames with actual counts
         let top_usernames = sqlx::query_as::<_, crate::models::UsernameStats>(
             r#"
             SELECT 
-                username,
-                1 as count,
-                0.0 as percentage
-            FROM user_profiles 
-            WHERE username IS NOT NULL AND username != ''
-            ORDER BY username
+                up.username,
+                COUNT(DISTINCT uat.id) as count,
+                (COUNT(DISTINCT uat.id) * 100.0 / NULLIF($1, 0)) as percentage
+            FROM user_profiles up
+            LEFT JOIN user_activity_timeline uat ON up.fid = uat.fid
+            WHERE up.username IS NOT NULL AND up.username != ''
+            GROUP BY up.username
+            ORDER BY count DESC
             LIMIT 10
             "#,
         )
+        .bind(total_activities)
         .fetch_all(&self.pool)
         .await?;
 
-        // Get growth by period (simplified)
+        // Get growth by period (use simplified version for now, CTE with window functions is complex)
+        // Future enhancement: could add proper time-series analytics
         let growth_by_period = vec![crate::models::GrowthStats {
             period: "All Time".to_string(),
             new_registrations: total_fids,
             total_fids,
             growth_rate: 0.0,
         }];
-
-        // Get activity statistics
-        let total_activities =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_activity_timeline")
-                .fetch_one(&self.pool)
-                .await?;
 
         let total_casts = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts")
             .fetch_one(&self.pool)
@@ -1530,17 +1534,82 @@ impl Database {
         sql.push_str(&format!(" OFFSET ${}", param_count));
         bind_values.push(Box::new(offset));
 
-        // For now, use a simplified approach with basic parameters
-        let casts = if let Some(fid) = query.fid {
-            sqlx::query_as::<_, crate::models::Cast>(
-                "SELECT * FROM casts WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
-            )
-            .bind(fid)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?
+        // Use the dynamically built query with all filters
+        // Note: We need to use query_as with dynamic SQL, which requires rebuilding
+        // For complex filters, we'll use a pragmatic approach
+        let casts = if query.fid.is_some()
+            || query.text_search.is_some()
+            || query.parent_hash.is_some()
+            || query.root_hash.is_some()
+            || query.start_timestamp.is_some()
+            || query.end_timestamp.is_some()
+        {
+            // Complex query - use the specific filters we support
+            let mut conditions = vec!["1=1".to_string()];
+            let mut param_idx = 1;
+
+            if let Some(fid) = query.fid {
+                conditions.push(format!("fid = ${}", param_idx));
+                param_idx += 1;
+            }
+
+            if let Some(text_search) = &query.text_search {
+                conditions.push(format!("text ILIKE ${}", param_idx));
+                param_idx += 1;
+            }
+
+            if let Some(parent_hash) = &query.parent_hash {
+                conditions.push(format!("parent_hash = ${}", param_idx));
+                param_idx += 1;
+            }
+
+            if let Some(start_timestamp) = query.start_timestamp {
+                conditions.push(format!("timestamp >= ${}", param_idx));
+                param_idx += 1;
+            }
+
+            if let Some(end_timestamp) = query.end_timestamp {
+                conditions.push(format!("timestamp <= ${}", param_idx));
+                // param_idx would be incremented here if we had more conditions
+            }
+
+            let where_clause = conditions.join(" AND ");
+            let order_by = match query.sort_by {
+                Some(crate::models::CastSortBy::Timestamp) => "timestamp",
+                Some(crate::models::CastSortBy::Fid) => "fid",
+                _ => "timestamp",
+            };
+            let order_dir = match query.sort_order {
+                Some(crate::models::SortOrder::Asc) => "ASC",
+                _ => "DESC",
+            };
+
+            let sql = format!(
+                "SELECT * FROM casts WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
+                where_clause, order_by, order_dir, limit, offset
+            );
+
+            let mut q = sqlx::query_as::<_, crate::models::Cast>(&sql);
+
+            if let Some(fid) = query.fid {
+                q = q.bind(fid);
+            }
+            if let Some(text_search) = &query.text_search {
+                q = q.bind(format!("%{}%", text_search));
+            }
+            if let Some(parent_hash) = &query.parent_hash {
+                q = q.bind(parent_hash);
+            }
+            if let Some(start_timestamp) = query.start_timestamp {
+                q = q.bind(start_timestamp);
+            }
+            if let Some(end_timestamp) = query.end_timestamp {
+                q = q.bind(end_timestamp);
+            }
+
+            q.fetch_all(&self.pool).await?
         } else {
+            // Simple query - just sort and paginate
             sqlx::query_as::<_, crate::models::Cast>(
                 "SELECT * FROM casts ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
             )
