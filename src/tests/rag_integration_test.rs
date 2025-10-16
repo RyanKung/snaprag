@@ -318,27 +318,32 @@ async fn test_cast_thread_retrieval() -> Result<()> {
 
     if let Some((hash, reply_count)) = cast_with_replies {
         // Get thread
-        let thread = db.get_cast_thread(&hash, 5).await?;
+        let thread = db.get_cast_thread(hash.clone(), 5).await?;
 
-        assert_eq!(thread.root.message_hash, hash, "Thread root mismatch");
-
-        assert!(
-            !thread.replies.is_empty(),
-            "Thread has no replies despite reply_count > 0"
+        assert!(thread.root.is_some(), "Thread root should exist");
+        assert_eq!(
+            thread.root.as_ref().unwrap().message_hash,
+            hash,
+            "Thread root mismatch"
         );
 
         assert!(
-            thread.replies.len() as i64 <= reply_count,
-            "More replies retrieved than expected"
+            !thread.children.is_empty(),
+            "Thread has no children despite reply_count > 0"
+        );
+
+        assert!(
+            thread.children.len() as i64 <= reply_count,
+            "More children retrieved than expected"
         );
 
         println!("\n✅ Cast Thread Retrieval Test:");
         println!("   Root hash: {}", hex::encode(&hash));
         println!("   Parent chain: {} casts", thread.parents.len());
-        println!("   Replies: {} casts", thread.replies.len());
+        println!("   Children: {} casts", thread.children.len());
         println!(
             "   Total thread size: {} casts",
-            1 + thread.parents.len() + thread.replies.len()
+            1 + thread.parents.len() + thread.children.len()
         );
     } else {
         println!("\n⚠️  No casts with replies found, skipping thread test");
