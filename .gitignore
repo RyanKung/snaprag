@@ -101,6 +101,7 @@ local/
 !readme.md
 !IMPLEMENTATION_SUMMARY.md
 !SESSION_SUMMARY.md
+!FINAL_STATUS.md
 *.txt
 *.json
 
