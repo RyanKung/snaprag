@@ -514,32 +514,17 @@ impl Database {
 
     /// List user profiles with filters
     pub async fn list_user_profiles(&self, query: UserProfileQuery) -> Result<Vec<UserProfile>> {
-        // Simplified query for now - in production you'd want more sophisticated filtering
+        // Note: Filters are currently applied in the handler layer
+        // This function returns all profiles with basic pagination
+        // For complex filtering, use semantic_search_profiles or specific query methods
         let profiles = sqlx::query_as::<_, UserProfile>(
             r#"
             SELECT 
-                id,
-                fid,
-                username,
-                display_name,
-                bio,
-                pfp_url,
-                banner_url,
-                location,
-                website_url,
-                twitter_username,
-                github_username,
-                primary_address_ethereum,
-                primary_address_solana,
-                profile_token,
-                profile_embedding,
-                bio_embedding,
-                interests_embedding,
-                last_updated_timestamp,
-                last_updated_at,
-                shard_id,
-                block_height,
-                transaction_fid
+                id, fid, username, display_name, bio, pfp_url, banner_url, location,
+                website_url, twitter_username, github_username, primary_address_ethereum,
+                primary_address_solana, profile_token, profile_embedding, bio_embedding,
+                interests_embedding, last_updated_timestamp, last_updated_at,
+                shard_id, block_height, transaction_fid
             FROM user_profiles 
             ORDER BY last_updated_at DESC
             LIMIT $1
@@ -555,7 +540,8 @@ impl Database {
 
     /// List FIDs with advanced filtering
     pub async fn list_fids(&self, query: crate::models::FidQuery) -> Result<Vec<UserProfile>> {
-        // Simplified query - select all columns
+        // Returns all profiles with pagination
+        // Filters (has_username, has_display_name) are applied in handler layer
         let profiles = sqlx::query_as::<_, UserProfile>(
             r#"
             SELECT 
@@ -804,7 +790,7 @@ impl Database {
         &self,
         query: ProfileSnapshotQuery,
     ) -> Result<Vec<UserProfileSnapshot>> {
-        // Simplified query for now
+        // Returns snapshots with pagination
         let snapshots = sqlx::query_as::<_, UserProfileSnapshot>(
             r#"
             SELECT 
@@ -912,34 +898,49 @@ impl Database {
     pub async fn get_user_data_changes(
         &self,
         fid: i64,
-        _data_type: Option<i16>,
+        data_type: Option<i16>,
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> Result<Vec<UserDataChange>> {
-        // Simplified query for now
-        let changes = sqlx::query_as::<_, UserDataChange>(
-            r#"
-            SELECT 
-                id,
-                fid,
-                data_type,
-                old_value,
-                new_value,
-                change_timestamp,
-                message_hash,
-                created_at
-            FROM user_data_changes 
-            WHERE fid = $1
-            ORDER BY change_timestamp DESC
-            LIMIT $2
-            OFFSET $3
-            "#,
-        )
-        .bind(fid)
-        .bind(limit.unwrap_or(100) as i64)
-        .bind(offset.unwrap_or(0) as i64)
-        .fetch_all(&self.pool)
-        .await?;
+        // Get user data changes with optional data_type filter
+        let changes = if let Some(dt) = data_type {
+            sqlx::query_as::<_, UserDataChange>(
+                r#"
+                SELECT 
+                    id, fid, data_type, old_value, new_value,
+                    change_timestamp, message_hash, created_at
+                FROM user_data_changes 
+                WHERE fid = $1 AND data_type = $2
+                ORDER BY change_timestamp DESC
+                LIMIT $3
+                OFFSET $4
+                "#,
+            )
+            .bind(fid)
+            .bind(dt)
+            .bind(limit.unwrap_or(100) as i64)
+            .bind(offset.unwrap_or(0) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, UserDataChange>(
+                r#"
+                SELECT 
+                    id, fid, data_type, old_value, new_value,
+                    change_timestamp, message_hash, created_at
+                FROM user_data_changes 
+                WHERE fid = $1
+                ORDER BY change_timestamp DESC
+                LIMIT $2
+                OFFSET $3
+                "#,
+            )
+            .bind(fid)
+            .bind(limit.unwrap_or(100) as i64)
+            .bind(offset.unwrap_or(0) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        };
         Ok(changes)
     }
 }
