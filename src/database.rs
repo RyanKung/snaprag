@@ -2343,21 +2343,35 @@ impl Database {
     ) -> Result<Vec<UserProfile>> {
         match (query_embedding, text_query) {
             (Some(embedding), Some(text)) => {
-                // Combined vector + text search
+                // Combined vector + text search using CTE
                 let profiles = sqlx::query_as::<_, UserProfile>(
                     r#"
-                    SELECT *, 
-                           (profile_embedding <=> $1::vector) as vector_distance,
-                           CASE 
-                               WHEN username ILIKE $2 THEN 1.0
-                               WHEN display_name ILIKE $2 THEN 0.9
-                               WHEN bio ILIKE $2 THEN 0.8
-                               ELSE 0.0
-                           END as text_score
-                    FROM user_profiles
-                    WHERE profile_embedding IS NOT NULL
-                        AND (username ILIKE $2 OR display_name ILIKE $2 OR bio ILIKE $2)
-                    ORDER BY (profile_embedding <=> $1::vector) * 0.5 + (1.0 - text_score) * 0.5
+                    WITH scored_profiles AS (
+                        SELECT 
+                            id, fid, username, display_name, bio, pfp_url, banner_url, location,
+                            website_url, twitter_username, github_username, primary_address_ethereum,
+                            primary_address_solana, profile_token, profile_embedding, bio_embedding,
+                            interests_embedding, last_updated_timestamp, last_updated_at,
+                            shard_id, block_height, transaction_fid,
+                            (profile_embedding <=> $1::vector) as vector_distance,
+                            CASE 
+                                WHEN username ILIKE $2 THEN 1.0
+                                WHEN display_name ILIKE $2 THEN 0.9
+                                WHEN bio ILIKE $2 THEN 0.8
+                                ELSE 0.0
+                            END as text_score
+                        FROM user_profiles
+                        WHERE profile_embedding IS NOT NULL
+                            AND (username ILIKE $2 OR display_name ILIKE $2 OR bio ILIKE $2)
+                    )
+                    SELECT 
+                        id, fid, username, display_name, bio, pfp_url, banner_url, location,
+                        website_url, twitter_username, github_username, primary_address_ethereum,
+                        primary_address_solana, profile_token, profile_embedding, bio_embedding,
+                        interests_embedding, last_updated_timestamp, last_updated_at,
+                        shard_id, block_height, transaction_fid
+                    FROM scored_profiles
+                    ORDER BY vector_distance * 0.5 + (1.0 - text_score) * 0.5
                     LIMIT $3
                     "#,
                 )
