@@ -217,18 +217,19 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     }
 
     // Clear all tables including sync progress
+    // Only include tables that actually exist in the schema
     let tables = [
+        "user_activity_timeline",
         "user_profiles",
+        "user_profile_snapshots",
+        "user_data",
+        "user_data_changes",
+        "casts",
+        "cast_embeddings",
+        "links",
         "username_proofs",
         "user_activities",
-        "user_activity_timeline",
-        "user_data_changes",
-        "cast_embeddings", // Only cast_embeddings exists; profile embeddings are in user_profiles table
-        "casts",
-        "reactions",
-        "verifications",
-        "links",
-        "user_data",
+        "processed_messages",
         "sync_progress", // ⭐ Clear sync progress so next sync starts from 0
         "sync_stats",    // ⭐ Clear sync statistics
     ];
