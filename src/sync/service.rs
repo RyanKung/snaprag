@@ -314,14 +314,64 @@ impl SyncService {
         let all_fids = self.client.get_all_fids().await?;
         info!("Found {} unique FIDs to sync historically", all_fids.len());
 
-        // Sync block shard (shard 0) first
-        info!("Starting sync of block shard (shard 0)...");
-        self.sync_shard_full_historical(0).await?;
+        // 🚀 Parallel shard sync: Process all configured shards simultaneously
+        info!(
+            "Starting parallel sync of {} shards...",
+            self.config.shard_ids.len()
+        );
 
-        // Sync user shards (1 to num_shards-1)
-        for shard_id in 1..info.num_shards {
-            info!("Starting sync of user shard {}...", shard_id);
-            self.sync_shard_full_historical(shard_id).await?;
+        let mut handles = vec![];
+
+        for &shard_id in &self.config.shard_ids {
+            info!("🔄 Spawning sync task for shard {}", shard_id);
+
+            // Clone necessary resources for each shard task
+            let client = self.client.clone();
+            let database = self.database.clone();
+            let state_manager = self.state_manager.clone();
+            let config = self.config.clone();
+
+            // Spawn parallel task for this shard
+            let handle = tokio::spawn(async move {
+                let service = SyncService {
+                    config,
+                    client,
+                    database,
+                    state: Arc::new(RwLock::new(SyncState::default())),
+                    state_manager,
+                    lock_manager: SyncLockManager::new(),
+                };
+
+                info!("📥 Starting full historical sync for shard {}", shard_id);
+                service.sync_shard_full_historical(shard_id).await
+            });
+
+            handles.push((shard_id, handle));
+        }
+
+        // Wait for all shards to complete
+        info!(
+            "⏳ Waiting for {} shard sync tasks to complete...",
+            handles.len()
+        );
+
+        for (shard_id, handle) in handles {
+            match handle.await {
+                Ok(Ok(())) => {
+                    info!("✅ Shard {} sync completed successfully", shard_id);
+                }
+                Ok(Err(e)) => {
+                    error!("❌ Shard {} sync failed: {}", shard_id, e);
+                    return Err(e);
+                }
+                Err(e) => {
+                    error!("❌ Shard {} task panicked: {}", shard_id, e);
+                    return Err(crate::SnapRagError::Custom(format!(
+                        "Shard {} sync task panicked: {}",
+                        shard_id, e
+                    )));
+                }
+            }
         }
 
         // Update status to completed
@@ -331,8 +381,9 @@ impl SyncService {
         }
 
         info!(
-            "Full historical sync completed! Processed {} unique FIDs",
-            all_fids.len()
+            "🎉 Parallel historical sync completed! Processed {} unique FIDs across {} shards",
+            all_fids.len(),
+            self.config.shard_ids.len()
         );
         Ok(())
     }
@@ -364,26 +415,91 @@ impl SyncService {
             info.db_stats.as_ref().map(|s| s.num_messages).unwrap_or(0)
         );
 
-        // Sync user shards (1 to num_shards-1) with the specified range
-        for shard_id in 1..info.num_shards {
+        // 🚀 Parallel shard sync with range: Process all configured shards simultaneously
+        info!(
+            "Starting parallel range sync of {} shards from block {} to {}...",
+            self.config.shard_ids.len(),
+            from_block,
+            to_block
+        );
+
+        let mut handles = vec![];
+
+        for &shard_id in &self.config.shard_ids {
             info!(
-                "Starting range sync of user shard {} from block {} to block {}...",
+                "🔄 Spawning range sync task for shard {} (blocks {}-{})",
                 shard_id, from_block, to_block
             );
 
-            // Update lock file with current shard
-            lock.update_progress(Some(shard_id), Some(from_block));
-            self.lock_manager.update_lock(lock.clone())?;
+            // Clone necessary resources for each shard task
+            let client = self.client.clone();
+            let database = self.database.clone();
+            let state_manager = self.state_manager.clone();
+            let config = self.config.clone();
 
-            self.sync_shard_with_range(shard_id, from_block, to_block, lock)
-                .await?;
+            // Spawn parallel task for this shard
+            let handle = tokio::spawn(async move {
+                let service = SyncService {
+                    config,
+                    client,
+                    database,
+                    state: Arc::new(RwLock::new(SyncState::default())),
+                    state_manager,
+                    lock_manager: SyncLockManager::new(),
+                };
+
+                // Create a lock for this shard
+                let mut shard_lock = SyncLockFile::new(
+                    "running",
+                    Some(SyncRange {
+                        from_block,
+                        to_block: Some(to_block),
+                    }),
+                );
+                shard_lock.update_progress(Some(shard_id), Some(from_block));
+
+                info!("📥 Starting range sync for shard {}", shard_id);
+                service
+                    .sync_shard_with_range(shard_id, from_block, to_block, &mut shard_lock)
+                    .await
+            });
+
+            handles.push((shard_id, handle));
+        }
+
+        // Wait for all shards to complete
+        info!(
+            "⏳ Waiting for {} shard range sync tasks to complete...",
+            handles.len()
+        );
+
+        for (shard_id, handle) in handles {
+            match handle.await {
+                Ok(Ok(())) => {
+                    info!(
+                        "✅ Shard {} range sync completed (blocks {}-{})",
+                        shard_id, from_block, to_block
+                    );
+                }
+                Ok(Err(e)) => {
+                    error!("❌ Shard {} range sync failed: {}", shard_id, e);
+                    return Err(e);
+                }
+                Err(e) => {
+                    error!("❌ Shard {} range sync task panicked: {}", shard_id, e);
+                    return Err(crate::SnapRagError::Custom(format!(
+                        "Shard {} range sync task panicked: {}",
+                        shard_id, e
+                    )));
+                }
+            }
         }
 
         info!(
-            "Range sync completed! Processed blocks {} to {} across {} shards",
+            "🎉 Parallel range sync completed! Processed blocks {} to {} across {} shards",
             from_block,
             to_block,
-            info.num_shards - 1
+            self.config.shard_ids.len()
         );
         Ok(())
     }
