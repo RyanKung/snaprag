@@ -416,21 +416,20 @@ impl ShardProcessor {
     ) -> Result<()> {
         let fid = transaction.fid;
 
-        // Skip system transactions (FID = 0)
-        if fid == 0 {
-            return Ok(());
-        }
-
         // Create shard block info for tracking
+        // Note: For system transactions (fid=0), we use 0 as transaction_fid
         let shard_block_info = ShardBlockInfo::new(shard_id, block_number, fid as u64, timestamp);
 
-        // Collect user messages data
-        for (msg_idx, message) in transaction.user_messages.iter().enumerate() {
-            self.collect_message_data(message, &shard_block_info, msg_idx, batched)
-                .await?;
+        // Process user messages (only in user transactions, fid > 0)
+        if fid > 0 {
+            for (msg_idx, message) in transaction.user_messages.iter().enumerate() {
+                self.collect_message_data(message, &shard_block_info, msg_idx, batched)
+                    .await?;
+            }
         }
 
-        // Process system messages (on-chain events, fname transfers, etc.)
+        // Process system messages (can appear in both user and system transactions)
+        // System transactions (fid=0) contain batch OP chain events like id_register
         for system_msg in &transaction.system_messages {
             self.process_system_message(system_msg, &shard_block_info, batched)
                 .await?;
@@ -713,19 +712,19 @@ impl ShardProcessor {
     ) -> Result<()> {
         let fid = transaction.fid;
 
-        // Skip system transactions (FID = 0)
-        if fid == 0 {
-            return Ok(());
-        }
-
         // Create shard block info for tracking
+        // Note: For system transactions (fid=0), we use 0 as transaction_fid
         let shard_block_info = ShardBlockInfo::new(shard_id, block_number, fid as u64, timestamp);
 
-        // Process user messages in this transaction
-        for (msg_idx, message) in transaction.user_messages.iter().enumerate() {
-            self.process_user_message(message, &shard_block_info, msg_idx)
-                .await?;
+        // Process user messages in this transaction (only if fid > 0)
+        if fid > 0 {
+            for (msg_idx, message) in transaction.user_messages.iter().enumerate() {
+                self.process_user_message(message, &shard_block_info, msg_idx)
+                    .await?;
+            }
         }
+
+        // TODO: Process system messages here as well for consistency
 
         Ok(())
     }

@@ -223,7 +223,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         "user_activities",
         "user_activity_timeline",
         "user_data_changes",
-        "cast_embeddings",  // Only cast_embeddings exists; profile embeddings are in user_profiles table
+        "cast_embeddings", // Only cast_embeddings exists; profile embeddings are in user_profiles table
         "casts",
         "reactions",
         "verifications",
