@@ -50,6 +50,8 @@ pub struct ShardProcessor {
     database: Database,
     // Cache for FIDs that have been ensured to exist in this batch
     fid_cache: std::sync::Mutex<std::collections::HashSet<i64>>,
+    // Cache for FIDs that have been registered (via id_register event)
+    registered_fids: std::sync::Mutex<std::collections::HashSet<i64>>,
 }
 
 impl ShardProcessor {
@@ -58,6 +60,7 @@ impl ShardProcessor {
         Self {
             database,
             fid_cache: std::sync::Mutex::new(std::collections::HashSet::new()),
+            registered_fids: std::sync::Mutex::new(std::collections::HashSet::new()),
         }
     }
 
@@ -66,6 +69,7 @@ impl ShardProcessor {
         if let Ok(mut cache) = self.fid_cache.lock() {
             cache.clear();
         }
+        // Note: We DON'T clear registered_fids as it should persist across batches
     }
 
     /// Process multiple chunks in a single batch for maximum performance
@@ -455,6 +459,9 @@ impl ShardProcessor {
         let fid = data.fid as i64;
         let timestamp = data.timestamp as i64;
         let message_hash = message.hash.clone();
+
+        // 🔥 STRICT MODE: Verify FID is registered before processing messages
+        self.verify_fid_registered(fid, shard_block_info).await?;
 
         // Ensure FID will be created for ALL message types
         batched.fids_to_ensure.insert(fid);
@@ -1387,6 +1394,11 @@ impl ShardProcessor {
                     event.block_number
                 );
 
+                // Mark this FID as registered
+                if let Ok(mut registered) = self.registered_fids.lock() {
+                    registered.insert(fid);
+                }
+
                 batched.activities.push(Self::create_activity(
                     fid,
                     "id_register".to_string(),
@@ -1527,5 +1539,56 @@ impl ShardProcessor {
         }
 
         Ok(())
+    }
+
+    /// Verify that a FID has been registered via id_register event
+    /// This ensures we don't process messages from unregistered FIDs (dangling FIDs)
+    async fn verify_fid_registered(
+        &self,
+        fid: i64,
+        shard_block_info: &ShardBlockInfo,
+    ) -> Result<()> {
+        // Check cache first
+        {
+            if let Ok(registered) = self.registered_fids.lock() {
+                if registered.contains(&fid) {
+                    return Ok(());
+                }
+            }
+        }
+
+        // Check database for existing id_register event
+        let has_registration = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS(
+                SELECT 1 FROM user_activity_timeline 
+                WHERE fid = $1 AND activity_type = 'id_register'
+            )
+            "#,
+        )
+        .bind(fid)
+        .fetch_one(self.database.pool())
+        .await?;
+
+        if has_registration {
+            // Add to cache for future checks
+            if let Ok(mut registered) = self.registered_fids.lock() {
+                registered.insert(fid);
+            }
+            return Ok(());
+        }
+
+        // 🔥 STRICT MODE: FID has messages but no registration event!
+        error!(
+            "⚠️  DANGLING FID DETECTED: FID {} has messages at block {} but NO id_register event!",
+            fid, shard_block_info.block_height
+        );
+
+        // Return error to stop processing
+        Err(crate::SnapRagError::Custom(format!(
+            "Unregistered FID detected: FID {} has user messages but no id_register event. \
+             This indicates incomplete data or a sync issue. Block: {}, Shard: {}",
+            fid, shard_block_info.block_height, shard_block_info.shard_id
+        )))
     }
 }
