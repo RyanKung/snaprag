@@ -104,6 +104,7 @@ local/
 !FINAL_STATUS.md
 !RAG_ARCHITECTURE.md
 !LIBRARY_USAGE.md
+!LIBRARY_API.md
 *.txt
 *.json
 
