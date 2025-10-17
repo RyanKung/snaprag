@@ -344,33 +344,64 @@ impl ShardProcessor {
             q.execute(&mut *tx).await?;
         }
 
-        // Batch update profile fields
+        // Batch update profile fields by field type
         if !batched.profile_updates.is_empty() {
             tracing::debug!(
                 "Batch updating {} profile fields",
                 batched.profile_updates.len()
             );
 
-            for (fid, field_name, value, timestamp) in batched.profile_updates {
-                let now = chrono::Utc::now();
+            // Group updates by field name for batch processing
+            let mut updates_by_field: HashMap<String, Vec<(i64, Option<String>, i64)>> =
+                HashMap::new();
 
-                // Build dynamic SQL based on field name
+            for (fid, field_name, value, timestamp) in batched.profile_updates {
+                updates_by_field
+                    .entry(field_name)
+                    .or_insert_with(Vec::new)
+                    .push((fid, value, timestamp));
+            }
+
+            // Process each field type in batch
+            let now = chrono::Utc::now();
+            for (field_name, updates) in updates_by_field {
+                if updates.is_empty() {
+                    continue;
+                }
+
+                // Build CASE-based batch UPDATE
+                let mut fid_list = Vec::new();
+                let mut value_cases = Vec::new();
+                let mut timestamp_cases = Vec::new();
+
+                for (idx, (fid, value, timestamp)) in updates.iter().enumerate() {
+                    fid_list.push(format!("{}", fid));
+
+                    let value_case = if let Some(v) = value {
+                        format!("WHEN fid = {} THEN '{}'", fid, v.replace("'", "''"))
+                    } else {
+                        format!("WHEN fid = {} THEN NULL", fid)
+                    };
+                    value_cases.push(value_case);
+
+                    timestamp_cases.push(format!("WHEN fid = {} THEN {}", fid, timestamp));
+                }
+
                 let sql = format!(
                     r#"
                     UPDATE user_profiles 
-                    SET {} = $1, last_updated_timestamp = $2, last_updated_at = $3
-                    WHERE fid = $4
+                    SET {} = CASE {} END,
+                        last_updated_timestamp = CASE {} END,
+                        last_updated_at = $1
+                    WHERE fid IN ({})
                     "#,
-                    field_name
+                    field_name,
+                    value_cases.join(" "),
+                    timestamp_cases.join(" "),
+                    fid_list.join(", ")
                 );
 
-                sqlx::query(&sql)
-                    .bind(value)
-                    .bind(timestamp)
-                    .bind(now)
-                    .bind(fid)
-                    .execute(&mut *tx)
-                    .await?;
+                sqlx::query(&sql).bind(now).execute(&mut *tx).await?;
             }
         }
 
