@@ -70,6 +70,25 @@ pub use database::Database;
 pub use errors::*;
 pub use models::*;
 pub use sync::service::SyncService;
+
+// Re-export RAG functionality
+pub use rag::{
+    CastContextAssembler, CastRetriever, ContextAssembler, RagQuery, RagResponse, RagService,
+    Retriever, RetrievalMethod, SearchResult,
+};
+
+// Re-export embeddings functionality
+pub use embeddings::{
+    backfill_cast_embeddings, backfill_embeddings as backfill_profile_embeddings,
+    CastBackfillStats, EmbeddingService,
+};
+
+// Re-export embedding stats types
+pub use embeddings::backfill::BackfillStats as ProfileBackfillStats;
+
+// Re-export LLM functionality
+pub use llm::{ChatMessage, LlmService, StreamingResponse};
+
 use tracing::info;
 
 /// Main SnapRAG client for high-level operations
@@ -261,5 +280,85 @@ impl SnapRag {
             sort_order: Some(models::SortOrder::Desc),
         };
         self.database.list_links(link_query).await
+    }
+
+    /// Get user activity timeline
+    pub async fn get_user_activity(
+        &self,
+        fid: i64,
+        limit: i64,
+        offset: i64,
+        activity_type: Option<String>,
+    ) -> Result<Vec<models::UserActivityTimeline>> {
+        self.database
+            .get_user_activity_timeline(fid, activity_type, None, None, Some(limit), Some(offset))
+            .await
+    }
+
+    /// Create a RAG service for natural language queries
+    pub async fn create_rag_service(&self) -> Result<RagService> {
+        RagService::new(&self.config).await
+    }
+
+    /// Create an embedding service for vector generation
+    pub fn create_embedding_service(&self) -> Result<Arc<EmbeddingService>> {
+        Ok(Arc::new(EmbeddingService::new(&self.config)?))
+    }
+
+    /// Create an LLM service for text generation
+    pub fn create_llm_service(&self) -> Result<Arc<LlmService>> {
+        Ok(Arc::new(LlmService::new(&self.config)?))
+    }
+
+    /// Semantic search for profiles
+    pub async fn semantic_search_profiles(
+        &self,
+        query: &str,
+        limit: usize,
+        threshold: Option<f32>,
+    ) -> Result<Vec<SearchResult>> {
+        let embedding_service = self.create_embedding_service()?;
+        let retriever = Retriever::new(self.database.clone(), embedding_service);
+        retriever.semantic_search(query, limit, threshold).await
+    }
+
+    /// Semantic search for casts
+    pub async fn semantic_search_casts(
+        &self,
+        query: &str,
+        limit: usize,
+        threshold: Option<f32>,
+    ) -> Result<Vec<models::CastSearchResult>> {
+        let embedding_service = self.create_embedding_service()?;
+        let cast_retriever = CastRetriever::new(self.database.clone(), embedding_service);
+        cast_retriever.semantic_search(query, limit, threshold).await
+    }
+
+    /// Get cast thread (parent chain + root + children)
+    pub async fn get_cast_thread(
+        &self,
+        message_hash: Vec<u8>,
+        depth: usize,
+    ) -> Result<database::CastThread> {
+        self.database.get_cast_thread(message_hash, depth).await
+    }
+
+    /// Backfill profile embeddings
+    pub async fn backfill_profile_embeddings(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<ProfileBackfillStats> {
+        let embedding_service = self.create_embedding_service()?;
+        embeddings::backfill_embeddings(self.database.clone(), embedding_service).await
+    }
+
+    /// Backfill cast embeddings
+    pub async fn backfill_cast_embeddings(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<CastBackfillStats> {
+        let embedding_service = self.create_embedding_service()?;
+        embeddings::backfill_cast_embeddings(self.database.clone(), embedding_service, limit)
+            .await
     }
 }
