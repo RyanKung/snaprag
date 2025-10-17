@@ -39,9 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 3: Assemble context with author info
     let context_assembler = CastContextAssembler::new(4096);
-    let context = context_assembler
-        .assemble_with_authors(&casts, db)
-        .await?;
+    let context = context_assembler.assemble(&casts);
 
     println!("📦 Context assembled: {} characters", context.len());
 
