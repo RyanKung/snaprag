@@ -34,16 +34,27 @@ pub struct SyncLockFile {
 /// Sync progress information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncProgress {
-    /// Current shard being processed
-    pub current_shard: Option<u32>,
-    /// Current block being processed
-    pub current_block: Option<u64>,
-    /// Total blocks processed
+    /// Per-shard progress tracking (for parallel sync)
+    pub shard_progress: std::collections::HashMap<u32, ShardProgress>,
+    /// Total blocks processed across all shards
     pub total_blocks_processed: u64,
-    /// Total messages processed
+    /// Total messages processed across all shards
     pub total_messages_processed: u64,
     /// Sync range (if applicable)
     pub sync_range: Option<SyncRange>,
+}
+
+/// Progress information for a single shard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShardProgress {
+    /// Current block height for this shard
+    pub current_block: u64,
+    /// Total blocks processed by this shard
+    pub blocks_processed: u64,
+    /// Total messages processed by this shard
+    pub messages_processed: u64,
+    /// Last update timestamp for this shard
+    pub last_update: u64,
 }
 
 /// Sync range information
@@ -67,8 +78,7 @@ impl SyncLockFile {
             start_time: now,
             last_update: now,
             progress: SyncProgress {
-                current_shard: None,
-                current_block: None,
+                shard_progress: std::collections::HashMap::new(),
                 total_blocks_processed: 0,
                 total_messages_processed: 0,
                 sync_range,
@@ -77,15 +87,31 @@ impl SyncLockFile {
         }
     }
 
-    /// Update the lock file with new progress
+    /// Update the lock file with new progress for a specific shard
     pub fn update_progress(&mut self, shard_id: Option<u32>, block_number: Option<u64>) {
-        self.last_update = SystemTime::now()
+        let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
-        self.progress.current_shard = shard_id;
-        self.progress.current_block = block_number;
+        self.last_update = now;
+
+        // Update per-shard progress
+        if let (Some(shard), Some(block)) = (shard_id, block_number) {
+            self.progress
+                .shard_progress
+                .entry(shard)
+                .and_modify(|progress| {
+                    progress.current_block = block;
+                    progress.last_update = now;
+                })
+                .or_insert(ShardProgress {
+                    current_block: block,
+                    blocks_processed: 0,
+                    messages_processed: 0,
+                    last_update: now,
+                });
+        }
     }
 
     /// Update status

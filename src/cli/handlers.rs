@@ -1009,11 +1009,21 @@ fn print_sync_status(snaprag: &SnapRag) -> Result<()> {
                     .format("%Y-%m-%d %H:%M:%S")
             );
 
-            if let Some(shard) = lock.progress.current_shard {
-                println!("  - Current shard: {}", shard);
-            }
-            if let Some(block) = lock.progress.current_block {
-                println!("  - Current block: {}", block);
+            // Display per-shard progress
+            if !lock.progress.shard_progress.is_empty() {
+                println!("  - Shards:");
+                let mut shards: Vec<_> = lock.progress.shard_progress.iter().collect();
+                shards.sort_by_key(|(shard_id, _)| *shard_id);
+
+                for (shard_id, shard_progress) in shards {
+                    println!(
+                        "    • Shard {}: Block {} ({} blocks, {} msgs)",
+                        shard_id,
+                        shard_progress.current_block,
+                        shard_progress.blocks_processed,
+                        shard_progress.messages_processed
+                    );
+                }
             }
             println!(
                 "  - Total blocks processed: {}",
