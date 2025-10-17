@@ -82,8 +82,14 @@ pub struct UserProfile {
     pub primary_address_ethereum: Option<String>,
     pub primary_address_solana: Option<String>,
     pub profile_token: Option<String>,
+    #[sqlx(skip)]
+    #[serde(skip)]
     pub profile_embedding: Option<Vec<f32>>,
+    #[sqlx(skip)]
+    #[serde(skip)]
     pub bio_embedding: Option<Vec<f32>>,
+    #[sqlx(skip)]
+    #[serde(skip)]
     pub interests_embedding: Option<Vec<f32>>,
     pub last_updated_timestamp: i64,
     pub last_updated_at: DateTime<Utc>,
