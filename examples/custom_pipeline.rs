@@ -4,7 +4,11 @@
 
 use std::sync::Arc;
 
-use snaprag::{AppConfig, CastContextAssembler, CastRetriever, Database, EmbeddingService};
+use snaprag::AppConfig;
+use snaprag::CastContextAssembler;
+use snaprag::CastRetriever;
+use snaprag::Database;
+use snaprag::EmbeddingService;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +33,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 2: Show results with engagement metrics
     for (i, cast) in casts.iter().take(5).enumerate() {
-        println!("{}. FID {} (similarity: {:.1}%)", i + 1, cast.fid, cast.similarity * 100.0);
+        println!(
+            "{}. FID {} (similarity: {:.1}%)",
+            i + 1,
+            cast.fid,
+            cast.similarity * 100.0
+        );
         println!("   {}", &cast.text[..cast.text.len().min(100)]);
         println!(
             "   📊 {} replies, {} reactions\n",
@@ -48,4 +57,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

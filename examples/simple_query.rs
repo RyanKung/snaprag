@@ -2,7 +2,8 @@
 //!
 //! Run with: cargo run --example simple_query
 
-use snaprag::{AppConfig, SnapRag};
+use snaprag::AppConfig;
+use snaprag::SnapRag;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,4 +40,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

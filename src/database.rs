@@ -517,17 +517,17 @@ impl Database {
         // Note: Filters are currently applied in the handler layer
         // This function returns all profiles with basic pagination
         // For complex filtering, use semantic_search_profiles or specific query methods
-        
+
         let limit = query.limit.unwrap_or(100) as i64;
         let offset = query.offset.unwrap_or(0) as i64;
-        
+
         // If limit is explicitly None, get ALL profiles (use very large limit)
         let effective_limit = if query.limit.is_none() && offset == 0 {
             i64::MAX // No limit - get all
         } else {
             limit
         };
-        
+
         let profiles = sqlx::query_as::<_, UserProfile>(
             r#"
             SELECT 

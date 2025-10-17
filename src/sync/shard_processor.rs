@@ -30,7 +30,16 @@ struct BatchedData {
         Option<serde_json::Value>,
         Option<serde_json::Value>,
     )>,
-    activities: Vec<(i64, String, Option<serde_json::Value>, i64, Option<Vec<u8>>)>,
+    // Activities: (fid, activity_type, activity_data, timestamp, message_hash, shard_id, block_height)
+    activities: Vec<(
+        i64,
+        String,
+        Option<serde_json::Value>,
+        i64,
+        Option<Vec<u8>>,
+        Option<i32>,
+        Option<i64>,
+    )>,
     fids_to_ensure: HashSet<i64>,
     // Profile field updates: (fid, field_name, value, timestamp)
     profile_updates: Vec<(i64, String, Option<String>, i64)>,
@@ -283,22 +292,24 @@ impl ShardProcessor {
         if !batched.activities.is_empty() {
             tracing::debug!("Batch inserting {} activities", batched.activities.len());
 
-            // Build dynamic query
+            // Build dynamic query with shard_id and block_height
             let mut query = String::from(
-                "INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash) VALUES "
+                "INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash, shard_id, block_height) VALUES "
             );
 
-            let params_per_row = 5;
+            let params_per_row = 7;
             let value_clauses: Vec<String> = (0..batched.activities.len())
                 .map(|i| {
                     let base = i * params_per_row;
                     format!(
-                        "(${}, ${}, ${}, ${}, ${})",
+                        "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
                         base + 1,
                         base + 2,
                         base + 3,
                         base + 4,
-                        base + 5
+                        base + 5,
+                        base + 6,
+                        base + 7
                     )
                 })
                 .collect();
@@ -306,13 +317,24 @@ impl ShardProcessor {
             query.push_str(&value_clauses.join(", "));
 
             let mut q = sqlx::query(&query);
-            for (fid, activity_type, activity_data, timestamp, message_hash) in batched.activities {
+            for (
+                fid,
+                activity_type,
+                activity_data,
+                timestamp,
+                message_hash,
+                shard_id,
+                block_height,
+            ) in batched.activities
+            {
                 q = q
                     .bind(fid)
                     .bind(activity_type)
                     .bind(activity_data)
                     .bind(timestamp)
-                    .bind(message_hash);
+                    .bind(message_hash)
+                    .bind(shard_id)
+                    .bind(block_height);
             }
 
             q.execute(&mut *tx).await?;
@@ -352,6 +374,34 @@ impl ShardProcessor {
         tx.commit().await?;
 
         Ok(())
+    }
+
+    /// Helper to create activity tuple with metadata
+    fn create_activity(
+        fid: i64,
+        activity_type: String,
+        activity_data: Option<serde_json::Value>,
+        timestamp: i64,
+        message_hash: Option<Vec<u8>>,
+        shard_block_info: &ShardBlockInfo,
+    ) -> (
+        i64,
+        String,
+        Option<serde_json::Value>,
+        i64,
+        Option<Vec<u8>>,
+        Option<i32>,
+        Option<i64>,
+    ) {
+        (
+            fid,
+            activity_type,
+            activity_data,
+            timestamp,
+            message_hash,
+            Some(shard_block_info.shard_id as i32),
+            Some(shard_block_info.block_height as i64),
+        )
     }
 
     /// Collect data from a single transaction
@@ -413,11 +463,12 @@ impl ShardProcessor {
         match message_type {
             1 => {
                 // CastAdd - collect cast data
-                self.collect_cast_add(data, &message_hash, batched).await?;
+                self.collect_cast_add(data, &message_hash, &shard_block_info, batched)
+                    .await?;
             }
             2 => {
                 // CastRemove - collect activity
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "cast_remove".to_string(),
                     Some(serde_json::json!({
@@ -426,11 +477,12 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
             }
             3 => {
                 // ReactionAdd - collect activity
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "reaction_add".to_string(),
                     Some(serde_json::json!({
@@ -439,11 +491,12 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
             }
             4 => {
                 // ReactionRemove - collect activity
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "reaction_remove".to_string(),
                     Some(serde_json::json!({
@@ -452,11 +505,12 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
             }
             5 => {
                 // LinkAdd - collect activity
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "link_add".to_string(),
                     Some(serde_json::json!({
@@ -465,11 +519,12 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
             }
             6 => {
                 // LinkRemove - collect activity
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "link_remove".to_string(),
                     Some(serde_json::json!({
@@ -478,11 +533,12 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
             }
             7 => {
                 // VerificationAddEthAddress - collect activity
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "verification_add".to_string(),
                     Some(serde_json::json!({
@@ -491,11 +547,12 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
             }
             8 => {
                 // VerificationRemove - collect activity
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "verification_remove".to_string(),
                     Some(serde_json::json!({
@@ -504,11 +561,12 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
             }
             11 => {
                 // UserDataAdd - collect activity and profile updates
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "user_data_add".to_string(),
                     Some(serde_json::json!({
@@ -517,6 +575,7 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(message_hash.to_vec()),
+                    &shard_block_info,
                 ));
 
                 // Parse and collect profile field updates
@@ -570,6 +629,7 @@ impl ShardProcessor {
         &self,
         data: &MessageData,
         message_hash: &[u8],
+        shard_block_info: &ShardBlockInfo,
         batched: &mut BatchedData,
     ) -> Result<()> {
         let fid = data.fid as i64;
@@ -627,7 +687,7 @@ impl ShardProcessor {
         ));
 
         // Collect activity for batch insert
-        batched.activities.push((
+        batched.activities.push(Self::create_activity(
             fid,
             "cast_add".to_string(),
             Some(serde_json::json!({
@@ -636,6 +696,7 @@ impl ShardProcessor {
             })),
             timestamp,
             Some(message_hash.to_vec()),
+            shard_block_info,
         ));
 
         Ok(())
@@ -1327,7 +1388,7 @@ impl ShardProcessor {
                     event.block_number
                 );
 
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "id_register".to_string(),
                     Some(serde_json::json!({
@@ -1338,6 +1399,7 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(event.transaction_hash.clone()),
+                    _shard_block_info,
                 ));
             }
             4 => {
@@ -1348,7 +1410,7 @@ impl ShardProcessor {
                     event.block_number
                 );
 
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "storage_rent".to_string(),
                     Some(serde_json::json!({
@@ -1357,6 +1419,7 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(event.transaction_hash.clone()),
+                    _shard_block_info,
                 ));
             }
             1 => {
@@ -1367,7 +1430,7 @@ impl ShardProcessor {
                     event.block_number
                 );
 
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "signer_event".to_string(),
                     Some(serde_json::json!({
@@ -1376,6 +1439,7 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(event.transaction_hash.clone()),
+                    _shard_block_info,
                 ));
             }
             5 => {
@@ -1386,7 +1450,7 @@ impl ShardProcessor {
                     event.block_number
                 );
 
-                batched.activities.push((
+                batched.activities.push(Self::create_activity(
                     fid,
                     "tier_purchase".to_string(),
                     Some(serde_json::json!({
@@ -1395,6 +1459,7 @@ impl ShardProcessor {
                     })),
                     timestamp,
                     Some(event.transaction_hash.clone()),
+                    _shard_block_info,
                 ));
             }
             _ => {
@@ -1435,7 +1500,7 @@ impl ShardProcessor {
         let timestamp = shard_block_info.timestamp as i64;
 
         if from_fid > 0 {
-            batched.activities.push((
+            batched.activities.push(Self::create_activity(
                 from_fid,
                 "fname_transfer_out".to_string(),
                 Some(serde_json::json!({
@@ -1444,11 +1509,12 @@ impl ShardProcessor {
                 })),
                 timestamp,
                 None,
+                shard_block_info,
             ));
         }
 
         if to_fid > 0 {
-            batched.activities.push((
+            batched.activities.push(Self::create_activity(
                 to_fid,
                 "fname_transfer_in".to_string(),
                 Some(serde_json::json!({
@@ -1457,6 +1523,7 @@ impl ShardProcessor {
                 })),
                 timestamp,
                 None,
+                shard_block_info,
             ));
         }
 

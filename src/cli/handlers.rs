@@ -230,8 +230,8 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         "verifications",
         "links",
         "user_data",
-        "sync_progress",  // ⭐ Clear sync progress so next sync starts from 0
-        "sync_stats",     // ⭐ Clear sync statistics
+        "sync_progress", // ⭐ Clear sync progress so next sync starts from 0
+        "sync_stats",    // ⭐ Clear sync statistics
     ];
 
     for table in &tables {

@@ -2,7 +2,10 @@
 //!
 //! Run with: cargo run --example rag_query
 
-use snaprag::{AppConfig, RagQuery, RetrievalMethod, SnapRag};
+use snaprag::AppConfig;
+use snaprag::RagQuery;
+use snaprag::RetrievalMethod;
+use snaprag::SnapRag;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,4 +54,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

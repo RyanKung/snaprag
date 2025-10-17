@@ -67,28 +67,36 @@ use std::sync::Arc;
 
 pub use config::AppConfig;
 pub use database::Database;
-pub use errors::*;
-pub use models::*;
-pub use sync::service::SyncService;
-
-// Re-export RAG functionality
-pub use rag::{
-    CastContextAssembler, CastRetriever, ContextAssembler, RagQuery, RagResponse, RagService,
-    Retriever, RetrievalMethod, SearchResult,
-};
-
-// Re-export embeddings functionality
-pub use embeddings::{
-    backfill_cast_embeddings, backfill_embeddings as backfill_profile_embeddings,
-    CastBackfillStats, EmbeddingService,
-};
-
 // Re-export embedding stats types
 pub use embeddings::backfill::BackfillStats as ProfileBackfillStats;
-
+// Re-export embeddings functionality
+pub use embeddings::{
+    backfill_cast_embeddings,
+    backfill_embeddings as backfill_profile_embeddings,
+    CastBackfillStats,
+    EmbeddingService,
+};
+pub use errors::*;
 // Re-export LLM functionality
-pub use llm::{ChatMessage, LlmService, StreamingResponse};
-
+pub use llm::{
+    ChatMessage,
+    LlmService,
+    StreamingResponse,
+};
+pub use models::*;
+// Re-export RAG functionality
+pub use rag::{
+    CastContextAssembler,
+    CastRetriever,
+    ContextAssembler,
+    RagQuery,
+    RagResponse,
+    RagService,
+    RetrievalMethod,
+    Retriever,
+    SearchResult,
+};
+pub use sync::service::SyncService;
 use tracing::info;
 
 /// Main SnapRAG client for high-level operations
@@ -331,7 +339,9 @@ impl SnapRag {
     ) -> Result<Vec<models::CastSearchResult>> {
         let embedding_service = self.create_embedding_service()?;
         let cast_retriever = CastRetriever::new(self.database.clone(), embedding_service);
-        cast_retriever.semantic_search(query, limit, threshold).await
+        cast_retriever
+            .semantic_search(query, limit, threshold)
+            .await
     }
 
     /// Get cast thread (parent chain + root + children)
@@ -358,7 +368,6 @@ impl SnapRag {
         limit: Option<usize>,
     ) -> Result<CastBackfillStats> {
         let embedding_service = self.create_embedding_service()?;
-        embeddings::backfill_cast_embeddings(self.database.clone(), embedding_service, limit)
-            .await
+        embeddings::backfill_cast_embeddings(self.database.clone(), embedding_service, limit).await
     }
 }
