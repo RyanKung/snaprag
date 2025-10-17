@@ -99,12 +99,6 @@ local/
 *.md
 !README.md
 !readme.md
-!IMPLEMENTATION_SUMMARY.md
-!SESSION_SUMMARY.md
-!FINAL_STATUS.md
-!RAG_ARCHITECTURE.md
-!LIBRARY_USAGE.md
-!LIBRARY_API.md
 *.txt
 *.json
 
