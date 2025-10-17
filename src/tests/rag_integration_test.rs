@@ -87,7 +87,7 @@ async fn test_profile_rag_pipeline() -> Result<()> {
     );
 
     // Step 6: Query LLM
-    let response = llm_service.query(&prompt, 0.7, 500).await?;
+    let response = (*llm_service).query(&prompt, 0.7, 500).await?;
     assert!(!response.is_empty(), "LLM response is empty");
     assert!(
         response.len() > 20,
@@ -166,7 +166,7 @@ async fn test_cast_rag_pipeline() -> Result<()> {
 
     // Step 4: Assemble context with author information
     let context = context_assembler
-        .assemble_with_authors(&search_results, Arc::clone(&db))
+        .assemble_with_authors(&search_results, &*db)
         .await?;
     assert!(!context.is_empty(), "Context assembly failed");
 
@@ -177,7 +177,7 @@ async fn test_cast_rag_pipeline() -> Result<()> {
     );
 
     // Step 6: Query LLM
-    let response = llm_service.query(&prompt, 0.7, 500).await?;
+    let response = (*llm_service).query(&prompt, 0.7, 500).await?;
     assert!(!response.is_empty(), "LLM response is empty");
     assert!(
         response.len() > 20,
@@ -224,7 +224,7 @@ async fn test_hybrid_search_quality() -> Result<()> {
     let keyword_results = cast_retriever.keyword_search(query, 10).await?;
 
     // Step 3: Hybrid search (should combine both)
-    let hybrid_results = cast_retriever.hybrid_search(query, 10).await?;
+    let hybrid_results = cast_retriever.hybrid_search(query, 10, None).await?;
 
     // Verify hybrid search quality
     assert!(
