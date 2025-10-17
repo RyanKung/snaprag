@@ -272,7 +272,7 @@ impl SyncLockManager {
         })?;
 
         // Read existing lock file to merge shard progress
-        let mut merged_lock = if Path::new(&self.lock_file_path).exists() {
+        let merged_lock = if Path::new(&self.lock_file_path).exists() {
             match self.read_lock() {
                 Ok(existing) => {
                     // Start with existing lock
