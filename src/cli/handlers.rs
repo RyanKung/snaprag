@@ -216,15 +216,22 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         print_info("No lock file found");
     }
 
-    // Clear all tables
+    // Clear all tables including sync progress
     let tables = [
         "user_profiles",
         "username_proofs",
         "user_activities",
+        "user_activity_timeline",
         "user_data_changes",
+        "profile_embeddings",
+        "cast_embeddings",
         "casts",
+        "reactions",
+        "verifications",
         "links",
         "user_data",
+        "sync_progress",  // ⭐ Clear sync progress so next sync starts from 0
+        "sync_stats",     // ⭐ Clear sync statistics
     ];
 
     for table in &tables {
