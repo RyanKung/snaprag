@@ -1048,12 +1048,48 @@ async fn print_sync_status(snaprag: &SnapRag) -> Result<()> {
             if let Some(error) = &lock.error_message {
                 println!("  - Error: {}", error);
             }
+
+            // Show latest synced message timestamp
+            match get_latest_message_time(snaprag).await {
+                Ok(time_info) => {
+                    println!("  - Latest message time: {}", time_info);
+                }
+                Err(e) => {
+                    tracing::debug!("Failed to get latest message time: {}", e);
+                }
+            }
         }
         None => {
             println!("  - No active sync process");
         }
     }
     Ok(())
+}
+
+/// Get the timestamp of the latest synced message
+async fn get_latest_message_time(snaprag: &SnapRag) -> Result<String> {
+    // Farcaster epoch: 2021-01-01 00:00:00 UTC
+    const FARCASTER_EPOCH: i64 = 1609459200;
+
+    let latest_timestamp =
+        sqlx::query_scalar::<_, Option<i64>>("SELECT MAX(timestamp) FROM user_activity_timeline")
+            .fetch_one(snaprag.database().pool())
+            .await?;
+
+    if let Some(ts) = latest_timestamp {
+        // Convert Farcaster timestamp to actual time
+        let actual_timestamp = FARCASTER_EPOCH + ts;
+        let datetime = chrono::DateTime::from_timestamp(actual_timestamp, 0)
+            .ok_or_else(|| crate::SnapRagError::Custom("Invalid timestamp".to_string()))?;
+
+        Ok(format!(
+            "{} (Farcaster ts: {})",
+            datetime.format("%Y-%m-%d %H:%M:%S UTC"),
+            ts
+        ))
+    } else {
+        Ok("No messages synced yet".to_string())
+    }
 }
 
 /// Handle RAG query command
