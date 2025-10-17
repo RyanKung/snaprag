@@ -20,6 +20,7 @@ SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for
 
 ### Key Features
 - 🏗️ **RAG Foundation**: PostgreSQL-based framework for building RAG applications
+- 📚 **Library + CLI**: Use as Rust library OR standalone CLI tool
 - 🔄 **Data Synchronization**: Complete historical + real-time Farcaster data sync
 - 🔍 **Vector Search**: Built-in pgvector support for semantic similarity search
 - 📊 **Advanced Queries**: Rich database query capabilities and analytics
@@ -31,6 +32,7 @@ SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for
 
 - [Quick Start](#-quick-start)
 - [Features](#-features)
+- [**Library Usage**](#-using-as-a-library) ⭐ NEW
 - [CLI Commands](#️-available-cli-commands)
 - [Database Schema](#️-database-schema)
 - [Block Data Distribution](#block-data-distribution)
@@ -44,6 +46,8 @@ SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for
 - [Contributing](#-contributing)
 
 ## 🚀 Quick Start
+
+### As CLI Tool
 
 ```bash
 # 1. Clone and setup
@@ -66,6 +70,38 @@ make check-config  # Verify config.toml is valid
 make migrate     # Run database migrations
 make run         # Run the application
 ```
+
+### As Rust Library
+
+```toml
+# Cargo.toml
+[dependencies]
+snaprag = { path = "../snaprag" }
+tokio = { version = "1.0", features = ["full"] }
+```
+
+```rust
+// src/main.rs
+use snaprag::{SnapRag, AppConfig};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = AppConfig::load()?;
+    let snaprag = SnapRag::new(&config).await?;
+    
+    // Search profiles
+    let results = snaprag.semantic_search_profiles(
+        "developers interested in crypto", 
+        10, 
+        Some(0.7)
+    ).await?;
+    
+    println!("Found {} profiles", results.len());
+    Ok(())
+}
+```
+
+**See [LIBRARY_USAGE.md](./LIBRARY_USAGE.md) for complete examples!**
 
 ## ✨ Features
 
