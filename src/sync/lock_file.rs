@@ -264,13 +264,48 @@ impl SyncLockManager {
     }
 
     /// Write lock file (thread-safe for parallel shard sync)
+    /// Merges shard progress from existing file to preserve all shards' data
     pub fn write_lock(&self, lock: &SyncLockFile) -> Result<()> {
         // 🔒 Acquire write mutex to prevent concurrent file writes
         let _guard = self.write_mutex.lock().map_err(|e| {
             crate::SnapRagError::Custom(format!("Failed to acquire lock file mutex: {}", e))
         })?;
 
-        let content = serde_json::to_string_pretty(lock).map_err(|e| {
+        // Read existing lock file to merge shard progress
+        let mut merged_lock = if Path::new(&self.lock_file_path).exists() {
+            match self.read_lock() {
+                Ok(existing) => {
+                    // Start with existing lock
+                    let mut merged = existing;
+
+                    // Merge shard progress from new lock
+                    for (shard_id, shard_progress) in &lock.progress.shard_progress {
+                        merged
+                            .progress
+                            .shard_progress
+                            .insert(*shard_id, shard_progress.clone());
+                    }
+
+                    // Update global counters and metadata
+                    merged.last_update = lock.last_update;
+                    merged.status = lock.status.clone();
+                    merged.progress.total_blocks_processed = lock.progress.total_blocks_processed;
+                    merged.progress.total_messages_processed =
+                        lock.progress.total_messages_processed;
+
+                    merged
+                }
+                Err(_) => {
+                    // If read fails, use new lock as-is
+                    lock.clone()
+                }
+            }
+        } else {
+            // No existing file, use new lock as-is
+            lock.clone()
+        };
+
+        let content = serde_json::to_string_pretty(&merged_lock).map_err(|e| {
             crate::SnapRagError::Custom(format!("Failed to serialize lock file: {}", e))
         })?;
 
