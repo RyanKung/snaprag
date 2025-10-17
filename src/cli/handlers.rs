@@ -926,7 +926,7 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
             snaprag.start_sync().await?;
         }
         SyncCommands::Status => {
-            print_sync_status(&snaprag)?;
+            print_sync_status(&snaprag).await?;
         }
         SyncCommands::Stop { force } => {
             print_info("Stopping sync processes...");
@@ -989,7 +989,7 @@ pub async fn handle_config_command(config: &AppConfig) -> Result<()> {
 }
 
 /// Print sync status
-fn print_sync_status(snaprag: &SnapRag) -> Result<()> {
+async fn print_sync_status(snaprag: &SnapRag) -> Result<()> {
     print_info("Sync Status:");
 
     match snaprag.get_sync_status()? {
