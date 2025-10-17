@@ -679,7 +679,7 @@ impl Database {
             SELECT 
                 up.username,
                 COUNT(DISTINCT uat.id) as count,
-                (COUNT(DISTINCT uat.id) * 100.0 / NULLIF($1, 0)) as percentage
+                (COUNT(DISTINCT uat.id) * 100.0 / NULLIF($1, 0))::float8 as percentage
             FROM user_profiles up
             LEFT JOIN user_activity_timeline uat ON up.fid = uat.fid
             WHERE up.username IS NOT NULL AND up.username != ''
