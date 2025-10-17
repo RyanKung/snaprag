@@ -194,8 +194,7 @@ impl SnapchainClient {
         let client = Client::new();
         let base_url = endpoint.trim_end_matches('/').to_string();
 
-        // Create gRPC client with proper endpoint handling
-        // Use the same approach as HubServiceClient
+        // Create gRPC client with increased message size limits for large batch requests
         let endpoint_url = if endpoint.starts_with("http://") {
             endpoint.to_string()
         } else {
@@ -204,8 +203,8 @@ impl SnapchainClient {
 
         println!("Creating gRPC client for endpoint: {}", endpoint_url);
 
-        // Use the generated gRPC client directly like HubServiceClient does
-        let grpc_client =
+        // Use the generated gRPC client
+        let mut grpc_client =
             crate::generated::grpc_client::hub_service_client::HubServiceClient::connect(
                 endpoint_url,
             )
@@ -213,6 +212,13 @@ impl SnapchainClient {
             .map_err(|e| {
                 crate::SnapRagError::Custom(format!("Failed to connect to gRPC endpoint: {}", e))
             })?;
+
+        // Set large message size limits for batch processing after client creation
+        // Default is 4MB, we increase to 256MB to support batch_size up to 50
+        const MAX_MESSAGE_SIZE: usize = 256 * 1024 * 1024; // 256MB
+        grpc_client = grpc_client
+            .max_decoding_message_size(MAX_MESSAGE_SIZE)
+            .max_encoding_message_size(MAX_MESSAGE_SIZE);
 
         Ok(Self {
             client,

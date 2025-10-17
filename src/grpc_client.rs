@@ -12,7 +12,7 @@ pub struct HubServiceClient {
 }
 
 impl HubServiceClient {
-    /// Create a new gRPC client
+    /// Create a new gRPC client (note: message size limits are set on the client, not endpoint)
     pub async fn new(endpoint: &str) -> Result<Self> {
         // Parse the endpoint and ensure it has the correct format
         let endpoint_url = if endpoint.starts_with("http://") {
@@ -24,6 +24,8 @@ impl HubServiceClient {
         println!("Creating gRPC client for endpoint: {}", endpoint_url);
 
         // Use the generated gRPC client
+        // Note: tonic doesn't support message size limits on connect()
+        // The server needs to be configured with larger limits, or we need to reduce batch_size
         let client = GeneratedHubServiceClient::connect(endpoint_url)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to connect to gRPC endpoint: {}", e))?;
