@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 use std::process;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -119,6 +121,8 @@ impl SyncLockFile {
 /// Lock file manager
 pub struct SyncLockManager {
     lock_file_path: String,
+    // 🔒 Mutex to prevent concurrent file writes from parallel shard sync
+    write_mutex: Arc<Mutex<()>>,
 }
 
 impl SyncLockManager {
@@ -126,6 +130,7 @@ impl SyncLockManager {
     pub fn new() -> Self {
         Self {
             lock_file_path: "snaprag.lock".to_string(),
+            write_mutex: Arc::new(Mutex::new(())),
         }
     }
 
@@ -232,8 +237,13 @@ impl SyncLockManager {
         Ok(lock)
     }
 
-    /// Write lock file
+    /// Write lock file (thread-safe for parallel shard sync)
     pub fn write_lock(&self, lock: &SyncLockFile) -> Result<()> {
+        // 🔒 Acquire write mutex to prevent concurrent file writes
+        let _guard = self.write_mutex.lock().map_err(|e| {
+            crate::SnapRagError::Custom(format!("Failed to acquire lock file mutex: {}", e))
+        })?;
+
         let content = serde_json::to_string_pretty(lock).map_err(|e| {
             crate::SnapRagError::Custom(format!("Failed to serialize lock file: {}", e))
         })?;
@@ -282,6 +292,15 @@ impl SyncLockManager {
 impl Default for SyncLockManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Clone for SyncLockManager {
+    fn clone(&self) -> Self {
+        Self {
+            lock_file_path: self.lock_file_path.clone(),
+            write_mutex: Arc::clone(&self.write_mutex), // Share the same mutex
+        }
     }
 }
 

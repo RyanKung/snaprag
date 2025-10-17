@@ -436,6 +436,7 @@ impl SyncService {
             let database = self.database.clone();
             let state_manager = self.state_manager.clone();
             let config = self.config.clone();
+            let lock_manager = self.lock_manager.clone(); // 🔒 Share the same lock_manager (with mutex)
 
             // Spawn parallel task for this shard
             let handle = tokio::spawn(async move {
@@ -445,7 +446,7 @@ impl SyncService {
                     database,
                     state: Arc::new(RwLock::new(SyncState::default())),
                     state_manager,
-                    lock_manager: SyncLockManager::new(),
+                    lock_manager: lock_manager.clone(),
                 };
 
                 // Create a lock for this shard
