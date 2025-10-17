@@ -201,147 +201,174 @@ impl ShardProcessor {
         // Start a transaction for the entire batch
         let mut tx = self.database.pool().begin().await?;
 
-        // Batch insert FIDs
+        // Batch insert FIDs (split into chunks to avoid parameter limit)
         if !batched.fids_to_ensure.is_empty() {
             let now = chrono::Utc::now();
 
-            // Build dynamic query for batch insert
-            let mut query = String::from(
-                "INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at) VALUES ",
-            );
+            const PARAMS_PER_ROW: usize = 3;
+            const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
+            const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~21666 rows per chunk
 
-            let params_per_row = 3;
             let fids: Vec<i64> = batched.fids_to_ensure.iter().copied().collect();
-            let value_clauses: Vec<String> = (0..fids.len())
-                .map(|i| {
-                    let base = i * params_per_row;
-                    format!("(${}, ${}, ${})", base + 1, base + 2, base + 3)
-                })
-                .collect();
 
-            query.push_str(&value_clauses.join(", "));
-            query.push_str(" ON CONFLICT (fid) DO NOTHING");
+            // Split FIDs into chunks
+            for chunk in fids.chunks(CHUNK_SIZE) {
+                // Build dynamic query for batch insert
+                let mut query = String::from(
+                    "INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at) VALUES ",
+                );
 
-            let mut q = sqlx::query(&query);
-            for _fid in &fids {
-                q = q.bind(_fid).bind(0i64).bind(now);
-            }
+                let value_clauses: Vec<String> = (0..chunk.len())
+                    .map(|i| {
+                        let base = i * PARAMS_PER_ROW;
+                        format!("(${}, ${}, ${})", base + 1, base + 2, base + 3)
+                    })
+                    .collect();
 
-            let result = q.execute(&mut *tx).await?;
-            let profiles_created = result.rows_affected();
+                query.push_str(&value_clauses.join(", "));
+                query.push_str(" ON CONFLICT (fid) DO NOTHING");
 
-            if profiles_created > 0 {
-                tracing::debug!("Created {} new profiles", profiles_created);
+                let mut q = sqlx::query(&query);
+                for _fid in chunk {
+                    q = q.bind(_fid).bind(0i64).bind(now);
+                }
+
+                let result = q.execute(&mut *tx).await?;
+                let profiles_created = result.rows_affected();
+
+                if profiles_created > 0 {
+                    tracing::debug!("Created {} new profiles", profiles_created);
+                }
             }
         }
 
-        // Batch insert casts
+        // Batch insert casts (split into chunks to avoid parameter limit)
         if !batched.casts.is_empty() {
             tracing::debug!("Batch inserting {} casts", batched.casts.len());
 
-            // Build dynamic query
-            let mut query = String::from(
-                "INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) VALUES "
-            );
+            const PARAMS_PER_ROW: usize = 8;
+            const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
+            const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~8125 rows per chunk
 
-            let params_per_row = 8;
-            let value_clauses: Vec<String> = (0..batched.casts.len())
-                .map(|i| {
-                    let base = i * params_per_row;
-                    format!(
-                        "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                        base + 1,
-                        base + 2,
-                        base + 3,
-                        base + 4,
-                        base + 5,
-                        base + 6,
-                        base + 7,
-                        base + 8
-                    )
-                })
-                .collect();
+            // Split casts into chunks
+            for chunk in batched.casts.chunks(CHUNK_SIZE) {
+                // Build dynamic query
+                let mut query = String::from(
+                    "INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) VALUES "
+                );
 
-            query.push_str(&value_clauses.join(", "));
-            query.push_str(
-                " ON CONFLICT (message_hash) DO UPDATE SET \
-                fid = EXCLUDED.fid, \
-                text = EXCLUDED.text, \
-                timestamp = EXCLUDED.timestamp, \
-                parent_hash = EXCLUDED.parent_hash, \
-                root_hash = EXCLUDED.root_hash, \
-                embeds = EXCLUDED.embeds, \
-                mentions = EXCLUDED.mentions",
-            );
+                let value_clauses: Vec<String> = (0..chunk.len())
+                    .map(|i| {
+                        let base = i * PARAMS_PER_ROW;
+                        format!(
+                            "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                            base + 1,
+                            base + 2,
+                            base + 3,
+                            base + 4,
+                            base + 5,
+                            base + 6,
+                            base + 7,
+                            base + 8
+                        )
+                    })
+                    .collect();
 
-            let mut q = sqlx::query(&query);
-            for (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) in
-                batched.casts
-            {
-                q = q
-                    .bind(fid)
-                    .bind(text)
-                    .bind(timestamp)
-                    .bind(message_hash)
-                    .bind(parent_hash)
-                    .bind(root_hash)
-                    .bind(embeds)
-                    .bind(mentions);
+                query.push_str(&value_clauses.join(", "));
+                query.push_str(
+                    " ON CONFLICT (message_hash) DO UPDATE SET \
+                    fid = EXCLUDED.fid, \
+                    text = EXCLUDED.text, \
+                    timestamp = EXCLUDED.timestamp, \
+                    parent_hash = EXCLUDED.parent_hash, \
+                    root_hash = EXCLUDED.root_hash, \
+                    embeds = EXCLUDED.embeds, \
+                    mentions = EXCLUDED.mentions",
+                );
+
+                let mut q = sqlx::query(&query);
+                for (
+                    fid,
+                    text,
+                    timestamp,
+                    message_hash,
+                    parent_hash,
+                    root_hash,
+                    embeds,
+                    mentions,
+                ) in chunk
+                {
+                    q = q
+                        .bind(fid)
+                        .bind(text)
+                        .bind(timestamp)
+                        .bind(message_hash)
+                        .bind(parent_hash)
+                        .bind(root_hash)
+                        .bind(embeds)
+                        .bind(mentions);
+                }
+
+                q.execute(&mut *tx).await?;
             }
-
-            q.execute(&mut *tx).await?;
         }
 
-        // Batch insert activities
+        // Batch insert activities (split into chunks to avoid parameter limit)
         if !batched.activities.is_empty() {
             tracing::debug!("Batch inserting {} activities", batched.activities.len());
 
-            // Build dynamic query with shard_id and block_height
-            let mut query = String::from(
-                "INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash, shard_id, block_height) VALUES "
-            );
+            const PARAMS_PER_ROW: usize = 7;
+            const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
+            const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~9285 rows per chunk
 
-            let params_per_row = 7;
-            let value_clauses: Vec<String> = (0..batched.activities.len())
-                .map(|i| {
-                    let base = i * params_per_row;
-                    format!(
-                        "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                        base + 1,
-                        base + 2,
-                        base + 3,
-                        base + 4,
-                        base + 5,
-                        base + 6,
-                        base + 7
-                    )
-                })
-                .collect();
+            // Split activities into chunks
+            for chunk in batched.activities.chunks(CHUNK_SIZE) {
+                // Build dynamic query with shard_id and block_height
+                let mut query = String::from(
+                    "INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash, shard_id, block_height) VALUES "
+                );
 
-            query.push_str(&value_clauses.join(", "));
+                let value_clauses: Vec<String> = (0..chunk.len())
+                    .map(|i| {
+                        let base = i * PARAMS_PER_ROW;
+                        format!(
+                            "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                            base + 1,
+                            base + 2,
+                            base + 3,
+                            base + 4,
+                            base + 5,
+                            base + 6,
+                            base + 7
+                        )
+                    })
+                    .collect();
 
-            let mut q = sqlx::query(&query);
-            for (
-                fid,
-                activity_type,
-                activity_data,
-                timestamp,
-                message_hash,
-                shard_id,
-                block_height,
-            ) in batched.activities
-            {
-                q = q
-                    .bind(fid)
-                    .bind(activity_type)
-                    .bind(activity_data)
-                    .bind(timestamp)
-                    .bind(message_hash)
-                    .bind(shard_id)
-                    .bind(block_height);
+                query.push_str(&value_clauses.join(", "));
+
+                let mut q = sqlx::query(&query);
+                for (
+                    fid,
+                    activity_type,
+                    activity_data,
+                    timestamp,
+                    message_hash,
+                    shard_id,
+                    block_height,
+                ) in chunk
+                {
+                    q = q
+                        .bind(fid)
+                        .bind(activity_type)
+                        .bind(activity_data)
+                        .bind(timestamp)
+                        .bind(message_hash)
+                        .bind(shard_id)
+                        .bind(block_height);
+                }
+
+                q.execute(&mut *tx).await?;
             }
-
-            q.execute(&mut *tx).await?;
         }
 
         // Batch update profile fields by field type
