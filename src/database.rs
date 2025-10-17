@@ -608,6 +608,18 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
+        // Complete profiles = has username + display_name + bio (more meaningful)
+        let complete_profiles = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*) FROM user_profiles 
+            WHERE username IS NOT NULL AND username != ''
+              AND display_name IS NOT NULL AND display_name != ''
+              AND bio IS NOT NULL AND bio != ''
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
         let profiles_with_display_name = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM user_profiles WHERE display_name IS NOT NULL AND display_name != ''"
         )
@@ -732,6 +744,7 @@ impl Database {
         Ok(crate::models::StatisticsResult {
             total_fids,
             total_profiles: total_fids,
+            complete_profiles,
             profiles_with_username,
             profiles_with_display_name,
             profiles_with_bio,

@@ -409,6 +409,7 @@ pub enum StatisticsGroupBy {
 pub struct StatisticsResult {
     pub total_fids: i64,
     pub total_profiles: i64,
+    pub complete_profiles: i64, // Has username + display_name + bio
     pub profiles_with_username: i64,
     pub profiles_with_display_name: i64,
     pub profiles_with_bio: i64,

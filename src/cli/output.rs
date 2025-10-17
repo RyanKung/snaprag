@@ -242,13 +242,14 @@ pub fn print_dashboard(stats: &StatisticsResult) {
     println!("  Total Casts: {}", stats.total_casts);
     println!(
         "  Complete Profiles: {} ({:.1}%)",
-        stats.profiles_with_username,
+        stats.complete_profiles,
         if stats.total_profiles > 0 {
-            (stats.profiles_with_username as f64 / stats.total_profiles as f64) * 100.0
+            (stats.complete_profiles as f64 / stats.total_profiles as f64) * 100.0
         } else {
             0.0
         }
     );
+    println!("    (username + display_name + bio)");
 
     println!();
     println!("📈 Profile Health:");
