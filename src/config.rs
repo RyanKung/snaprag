@@ -9,6 +9,12 @@ pub struct DatabaseConfig {
     pub max_connections: u32,
     pub min_connections: u32,
     pub connection_timeout: u64,
+    #[serde(default = "default_slow_query_threshold")]
+    pub slow_query_threshold_secs: f64,
+}
+
+fn default_slow_query_threshold() -> f64 {
+    1.5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,7 +73,7 @@ pub struct X402Config {
 }
 
 fn default_use_testnet() -> bool {
-    true  // x402.org/facilitator currently only supports testnet
+    true // x402.org/facilitator currently only supports testnet
 }
 
 fn default_payment_address() -> String {
@@ -78,7 +84,7 @@ impl Default for X402Config {
     fn default() -> Self {
         Self {
             payment_address: default_payment_address(),
-            use_testnet: true,  // x402.org/facilitator only supports testnet
+            use_testnet: true, // x402.org/facilitator only supports testnet
             enabled: false,
         }
     }
@@ -143,6 +149,11 @@ impl AppConfig {
     /// Get connection timeout in seconds
     pub fn connection_timeout(&self) -> u64 {
         self.database.connection_timeout
+    }
+
+    /// Get slow query threshold in seconds
+    pub fn slow_query_threshold_secs(&self) -> f64 {
+        self.database.slow_query_threshold_secs
     }
 
     /// Get embedding dimension
@@ -229,6 +240,7 @@ impl Default for AppConfig {
                 max_connections: 20,
                 min_connections: 5,
                 connection_timeout: 30,
+                slow_query_threshold_secs: 1.5,
             },
             logging: LoggingConfig {
                 level: "info".to_string(),
