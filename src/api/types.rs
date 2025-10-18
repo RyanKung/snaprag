@@ -131,3 +131,39 @@ pub struct StatsResponse {
     pub profiles_with_embeddings: i64,
     pub casts_with_embeddings: i64,
 }
+
+/// Fetch user request
+#[derive(Debug, Deserialize)]
+pub struct FetchUserRequest {
+    #[serde(default)]
+    pub with_casts: bool,
+    #[serde(default)]
+    pub generate_embeddings: bool,
+    pub embedding_endpoint: Option<String>,
+    #[serde(default = "default_max_casts")]
+    pub max_casts: usize,
+}
+
+fn default_max_casts() -> usize {
+    1000
+}
+
+/// Fetch users batch request
+#[derive(Debug, Deserialize)]
+pub struct FetchUsersBatchRequest {
+    pub fids: Vec<u64>,
+    #[serde(default)]
+    pub with_casts: bool,
+    #[serde(default)]
+    pub generate_embeddings: bool,
+    pub embedding_endpoint: Option<String>,
+}
+
+/// Fetch response
+#[derive(Debug, Serialize)]
+pub struct FetchResponse {
+    pub profile: ProfileResponse,
+    pub casts_count: usize,
+    pub embeddings_generated: Option<usize>,
+    pub source: String, // "database" or "snapchain"
+}

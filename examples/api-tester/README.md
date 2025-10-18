@@ -60,9 +60,28 @@ The tester will open at `http://127.0.0.1:8080`
 ## Endpoint Tiers
 
 - 🟢 **Free** - No payment required (health, stats, MCP)
-- 🔵 **Basic** - 0.001 USDC (profiles, get profile)
-- 🟣 **Premium** - 0.01 USDC (search)
+- 🔵 **Basic** - 0.001 USDC (profiles, get profile, fetch user, fetch popular)
+- 🟣 **Premium** - 0.01 USDC (search, fetch users batch)
 - 🟠 **Enterprise** - 0.1 USDC (RAG query)
+
+## New Endpoints
+
+### Lazy Loading API
+
+The tester now includes support for the new **Fetch API** endpoints:
+
+- **Fetch User** (`POST /api/fetch/user/{fid}`) - Fetch user profile with optional casts and embeddings
+  - Lazy loads from Snapchain if not in database
+  - Can optionally fetch user's casts
+  - Can generate embeddings for casts on-the-fly
+  
+- **Fetch Users Batch** (`POST /api/fetch/users`) - Fetch multiple users at once
+  - Batch operation for efficiency
+  - Supports same options as single user fetch
+  
+- **Fetch Popular** (`GET /api/fetch/popular`) - Fetch popular users
+  - Gets top 100 followed users
+  - Quick way to populate database with active users
 
 ## Development
 

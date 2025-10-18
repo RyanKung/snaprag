@@ -99,6 +99,43 @@ pub fn get_endpoints() -> Vec<EndpointInfo> {
             .to_string()),
         },
         EndpointInfo {
+            path: "/api/fetch/user/3".to_string(),
+            method: "POST".to_string(),
+            name: "Fetch User".to_string(),
+            description: "Fetch user profile with optional casts and embeddings (lazy loading)".to_string(),
+            tier: "Basic".to_string(),
+            requires_payment: true,
+            default_body: Some(r#"{
+  "with_casts": true,
+  "generate_embeddings": false,
+  "max_casts": 100
+}"#
+            .to_string()),
+        },
+        EndpointInfo {
+            path: "/api/fetch/users".to_string(),
+            method: "POST".to_string(),
+            name: "Fetch Users Batch".to_string(),
+            description: "Fetch multiple users at once with optional casts and embeddings".to_string(),
+            tier: "Premium".to_string(),
+            requires_payment: true,
+            default_body: Some(r#"{
+  "fids": [3, 2, 4],
+  "with_casts": true,
+  "generate_embeddings": false
+}"#
+            .to_string()),
+        },
+        EndpointInfo {
+            path: "/api/fetch/popular?limit=20".to_string(),
+            method: "GET".to_string(),
+            name: "Fetch Popular".to_string(),
+            description: "Fetch popular users (top 100 followed)".to_string(),
+            tier: "Basic".to_string(),
+            requires_payment: true,
+            default_body: None,
+        },
+        EndpointInfo {
             path: "/mcp/".to_string(),
             method: "GET".to_string(),
             name: "MCP Server Info".to_string(),

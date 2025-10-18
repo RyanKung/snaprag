@@ -150,13 +150,37 @@ async fn list_tools() -> Json<Vec<McpTool>> {
         },
         McpTool {
             name: "get_profile".to_string(),
-            description: "Get a user profile by FID".to_string(),
+            description: "Get a user profile by FID (auto lazy load if not in DB)".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "fid": {
                         "type": "integer",
                         "description": "Farcaster ID"
+                    }
+                },
+                "required": ["fid"]
+            }),
+        },
+        McpTool {
+            name: "fetch_user".to_string(),
+            description: "Fetch user profile and optionally casts with embeddings generation".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "fid": {
+                        "type": "integer",
+                        "description": "Farcaster ID"
+                    },
+                    "with_casts": {
+                        "type": "boolean",
+                        "description": "Also fetch user's casts",
+                        "default": false
+                    },
+                    "generate_embeddings": {
+                        "type": "boolean",
+                        "description": "Generate embeddings for fetched casts",
+                        "default": false
                     }
                 },
                 "required": ["fid"]
@@ -288,6 +312,100 @@ async fn call_tool(
                     is_error: true,
                 })),
             }
+        }
+        "fetch_user" => {
+            let fid = req
+                .arguments
+                .get("fid")
+                .and_then(|v| v.as_i64())
+                .ok_or(StatusCode::BAD_REQUEST)?;
+
+            let with_casts = req
+                .arguments
+                .get("with_casts")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            let generate_embeddings = req
+                .arguments
+                .get("generate_embeddings")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            let Some(ref loader) = state.lazy_loader else {
+                return Ok(Json(McpToolCallResponse {
+                    content: vec![McpContent {
+                        r#type: "text".to_string(),
+                        text: "Lazy loader not available".to_string(),
+                    }],
+                    is_error: true,
+                }));
+            };
+
+            // Fetch profile
+            let profile = match loader.get_user_profile_smart(fid).await {
+                Ok(Some(p)) => p,
+                Ok(None) => {
+                    return Ok(Json(McpToolCallResponse {
+                        content: vec![McpContent {
+                            r#type: "text".to_string(),
+                            text: format!("User {} not found", fid),
+                        }],
+                        is_error: true,
+                    }));
+                }
+                Err(e) => {
+                    return Ok(Json(McpToolCallResponse {
+                        content: vec![McpContent {
+                            r#type: "text".to_string(),
+                            text: format!("Error: {}", e),
+                        }],
+                        is_error: true,
+                    }));
+                }
+            };
+
+            // Fetch casts if requested
+            let casts = if with_casts {
+                loader.get_user_casts_smart(fid).await.unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+
+            let mut response_text = serde_json::to_string_pretty(&profile)
+                .unwrap_or_else(|_| "{}".to_string());
+
+            if with_casts {
+                response_text.push_str(&format!("\n\nCasts: {} loaded", casts.len()));
+            }
+
+            if generate_embeddings && !casts.is_empty() {
+                let mut success = 0;
+                for cast in &casts {
+                    if let Some(ref text) = cast.text {
+                        if !text.trim().is_empty() {
+                            if let Ok(embedding) = state.embedding_service.generate(text).await {
+                                let _ = state.database.store_cast_embedding(
+                                    &cast.message_hash,
+                                    cast.fid,
+                                    text,
+                                    &embedding,
+                                ).await;
+                                success += 1;
+                            }
+                        }
+                    }
+                }
+                response_text.push_str(&format!("\n\nEmbeddings: {} generated", success));
+            }
+
+            Ok(Json(McpToolCallResponse {
+                content: vec![McpContent {
+                    r#type: "text".to_string(),
+                    text: response_text,
+                }],
+                is_error: false,
+            }))
         }
         _ => Err(StatusCode::NOT_FOUND),
     }

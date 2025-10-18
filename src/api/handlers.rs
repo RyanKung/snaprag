@@ -11,6 +11,7 @@ use tracing::error;
 use tracing::info;
 
 use crate::api::types::*;
+use crate::config::AppConfig;
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::llm::LlmService;
@@ -247,6 +248,142 @@ pub async fn rag_query(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+/// Fetch user on-demand (POST /api/fetch/user/:fid)
+pub async fn fetch_user(
+    State(state): State<AppState>,
+    Path(fid): Path<i64>,
+    Json(req): Json<FetchUserRequest>,
+) -> Result<Json<ApiResponse<FetchResponse>>, StatusCode> {
+    info!("POST /api/fetch/user/{} (with_casts={}, embeddings={})", fid, req.with_casts, req.generate_embeddings);
+
+    let Some(ref loader) = state.lazy_loader else {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    };
+
+    // Check if in database (to determine source)
+    let in_db = state.database.get_user_profile(fid).await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .is_some();
+
+    // Fetch profile (smart)
+    let profile = match loader.get_user_profile_smart(fid).await {
+        Ok(Some(p)) => p,
+        Ok(None) => return Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Error fetching profile: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // Fetch casts if requested
+    let casts = if req.with_casts {
+        loader.get_user_casts_smart(fid).await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    } else {
+        Vec::new()
+    };
+
+    // Generate embeddings if requested
+    let mut embeddings_generated = None;
+    if req.generate_embeddings && !casts.is_empty() {
+        let embedding_service = if let Some(ref endpoint_name) = req.embedding_endpoint {
+            // Use specified endpoint
+            match state.database.pool().acquire().await {
+                Ok(_) => {
+                    // Create embedding service with specified endpoint
+                    Arc::new(crate::embeddings::EmbeddingService::new(&crate::config::AppConfig::load().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+                        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+                }
+                Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+            }
+        } else {
+            state.embedding_service.clone()
+        };
+
+        let mut success = 0;
+        for cast in &casts {
+            if let Some(ref text) = cast.text {
+                if !text.trim().is_empty() {
+                    if let Ok(embedding) = embedding_service.generate(text).await {
+                        let _ = state.database.store_cast_embedding(
+                            &cast.message_hash,
+                            cast.fid,
+                            text,
+                            &embedding,
+                        ).await;
+                        success += 1;
+                    }
+                }
+            }
+        }
+        embeddings_generated = Some(success);
+    }
+
+    Ok(Json(ApiResponse::success(FetchResponse {
+        profile: ProfileResponse {
+            fid: profile.fid,
+            username: profile.username,
+            display_name: profile.display_name,
+            bio: profile.bio,
+            pfp_url: profile.pfp_url,
+            location: profile.location,
+            twitter_username: profile.twitter_username,
+            github_username: profile.github_username,
+        },
+        casts_count: casts.len(),
+        embeddings_generated,
+        source: if in_db { "database".to_string() } else { "snapchain".to_string() },
+    })))
+}
+
+/// Fetch multiple users batch (POST /api/fetch/users)
+pub async fn fetch_users_batch(
+    State(state): State<AppState>,
+    Json(req): Json<FetchUsersBatchRequest>,
+) -> Result<Json<ApiResponse<Vec<FetchResponse>>>, StatusCode> {
+    info!("POST /api/fetch/users ({} fids)", req.fids.len());
+
+    let Some(ref loader) = state.lazy_loader else {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    };
+
+    let mut results = Vec::new();
+
+    for fid in req.fids {
+        // Fetch profile
+        let profile = match loader.get_user_profile_smart(fid as i64).await {
+            Ok(Some(p)) => p,
+            Ok(None) => continue,
+            Err(_) => continue,
+        };
+
+        // Fetch casts if requested
+        let casts = if req.with_casts {
+            loader.get_user_casts_smart(fid as i64).await.unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        results.push(FetchResponse {
+            profile: ProfileResponse {
+                fid: profile.fid,
+                username: profile.username,
+                display_name: profile.display_name,
+                bio: profile.bio,
+                pfp_url: profile.pfp_url,
+                location: profile.location,
+                twitter_username: profile.twitter_username,
+                github_username: profile.github_username,
+            },
+            casts_count: casts.len(),
+            embeddings_generated: None,
+            source: "mixed".to_string(),
+        });
+    }
+
+    Ok(Json(ApiResponse::success(results)))
 }
 
 /// Get statistics
