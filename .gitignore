@@ -90,6 +90,8 @@ coverage/
 # Generated files
 *.generated.*
 **/generated/
+# Exception: allow mod.rs to be committed (it's the module declaration)
+!src/generated/mod.rs
 
 # Local development files
 .local/
