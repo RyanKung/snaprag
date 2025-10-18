@@ -34,6 +34,9 @@ pub async fn handle_list_command(
     has_display_name: bool,
     has_bio: bool,
 ) -> Result<()> {
+    // TODO: Re-enable after first init
+    // snaprag.database().verify_schema_or_error().await?;
+    
     match data_type {
         DataType::Fid => {
             print_list_header("FIDs", limit);
@@ -193,8 +196,9 @@ pub async fn handle_list_command(
 pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> {
     if !force {
         print_warning(
-            "This will reset ALL synchronized data from the database and remove lock files!",
+            "This will DROP ALL TABLES from the database and remove lock files!",
         );
+        print_warning("This is a complete reset - all data will be lost!");
         print_prompt("Are you sure you want to continue? (y/N)");
 
         let mut input = String::new();
@@ -206,7 +210,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         }
     }
 
-    print_info("Resetting all synchronized data and lock files...");
+    print_info("🔥 Resetting database - DROPPING ALL TABLES...");
 
     // Remove lock file if it exists
     if std::path::Path::new("snaprag.lock").exists() {
@@ -216,36 +220,48 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         print_info("No lock file found");
     }
 
-    // Clear all tables including sync progress
-    // Only include tables that actually exist in the schema
+    // 🚀 DROP all tables (complete reset)
     let tables = [
+        "cast_embeddings",       // Drop first due to FK constraint
         "user_activity_timeline",
         "user_profiles",
         "user_profile_snapshots",
+        "user_profile_trends",
         "user_data",
         "user_data_changes",
         "casts",
-        "cast_embeddings",
         "links",
         "username_proofs",
         "user_activities",
         "processed_messages",
-        "sync_progress", // ⭐ Clear sync progress so next sync starts from 0
-        "sync_stats",    // ⭐ Clear sync statistics
+        "sync_progress",
+        "sync_stats",
     ];
 
     for table in &tables {
-        let deleted = sqlx::query(&format!("DELETE FROM {}", table))
+        match sqlx::query(&format!("DROP TABLE IF EXISTS {} CASCADE", table))
             .execute(snaprag.database().pool())
-            .await?;
-        print_success(&format!(
-            "Deleted {} {} records",
-            deleted.rows_affected(),
-            table
-        ));
+            .await
+        {
+            Ok(_) => print_success(&format!("Dropped table: {}", table)),
+            Err(e) => print_warning(&format!("Could not drop {}: {}", table, e)),
+        }
     }
 
-    print_success("Database and lock files reset successfully!");
+    // Drop the trigger function
+    match sqlx::query("DROP FUNCTION IF EXISTS update_cast_embeddings_updated_at() CASCADE")
+        .execute(snaprag.database().pool())
+        .await
+    {
+        Ok(_) => print_success("Dropped trigger function"),
+        Err(_) => {}
+    }
+
+    println!();
+    print_success("✅ Database completely reset!");
+    print_info("ℹ️  To reinitialize, run:");
+    println!("   snaprag init --force");
+    
     Ok(())
 }
 
@@ -831,6 +847,18 @@ pub async fn handle_cast_embeddings_backfill(
 
 /// Handle sync command
 pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommands) -> Result<()> {
+    // For commands that need database access, verify schema is initialized
+    match &sync_command {
+        SyncCommands::Stop { .. } | SyncCommands::Status => {
+            // These commands don't require full schema
+        }
+        _ => {
+            // TODO: Re-enable after first init
+            // All other sync commands require initialized database
+            // snaprag.database().verify_schema_or_error().await?;
+        }
+    }
+    
     match sync_command {
         SyncCommands::All => {
             print_info("Starting full synchronization (historical + real-time)...");
@@ -948,6 +976,8 @@ pub async fn handle_stats_command(
     detailed: bool,
     export: Option<String>,
 ) -> Result<()> {
+    // TODO: Re-enable after first init
+    // snaprag.database().verify_schema_or_error().await?;
     let stats = snaprag.get_statistics().await?;
     print_statistics(&stats, detailed);
 

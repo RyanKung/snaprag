@@ -166,9 +166,65 @@ impl SnapRag {
 
     /// Stop synchronization
     pub async fn stop_sync(&self, force: bool) -> Result<()> {
-        if let Some(sync_service) = &self.sync_service {
-            sync_service.stop(force).await?;
+        use crate::sync::lock_file::SyncLockManager;
+        
+        // Always use lock file approach since stop command runs in a different process
+        let lock_manager = SyncLockManager::new();
+        
+        if lock_manager.lock_exists() {
+            match lock_manager.read_lock() {
+                Ok(lock) => {
+                    let pid = lock.pid;
+                    tracing::info!("Found running sync process with PID: {}", pid);
+                    
+                    // Send signal to kill the process
+                    #[cfg(unix)]
+                    {
+                        let signal = if force { 9 } else { 15 }; // SIGKILL or SIGTERM
+                        tracing::info!("Sending signal {} to process {}", signal, pid);
+                        
+                        let result = unsafe {
+                            libc::kill(pid as libc::pid_t, signal)
+                        };
+                        
+                        if result == 0 {
+                            tracing::info!("✅ Signal sent successfully");
+                            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                            
+                            // Verify process is gone
+                            let check = unsafe {
+                                libc::kill(pid as libc::pid_t, 0)
+                            };
+                            if check == 0 {
+                                tracing::warn!("Process still running, sending SIGKILL");
+                                unsafe {
+                                    libc::kill(pid as libc::pid_t, 9);
+                                }
+                                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                            }
+                        } else {
+                            let errno = std::io::Error::last_os_error();
+                            tracing::warn!("Failed to send signal: {}", errno);
+                        }
+                    }
+                    
+                    #[cfg(not(unix))]
+                    {
+                        tracing::warn!("Process termination not supported on this platform");
+                    }
+                    
+                    // Remove lock file
+                    lock_manager.remove_lock()?;
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to read lock file: {}", e);
+                    lock_manager.remove_lock()?;
+                }
+            }
+        } else {
+            tracing::info!("No sync process found");
         }
+        
         Ok(())
     }
 

@@ -33,6 +33,73 @@ impl Database {
         Ok(())
     }
 
+    /// Check if database schema is initialized
+    /// Returns true if all required tables exist
+    pub async fn is_schema_initialized(&self) -> Result<bool> {
+        // Check for essential tables
+        let required_tables = vec![
+            "user_profiles",
+            "user_activity_timeline",
+            "casts",
+            "links",
+            "processed_messages",
+        ];
+
+        for table_name in required_tables {
+            let result = sqlx::query_scalar::<_, bool>(
+                r#"
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = $1
+                )
+                "#,
+            )
+            .bind(table_name)
+            .fetch_one(&self.pool)
+            .await?;
+
+            if !result {
+                tracing::debug!("Missing required table: {}", table_name);
+                return Ok(false);
+            }
+        }
+
+        // Check if shard_id column exists in user_activity_timeline (key indicator of complete schema)
+        let has_shard_id = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'user_activity_timeline' 
+                AND column_name = 'shard_id'
+            )
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        if !has_shard_id {
+            tracing::debug!("user_activity_timeline missing shard_id column");
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+
+    /// Verify database schema or return helpful error
+    pub async fn verify_schema_or_error(&self) -> Result<()> {
+        if !self.is_schema_initialized().await? {
+            return Err(SnapRagError::Custom(
+                "❌ Database schema not initialized!\n\n\
+                 Please run the following command to initialize the database:\n\n\
+                 \x1b[1;32msnaprag init --force\x1b[0m\n\n\
+                 Then start sync again.".to_string()
+            ));
+        }
+        Ok(())
+    }
+
     /// Get a reference to the database pool for raw queries
     pub fn pool(&self) -> &sqlx::PgPool {
         &self.pool
@@ -247,44 +314,27 @@ impl Database {
     }
 
     async fn create_indexes(&self) -> Result<()> {
-        // User profiles indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_profiles_fid ON user_profiles(fid)")
+        // 🚀 OPTIMIZATION: Use CONCURRENTLY and skip slow index checks
+        // Only create truly essential indexes, others should be in migrations
+        
+        // User profiles - essential unique constraint index (auto-created)
+        // idx_user_profiles_fid already exists via UNIQUE constraint
+        
+        // Profile snapshots - only if needed for queries
+        sqlx::query("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_profile_snapshots_fid_timestamp ON user_profile_snapshots(fid, snapshot_timestamp DESC)")
             .execute(&self.pool)
-            .await?;
+            .await.ok(); // Ignore errors if already exists
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Profile snapshots indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_profile_snapshots_fid_timestamp ON user_profile_snapshots(fid, snapshot_timestamp DESC)")
+        // Activity timeline - most critical for sync
+        sqlx::query("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activity_timeline_fid_timestamp ON user_activity_timeline(fid, timestamp DESC)")
             .execute(&self.pool)
-            .await?;
+            .await.ok();
 
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_profile_snapshots_timestamp ON user_profile_snapshots(snapshot_timestamp DESC)")
+        sqlx::query("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activity_timeline_type_timestamp ON user_activity_timeline(activity_type, timestamp DESC)")
             .execute(&self.pool)
-            .await?;
+            .await.ok();
 
-        // User data changes indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_data_changes_fid_type ON user_data_changes(fid, data_type, change_timestamp DESC)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_data_changes_timestamp ON user_data_changes(change_timestamp DESC)")
-            .execute(&self.pool)
-            .await?;
-
-        // Activity timeline indexes
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_activity_timeline_fid_timestamp ON user_activity_timeline(fid, timestamp DESC)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_activity_timeline_type_timestamp ON user_activity_timeline(activity_type, timestamp DESC)")
-            .execute(&self.pool)
-            .await?;
-
+        tracing::debug!("Essential indexes ensured");
         Ok(())
     }
 }
@@ -1189,21 +1239,19 @@ impl Database {
 impl Database {
     /// Get the last processed height for a shard
     pub async fn get_last_processed_height(&self, shard_id: u32) -> Result<u64> {
-        let row = sqlx::query!(
-            "SELECT last_processed_height FROM sync_progress WHERE shard_id = $1",
-            shard_id as i32
+        let row = sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT last_processed_height FROM sync_progress WHERE shard_id = $1"
         )
+        .bind(shard_id as i32)
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row
-            .map(|r| r.last_processed_height.unwrap_or(0) as u64)
-            .unwrap_or(0))
+        Ok(row.flatten().map(|h| h as u64).unwrap_or(0))
     }
 
     /// Update the last processed height for a shard
     pub async fn update_last_processed_height(&self, shard_id: u32, height: u64) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO sync_progress (shard_id, last_processed_height, status, updated_at)
             VALUES ($1, $2, 'syncing', NOW())
@@ -1212,10 +1260,10 @@ impl Database {
                 last_processed_height = EXCLUDED.last_processed_height,
                 status = 'syncing',
                 updated_at = NOW()
-            "#,
-            shard_id as i32,
-            height as i64
+            "#
         )
+        .bind(shard_id as i32)
+        .bind(height as i64)
         .execute(&self.pool)
         .await?;
 
@@ -1229,7 +1277,7 @@ impl Database {
         status: &str,
         error_message: Option<&str>,
     ) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO sync_progress (shard_id, status, error_message, updated_at)
             VALUES ($1, $2, $3, NOW())
@@ -1238,11 +1286,11 @@ impl Database {
                 status = EXCLUDED.status,
                 error_message = EXCLUDED.error_message,
                 updated_at = NOW()
-            "#,
-            shard_id as i32,
-            status,
-            error_message
+            "#
         )
+        .bind(shard_id as i32)
+        .bind(status)
+        .bind(error_message)
         .execute(&self.pool)
         .await?;
 
@@ -1261,7 +1309,7 @@ impl Database {
         timestamp: i64,
         content_hash: Option<Vec<u8>>,
     ) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO processed_messages (
                 message_hash, shard_id, block_height, transaction_fid,
@@ -1269,16 +1317,16 @@ impl Database {
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (message_hash) DO NOTHING
-            "#,
-            message_hash,
-            shard_id as i32,
-            block_height as i64,
-            transaction_fid as i64,
-            message_type,
-            fid as i64,
-            timestamp,
-            content_hash
+            "#
         )
+        .bind(message_hash)
+        .bind(shard_id as i32)
+        .bind(block_height as i64)
+        .bind(transaction_fid as i64)
+        .bind(message_type)
+        .bind(fid as i64)
+        .bind(timestamp)
+        .bind(content_hash)
         .execute(&self.pool)
         .await?;
 
@@ -1287,10 +1335,10 @@ impl Database {
 
     /// Check if a message has been processed
     pub async fn is_message_processed(&self, message_hash: &[u8]) -> Result<bool> {
-        let row = sqlx::query!(
-            "SELECT 1 as exists FROM processed_messages WHERE message_hash = $1 LIMIT 1",
-            message_hash
+        let row = sqlx::query_scalar::<_, i32>(
+            "SELECT 1 FROM processed_messages WHERE message_hash = $1 LIMIT 1"
         )
+        .bind(message_hash)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -1304,7 +1352,7 @@ impl Database {
         total_messages: u64,
         total_blocks: u64,
     ) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO sync_stats (shard_id, total_messages, total_blocks, last_updated)
             VALUES ($1, $2, $3, NOW())
@@ -1313,11 +1361,11 @@ impl Database {
                 total_messages = EXCLUDED.total_messages,
                 total_blocks = EXCLUDED.total_blocks,
                 last_updated = NOW()
-            "#,
-            shard_id as i32,
-            total_messages as i64,
-            total_blocks as i64
+            "#
         )
+        .bind(shard_id as i32)
+        .bind(total_messages as i64)
+        .bind(total_blocks as i64)
         .execute(&self.pool)
         .await?;
 
@@ -1356,7 +1404,7 @@ impl Database {
         timestamp: i64,
         message_hash: Vec<u8>,
     ) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5)
@@ -1366,13 +1414,13 @@ impl Database {
                 target_fid = EXCLUDED.target_fid,
                 link_type = EXCLUDED.link_type,
                 timestamp = EXCLUDED.timestamp
-            "#,
-            fid,
-            target_fid,
-            link_type,
-            timestamp,
-            message_hash
+            "#
         )
+        .bind(fid)
+        .bind(target_fid)
+        .bind(link_type)
+        .bind(timestamp)
+        .bind(message_hash)
         .execute(&self.pool)
         .await?;
 
@@ -1391,7 +1439,7 @@ impl Database {
         embeds: Option<serde_json::Value>,
         mentions: Option<serde_json::Value>,
     ) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -1404,16 +1452,16 @@ impl Database {
                 root_hash = EXCLUDED.root_hash,
                 embeds = EXCLUDED.embeds,
                 mentions = EXCLUDED.mentions
-            "#,
-            fid,
-            text,
-            timestamp,
-            message_hash,
-            parent_hash,
-            root_hash,
-            embeds,
-            mentions
+            "#
         )
+        .bind(fid)
+        .bind(text)
+        .bind(timestamp)
+        .bind(message_hash)
+        .bind(parent_hash)
+        .bind(root_hash)
+        .bind(embeds)
+        .bind(mentions)
         .execute(&self.pool)
         .await?;
 
@@ -1429,7 +1477,7 @@ impl Database {
         timestamp: i64,
         message_hash: Vec<u8>,
     ) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO user_data (fid, data_type, value, timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5)
@@ -1439,13 +1487,13 @@ impl Database {
                 data_type = EXCLUDED.data_type,
                 value = EXCLUDED.value,
                 timestamp = EXCLUDED.timestamp
-            "#,
-            fid,
-            data_type,
-            value,
-            timestamp,
-            message_hash
+            "#
         )
+        .bind(fid)
+        .bind(data_type)
+        .bind(value)
+        .bind(timestamp)
+        .bind(message_hash)
         .execute(&self.pool)
         .await?;
 
