@@ -1517,9 +1517,10 @@ impl ShardProcessor {
             3 => {
                 // EVENT_TYPE_ID_REGISTER - FID注册
                 tracing::info!(
-                    "🆕 FID Registration: FID {} registered at block {}",
+                    "🆕 FID Registration: FID {} (L1 block: {}, Snapchain block: {})",
                     fid,
-                    event.block_number
+                    event.block_number,
+                    _shard_block_info.block_height
                 );
 
                 // Mark this FID as registered
