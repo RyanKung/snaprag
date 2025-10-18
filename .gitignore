@@ -133,3 +133,4 @@ snaprag.lock
 snaprag_sync_state.json
 *.lock
 !Cargo.lock
+.env.compile
