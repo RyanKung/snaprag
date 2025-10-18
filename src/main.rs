@@ -195,8 +195,8 @@ async fn main() -> Result<()> {
             EmbeddingsCommands::Backfill { force, batch_size } => {
                 snaprag::cli::handle_embeddings_backfill(&config, force, batch_size).await?;
             }
-            EmbeddingsCommands::BackfillCasts { limit } => {
-                snaprag::cli::handle_cast_embeddings_backfill(&config, limit).await?;
+            EmbeddingsCommands::BackfillCasts { limit, endpoint } => {
+                snaprag::cli::handle_cast_embeddings_backfill(&config, limit, endpoint).await?;
             }
             EmbeddingsCommands::Generate { fid, verbose } => {
                 snaprag::cli::handle_embeddings_generate(&config, fid, verbose).await?;

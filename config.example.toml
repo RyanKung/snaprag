@@ -1,7 +1,7 @@
 # SnapRAG Configuration
 
 [database]
-url = "postgresql://snaprag:hackinthebox_24601@192.168.1.192/snaprag"
+url = "postgresql://snaprag:password@127.0.0.1/snaprag"
 max_connections = 100
 min_connections = 20
 connection_timeout = 60

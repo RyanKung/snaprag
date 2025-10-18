@@ -54,6 +54,7 @@ pub struct EmbeddingConfig {
 }
 
 impl EmbeddingConfig {
+    /// Create from app config using default LLM endpoint
     pub fn from_app_config(config: &crate::config::AppConfig) -> Self {
         // Determine provider based on llm_key or endpoint
         // Priority: llm_key > endpoint domain
@@ -81,6 +82,33 @@ impl EmbeddingConfig {
             } else {
                 None
             },
+        }
+    }
+
+    /// Create from a specific endpoint configuration
+    pub fn from_endpoint(
+        config: &crate::config::AppConfig,
+        endpoint_config: &crate::config::EmbeddingEndpoint,
+    ) -> Self {
+        let provider = match endpoint_config.provider.to_lowercase().as_str() {
+            "openai" => EmbeddingProvider::OpenAI,
+            "ollama" => EmbeddingProvider::Ollama,
+            _ => {
+                // Auto-detect based on endpoint
+                if endpoint_config.endpoint.contains("api.openai.com") {
+                    EmbeddingProvider::OpenAI
+                } else {
+                    EmbeddingProvider::Ollama
+                }
+            }
+        };
+
+        Self {
+            provider,
+            model: endpoint_config.model.clone(),
+            dimension: config.embedding_dimension(),
+            endpoint: endpoint_config.endpoint.clone(),
+            api_key: endpoint_config.api_key.clone(),
         }
     }
 }

@@ -24,9 +24,32 @@ pub struct LoggingConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmbeddingEndpoint {
+    pub name: String,
+    pub endpoint: String,
+    pub api_key: Option<String>,
+    pub model: String,
+    pub provider: String, // "openai" or "ollama"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingsConfig {
     pub dimension: usize,
     pub model: String,
+    #[serde(default = "default_batch_size")]
+    pub batch_size: usize,
+    #[serde(default = "default_parallel_tasks")]
+    pub parallel_tasks: usize,
+    #[serde(default)]
+    pub endpoints: Vec<EmbeddingEndpoint>,
+}
+
+fn default_batch_size() -> usize {
+    100
+}
+
+fn default_parallel_tasks() -> usize {
+    5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,6 +189,26 @@ impl AppConfig {
         &self.embeddings.model
     }
 
+    /// Get embeddings batch size
+    pub fn embeddings_batch_size(&self) -> usize {
+        self.embeddings.batch_size
+    }
+
+    /// Get embeddings parallel tasks
+    pub fn embeddings_parallel_tasks(&self) -> usize {
+        self.embeddings.parallel_tasks
+    }
+
+    /// Get embedding endpoints
+    pub fn embedding_endpoints(&self) -> &Vec<EmbeddingEndpoint> {
+        &self.embeddings.endpoints
+    }
+
+    /// Get embedding endpoint by name
+    pub fn get_embedding_endpoint(&self, name: &str) -> Option<&EmbeddingEndpoint> {
+        self.embeddings.endpoints.iter().find(|e| e.name == name)
+    }
+
     /// Check if vector indexes are enabled
     pub fn vector_indexes_enabled(&self) -> bool {
         self.performance.enable_vector_indexes
@@ -249,6 +292,9 @@ impl Default for AppConfig {
             embeddings: EmbeddingsConfig {
                 dimension: 1536,
                 model: "text-embedding-ada-002".to_string(),
+                batch_size: 100,
+                parallel_tasks: 5,
+                endpoints: vec![],
             },
             performance: PerformanceConfig {
                 enable_vector_indexes: true,

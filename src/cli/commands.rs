@@ -288,6 +288,9 @@ pub enum EmbeddingsCommands {
         /// Maximum number of casts to process
         #[arg(short, long)]
         limit: Option<usize>,
+        /// Embedding endpoint to use (from config.toml endpoints list)
+        #[arg(short, long)]
+        endpoint: Option<String>,
     },
     /// Generate embeddings for a specific profile
     Generate {
@@ -320,18 +323,18 @@ pub enum ServeCommands {
         /// Enable CORS
         #[arg(long)]
         cors: bool,
-            /// Enable x402 payment
-            #[cfg(feature = "payment")]
-            #[arg(long)]
-            payment: bool,
-            /// Address to receive payments (defaults to 0x0 - burn address)
-            #[cfg(feature = "payment")]
-            #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
-            payment_address: Option<String>,
-            /// Use testnet (base-sepolia) or mainnet (base). If not specified, uses config default.
-            #[cfg(feature = "payment")]
-            #[arg(long)]
-            testnet: Option<bool>,
+        /// Enable x402 payment
+        #[cfg(feature = "payment")]
+        #[arg(long)]
+        payment: bool,
+        /// Address to receive payments (defaults to 0x0 - burn address)
+        #[cfg(feature = "payment")]
+        #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
+        payment_address: Option<String>,
+        /// Use testnet (base-sepolia) or mainnet (base). If not specified, uses config default.
+        #[cfg(feature = "payment")]
+        #[arg(long)]
+        testnet: Option<bool>,
     },
 }
 

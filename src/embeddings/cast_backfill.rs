@@ -22,6 +22,16 @@ pub async fn backfill_cast_embeddings(
     embedding_service: Arc<EmbeddingService>,
     limit: Option<usize>,
 ) -> Result<CastBackfillStats> {
+    backfill_cast_embeddings_with_config(db, embedding_service, limit, None).await
+}
+
+/// Backfill embeddings with custom batch configuration
+pub async fn backfill_cast_embeddings_with_config(
+    db: Arc<Database>,
+    embedding_service: Arc<EmbeddingService>,
+    limit: Option<usize>,
+    config: Option<&crate::config::AppConfig>,
+) -> Result<CastBackfillStats> {
     info!("Starting cast embeddings backfill with parallel processing");
     let start_time = Instant::now();
 
@@ -39,17 +49,26 @@ pub async fn backfill_cast_embeddings(
     stats.total_casts = total_count as usize;
     let process_limit = limit.unwrap_or(total_count as usize);
 
-    // Process in batches with parallelism
-    const BATCH_SIZE: usize = 100;
-    const PARALLEL_TASKS: usize = 5; // Process 5 embeddings in parallel
+    // Process in batches with parallelism - configurable for different hardware
+    let batch_size = config
+        .map(|c| c.embeddings_batch_size())
+        .unwrap_or(100);
+    let parallel_tasks = config
+        .map(|c| c.embeddings_parallel_tasks())
+        .unwrap_or(5);
+    
+    info!(
+        "Using batch_size={}, parallel_tasks={} for embeddings generation",
+        batch_size, parallel_tasks
+    );
     let mut offset = 0;
     let mut processed = 0;
 
     while processed < process_limit {
-        let batch_size = std::cmp::min(BATCH_SIZE, process_limit - processed);
+        let current_batch_size = std::cmp::min(batch_size, process_limit - processed);
 
         // Get batch of casts without embeddings
-        let casts = db.get_casts_without_embeddings(batch_size, offset).await?;
+        let casts = db.get_casts_without_embeddings(current_batch_size, offset).await?;
 
         if casts.is_empty() {
             break;
@@ -73,7 +92,7 @@ pub async fn backfill_cast_embeddings(
                 let embedding_service = Arc::clone(&embedding_service);
                 async move { process_single_cast_with_retry(cast, db, embedding_service, 3).await }
             })
-            .buffered(PARALLEL_TASKS) // Process 5 at a time
+            .buffered(parallel_tasks) // Configurable parallelism based on hardware
             .collect::<Vec<_>>()
             .await;
 
@@ -86,8 +105,8 @@ pub async fn backfill_cast_embeddings(
             }
         }
 
-        processed += batch_size;
-        offset += batch_size;
+        processed += current_batch_size;
+        offset += current_batch_size;
 
         // Report progress every 100 successful embeddings
         if stats.success > 0 && stats.success % 100 == 0 {

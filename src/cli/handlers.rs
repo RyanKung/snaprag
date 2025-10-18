@@ -798,6 +798,7 @@ pub async fn handle_rag_query_casts(
 pub async fn handle_cast_embeddings_backfill(
     config: &AppConfig,
     limit: Option<usize>,
+    endpoint_name: Option<String>,
 ) -> Result<()> {
     use std::sync::Arc;
 
@@ -807,9 +808,27 @@ pub async fn handle_cast_embeddings_backfill(
 
     print_info("🚀 Starting cast embeddings generation...");
 
-    // Create services
+    // Create services with optional endpoint override
     let database = Arc::new(Database::from_config(config).await?);
-    let embedding_service = Arc::new(EmbeddingService::new(config)?);
+    
+    let (embedding_service, endpoint_info) = if let Some(ref ep_name) = endpoint_name {
+        // Use specified endpoint from config
+        let endpoint_config = config.get_embedding_endpoint(ep_name)
+            .ok_or_else(|| crate::SnapRagError::Custom(
+                format!("Endpoint '{}' not found in config. Available endpoints: {:?}",
+                    ep_name,
+                    config.embedding_endpoints().iter().map(|e| &e.name).collect::<Vec<_>>())
+            ))?;
+        
+        let embedding_config = crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config);
+        let service = Arc::new(EmbeddingService::from_config(embedding_config)?);
+        
+        (service, format!("{} ({})", endpoint_config.name, endpoint_config.endpoint))
+    } else {
+        // Use default LLM endpoint
+        let service = Arc::new(EmbeddingService::new(config)?);
+        (service, format!("default ({})", config.llm_endpoint()))
+    };
 
     // Check how many casts need embeddings
     let count = database.count_casts_without_embeddings().await?;
@@ -821,10 +840,19 @@ pub async fn handle_cast_embeddings_backfill(
 
     let process_count = limit.unwrap_or(count as usize);
     println!("\n📊 Found {} casts without embeddings", count);
-    println!("   Processing: {} casts\n", process_count);
+    println!("   Processing: {} casts", process_count);
+    println!("   Endpoint: {}", endpoint_info);
+    println!("   Batch size: {}", config.embeddings_batch_size());
+    println!("   Parallel tasks: {}\n", config.embeddings_parallel_tasks());
 
-    // Run backfill
-    let stats = backfill_cast_embeddings(database, embedding_service, limit).await?;
+    // Run backfill with config
+    let stats = crate::embeddings::cast_backfill::backfill_cast_embeddings_with_config(
+        database,
+        embedding_service,
+        limit,
+        Some(config),
+    )
+    .await?;
 
     // Print results
     println!("\n📈 Cast Embeddings Generation Complete:");
