@@ -136,3 +136,24 @@ snaprag_sync_state.json
 *.lock
 !Cargo.lock
 .env.compile
+
+# Generated documentation files (keep only essential docs)
+*.md
+!README.md
+!CHANGELOG.md
+!LICENSE.md
+!CONTRIBUTING.md
+!CODE_OF_CONDUCT.md
+
+# Temporary analysis and design docs
+*_SUMMARY.md
+*_GUIDE.md
+*_DESIGN.md
+*_USAGE.md
+*_COMMANDS.md
+*_LOGIC.md
+*_TUNING.md
+*_TRACKING.md
+*_ENDPOINTS.md
+*_EXAMPLES.md
+*_QUERIES.md
