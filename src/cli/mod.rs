@@ -29,6 +29,7 @@ pub use handlers::handle_rag_query_casts;
 pub use handlers::handle_rag_search;
 pub use handlers::handle_reset_command;
 pub use handlers::handle_search_command;
+pub use handlers::handle_serve_api;
 pub use handlers::handle_stats_command;
 pub use handlers::handle_sync_command;
 pub use init_handler::handle_init_command;

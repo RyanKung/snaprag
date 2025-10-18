@@ -85,6 +85,7 @@ impl LlmConfig {
 }
 
 /// Main LLM service
+#[derive(Clone)]
 pub struct LlmService {
     client: LlmClient,
     config: LlmConfig,

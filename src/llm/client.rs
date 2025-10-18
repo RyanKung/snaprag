@@ -52,6 +52,7 @@ impl ChatMessage {
 }
 
 /// Client for interacting with LLMs
+#[derive(Clone)]
 pub struct LlmClient {
     provider: LlmProvider,
     model: String,

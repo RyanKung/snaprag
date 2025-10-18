@@ -45,7 +45,7 @@ use crate::errors::Result;
 use crate::models::UserProfile;
 
 /// Search result with relevance score
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SearchResult {
     pub profile: UserProfile,
     pub score: f32,
@@ -53,7 +53,7 @@ pub struct SearchResult {
 }
 
 /// Type of match for the search result
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum MatchType {
     /// Vector similarity match
     Semantic,

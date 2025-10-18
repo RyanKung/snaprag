@@ -199,11 +199,12 @@ impl ShardProcessor {
             batched.profile_updates.len()
         );
 
-        // 🚀 OPTIMIZATION: Verify FIDs in batch before processing
-        // This replaces N individual queries with 1 batch query
-        if !batched.fids_to_ensure.is_empty() {
-            self.batch_verify_fids(&batched.fids_to_ensure).await?;
-        }
+        // 🚀 PERFORMANCE: Skip batch FID verification for faster sync
+        // FIDs will be auto-created via ON CONFLICT DO NOTHING in batch insert
+        // This removes a heavy SELECT query that scans user_activity_timeline
+        // if !batched.fids_to_ensure.is_empty() {
+        //     self.batch_verify_fids(&batched.fids_to_ensure).await?;
+        // }
 
         // Start a transaction for the entire batch
         let mut tx = self.database.pool().begin().await?;
@@ -588,8 +589,9 @@ impl ShardProcessor {
         let timestamp = data.timestamp as i64;
         let message_hash = message.hash.clone();
 
-        // 🔥 STRICT MODE: Verify FID is registered before processing messages
-        self.verify_fid_registered(fid, shard_block_info).await?;
+        // 🚀 PERFORMANCE: Skip FID registration verification for faster sync
+        // FIDs will be auto-created via ON CONFLICT DO NOTHING in batch insert
+        // self.verify_fid_registered(fid, shard_block_info).await?;
 
         // Ensure FID will be created for ALL message types
         batched.fids_to_ensure.insert(fid);

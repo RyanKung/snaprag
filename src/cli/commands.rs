@@ -135,6 +135,9 @@ pub enum Commands {
     /// Embeddings generation commands
     #[command(subcommand)]
     Embeddings(EmbeddingsCommands),
+    /// Serve API commands
+    #[command(subcommand)]
+    Serve(ServeCommands),
 }
 
 #[derive(Subcommand)]
@@ -302,6 +305,34 @@ pub enum EmbeddingsCommands {
     },
     /// Show embedding statistics
     Stats,
+}
+
+#[derive(Subcommand)]
+pub enum ServeCommands {
+    /// Start API server (RESTful + MCP)
+    Api {
+        /// Host to bind to
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+        /// Port to bind to
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+        /// Enable CORS
+        #[arg(long)]
+        cors: bool,
+        /// Enable x402 payment (requires --payment-address)
+        #[cfg(feature = "payment")]
+        #[arg(long)]
+        payment: bool,
+        /// Address to receive payments (required if --payment is enabled)
+        #[cfg(feature = "payment")]
+        #[arg(long)]
+        payment_address: Option<String>,
+        /// Use testnet (base-sepolia) instead of mainnet
+        #[cfg(feature = "payment")]
+        #[arg(long)]
+        testnet: bool,
+    },
 }
 
 #[derive(ValueEnum, Clone)]

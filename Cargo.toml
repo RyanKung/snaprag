@@ -46,6 +46,24 @@ tonic = "0.10"
 prost = "0.12"
 libc = "0.2"
 futures = "0.3"
+rust_decimal = { version = "1.0", features = ["serde"] }
+ethers = { version = "2.0", features = ["abigen", "ws"] }
+# Web server dependencies
+axum = { version = "0.7", features = ["json", "macros"] }
+tower = { version = "0.4", features = ["timeout", "limit"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "compression-gzip"] }
+hyper = { version = "1.0", features = ["full"] }
+tokio-util = "0.7"
+
+# x402 payment protocol (local development)
+# NOTE: Switch to crate or git dependency for production
+# rust-x402 = "0.1"  # Production
+# rust-x402 = { git = "https://github.com/RyanKung/x402_rs" }  # Git
+rust-x402 = { path = "../rust-x402", features = ["axum"], optional = true }
+
+[features]
+default = []
+payment = ["rust-x402"]
 
 [build-dependencies]
 protobuf-codegen-pure = "2.28"

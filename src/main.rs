@@ -4,6 +4,7 @@ use snaprag::cli::Cli;
 use snaprag::cli::Commands;
 use snaprag::cli::EmbeddingsCommands;
 use snaprag::cli::RagCommands;
+use snaprag::cli::ServeCommands;
 use snaprag::cli::SyncCommands;
 use snaprag::AppConfig;
 use snaprag::Result;
@@ -205,6 +206,33 @@ async fn main() -> Result<()> {
             }
             EmbeddingsCommands::Stats => {
                 snaprag::cli::handle_embeddings_stats(&config).await?;
+            }
+        },
+        Commands::Serve(serve_command) => match serve_command {
+            ServeCommands::Api {
+                host,
+                port,
+                cors,
+                #[cfg(feature = "payment")]
+                payment,
+                #[cfg(feature = "payment")]
+                payment_address,
+                #[cfg(feature = "payment")]
+                testnet,
+            } => {
+                snaprag::cli::handle_serve_api(
+                    &config,
+                    host,
+                    port,
+                    cors,
+                    #[cfg(feature = "payment")]
+                    payment,
+                    #[cfg(feature = "payment")]
+                    payment_address,
+                    #[cfg(feature = "payment")]
+                    testnet,
+                )
+                .await?;
             }
         },
     }
