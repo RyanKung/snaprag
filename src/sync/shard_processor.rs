@@ -174,7 +174,7 @@ impl ShardProcessor {
                 tx_idx,
                 &mut batched,
             )
-                .await?;
+            .await?;
         }
 
         // Batch insert all collected data
@@ -251,7 +251,10 @@ impl ShardProcessor {
 
         // Batch insert casts (split into chunks to avoid parameter limit)
         if !batched.casts.is_empty() {
-            tracing::trace!("Batch inserting {} casts (before dedup)", batched.casts.len());
+            tracing::trace!(
+                "Batch inserting {} casts (before dedup)",
+                batched.casts.len()
+            );
 
             // 🚀 CRITICAL FIX: Deduplicate by message_hash to avoid "affect row a second time" error
             // Keep the latest version of each cast (by timestamp)
@@ -266,7 +269,9 @@ impl ShardProcessor {
             if original_count != deduped_count {
                 tracing::debug!(
                     "Deduplicated casts: {} -> {} ({} duplicates removed)",
-                    original_count, deduped_count, original_count - deduped_count
+                    original_count,
+                    deduped_count,
+                    original_count - deduped_count
                 );
             }
 
@@ -416,7 +421,7 @@ impl ShardProcessor {
             }
 
             let now = chrono::Utc::now();
-            
+
             // 🚀 Use unnest() for batch updates - much faster!
             for (field_name, updates) in updates_by_field {
                 if updates.is_empty() {
@@ -426,7 +431,7 @@ impl ShardProcessor {
                 let mut fids = Vec::with_capacity(updates.len());
                 let mut values = Vec::with_capacity(updates.len());
                 let mut timestamps = Vec::with_capacity(updates.len());
-                
+
                 for (fid, value, timestamp) in updates {
                     fids.push(fid);
                     values.push(value);
@@ -478,7 +483,7 @@ impl ShardProcessor {
         }
 
         let fid_vec: Vec<i64> = fids.iter().copied().collect();
-        
+
         // 🚀 Single query to check all FIDs at once
         let registered_fids = sqlx::query_scalar::<_, i64>(
             r#"
@@ -848,9 +853,9 @@ impl ShardProcessor {
 
         // Process user messages in this transaction (only if fid > 0)
         if fid > 0 {
-        for (msg_idx, message) in transaction.user_messages.iter().enumerate() {
-            self.process_user_message(message, &shard_block_info, msg_idx)
-                .await?;
+            for (msg_idx, message) in transaction.user_messages.iter().enumerate() {
+                self.process_user_message(message, &shard_block_info, msg_idx)
+                    .await?;
             }
         }
 
@@ -926,7 +931,7 @@ impl ShardProcessor {
                 // Log unhandled message types (12=UsernameProof, 13=FrameAction, etc.)
                 // These are less common, so we log them but don't fail
                 if message_type > 0 {
-                warn!("Unhandled message type: {} for FID {}", message_type, fid);
+                    warn!("Unhandled message type: {} for FID {}", message_type, fid);
                 }
             }
         }
@@ -1686,9 +1691,10 @@ impl ShardProcessor {
         // This reduces per-message database queries from N to 1
         tracing::debug!(
             "FID {} not in cache at block {} - will verify in batch",
-            fid, shard_block_info.block_height
+            fid,
+            shard_block_info.block_height
         );
-        
+
         Ok(())
     }
 }

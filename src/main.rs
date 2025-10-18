@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
         cli.command,
         Commands::Init { .. } | Commands::Reset { .. } | Commands::Embeddings(..)
     );
-    
+
     if needs_schema_init {
         snaprag.init_database().await?;
         info!("Database schema initialized");
@@ -44,7 +44,10 @@ async fn main() -> Result<()> {
 
     // Execute the requested command
     match cli.command {
-        Commands::Init { force, skip_indexes } => {
+        Commands::Init {
+            force,
+            skip_indexes,
+        } => {
             snaprag::cli::handle_init_command(&snaprag, force, skip_indexes).await?;
         }
         Commands::List {

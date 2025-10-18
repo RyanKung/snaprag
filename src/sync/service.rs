@@ -916,7 +916,7 @@ impl SyncService {
             match self.lock_manager.read_lock() {
                 Ok(mut lock) => {
                     let pid = lock.pid;
-                    
+
                     if force {
                         info!("Force stopping sync process (PID: {})", pid);
                         lock.update_status("force_stopped");
@@ -937,36 +937,33 @@ impl SyncService {
                     // 🚀 CRITICAL FIX: Actually kill the process
                     let current_pid = std::process::id();
                     info!("Current PID: {}, Target PID: {}", current_pid, pid);
-                    
+
                     if pid != current_pid {
                         // Killing a different process
                         let signal = if force { 9 } else { 15 }; // SIGKILL or SIGTERM
                         info!("⚡ Sending signal {} to process {}", signal, pid);
-                        
+
                         #[cfg(unix)]
                         {
                             // Use libc to send signal
-                            let result = unsafe {
-                                libc::kill(pid as libc::pid_t, signal)
-                            };
-                            
+                            let result = unsafe { libc::kill(pid as libc::pid_t, signal) };
+
                             info!("Kill result: {}", result);
-                            
+
                             if result == 0 {
                                 info!("✅ Signal sent successfully to process {}", pid);
                                 // Wait for process to terminate
                                 tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-                                
+
                                 // Verify process is gone
-                                let check = unsafe {
-                                    libc::kill(pid as libc::pid_t, 0)
-                                };
+                                let check = unsafe { libc::kill(pid as libc::pid_t, 0) };
                                 if check == 0 {
                                     warn!("⚠️  Process {} still running after signal, sending SIGKILL", pid);
                                     unsafe {
                                         libc::kill(pid as libc::pid_t, 9);
                                     }
-                                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(500))
+                                        .await;
                                 } else {
                                     info!("✅ Process {} terminated successfully", pid);
                                 }
@@ -975,7 +972,7 @@ impl SyncService {
                                 warn!("❌ Failed to send signal to process {} (result: {}, errno: {})", pid, result, errno);
                             }
                         }
-                        
+
                         #[cfg(not(unix))]
                         {
                             warn!("Process termination not supported on this platform");

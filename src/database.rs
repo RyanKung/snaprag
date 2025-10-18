@@ -94,7 +94,8 @@ impl Database {
                 "❌ Database schema not initialized!\n\n\
                  Please run the following command to initialize the database:\n\n\
                  \x1b[1;32msnaprag init --force\x1b[0m\n\n\
-                 Then start sync again.".to_string()
+                 Then start sync again."
+                    .to_string(),
             ));
         }
         Ok(())
@@ -316,10 +317,10 @@ impl Database {
     async fn create_indexes(&self) -> Result<()> {
         // 🚀 OPTIMIZATION: Use CONCURRENTLY and skip slow index checks
         // Only create truly essential indexes, others should be in migrations
-        
+
         // User profiles - essential unique constraint index (auto-created)
         // idx_user_profiles_fid already exists via UNIQUE constraint
-        
+
         // Profile snapshots - only if needed for queries
         sqlx::query("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_profile_snapshots_fid_timestamp ON user_profile_snapshots(fid, snapshot_timestamp DESC)")
             .execute(&self.pool)
@@ -1240,7 +1241,7 @@ impl Database {
     /// Get the last processed height for a shard
     pub async fn get_last_processed_height(&self, shard_id: u32) -> Result<u64> {
         let row = sqlx::query_scalar::<_, Option<i64>>(
-            "SELECT last_processed_height FROM sync_progress WHERE shard_id = $1"
+            "SELECT last_processed_height FROM sync_progress WHERE shard_id = $1",
         )
         .bind(shard_id as i32)
         .fetch_optional(&self.pool)
@@ -1260,7 +1261,7 @@ impl Database {
                 last_processed_height = EXCLUDED.last_processed_height,
                 status = 'syncing',
                 updated_at = NOW()
-            "#
+            "#,
         )
         .bind(shard_id as i32)
         .bind(height as i64)
@@ -1286,7 +1287,7 @@ impl Database {
                 status = EXCLUDED.status,
                 error_message = EXCLUDED.error_message,
                 updated_at = NOW()
-            "#
+            "#,
         )
         .bind(shard_id as i32)
         .bind(status)
@@ -1317,7 +1318,7 @@ impl Database {
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (message_hash) DO NOTHING
-            "#
+            "#,
         )
         .bind(message_hash)
         .bind(shard_id as i32)
@@ -1336,7 +1337,7 @@ impl Database {
     /// Check if a message has been processed
     pub async fn is_message_processed(&self, message_hash: &[u8]) -> Result<bool> {
         let row = sqlx::query_scalar::<_, i32>(
-            "SELECT 1 FROM processed_messages WHERE message_hash = $1 LIMIT 1"
+            "SELECT 1 FROM processed_messages WHERE message_hash = $1 LIMIT 1",
         )
         .bind(message_hash)
         .fetch_optional(&self.pool)
@@ -1361,7 +1362,7 @@ impl Database {
                 total_messages = EXCLUDED.total_messages,
                 total_blocks = EXCLUDED.total_blocks,
                 last_updated = NOW()
-            "#
+            "#,
         )
         .bind(shard_id as i32)
         .bind(total_messages as i64)
@@ -1414,7 +1415,7 @@ impl Database {
                 target_fid = EXCLUDED.target_fid,
                 link_type = EXCLUDED.link_type,
                 timestamp = EXCLUDED.timestamp
-            "#
+            "#,
         )
         .bind(fid)
         .bind(target_fid)
@@ -1487,7 +1488,7 @@ impl Database {
                 data_type = EXCLUDED.data_type,
                 value = EXCLUDED.value,
                 timestamp = EXCLUDED.timestamp
-            "#
+            "#,
         )
         .bind(fid)
         .bind(data_type)

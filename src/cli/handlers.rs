@@ -36,7 +36,7 @@ pub async fn handle_list_command(
 ) -> Result<()> {
     // TODO: Re-enable after first init
     // snaprag.database().verify_schema_or_error().await?;
-    
+
     match data_type {
         DataType::Fid => {
             print_list_header("FIDs", limit);
@@ -195,9 +195,7 @@ pub async fn handle_list_command(
 /// Handle reset command
 pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> {
     if !force {
-        print_warning(
-            "This will DROP ALL TABLES from the database and remove lock files!",
-        );
+        print_warning("This will DROP ALL TABLES from the database and remove lock files!");
         print_warning("This is a complete reset - all data will be lost!");
         print_prompt("Are you sure you want to continue? (y/N)");
 
@@ -222,7 +220,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
 
     // 🚀 DROP all tables (complete reset)
     let tables = [
-        "cast_embeddings",       // Drop first due to FK constraint
+        "cast_embeddings", // Drop first due to FK constraint
         "user_activity_timeline",
         "user_profiles",
         "user_profile_snapshots",
@@ -261,7 +259,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     print_success("✅ Database completely reset!");
     print_info("ℹ️  To reinitialize, run:");
     println!("   snaprag init --force");
-    
+
     Ok(())
 }
 
@@ -858,7 +856,7 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
             // snaprag.database().verify_schema_or_error().await?;
         }
     }
-    
+
     match sync_command {
         SyncCommands::All => {
             print_info("Starting full synchronization (historical + real-time)...");
