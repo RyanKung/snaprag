@@ -57,14 +57,14 @@ impl PricingConfig {
                 .iter()
                 .any(|p| path.starts_with(p))
         {
-            return Some(Decimal::from_str("0.100000").unwrap()); // $0.1
+            return Some(Decimal::from_str("0.010000").unwrap()); // $0.01 (10000 atomic units)
         }
 
         // Check premium tier
         if self.premium_endpoints.contains(&path.to_string())
             || self.premium_endpoints.iter().any(|p| path.starts_with(p))
         {
-            return Some(Decimal::from_str("0.010000").unwrap()); // $0.01
+            return Some(Decimal::from_str("0.001000").unwrap()); // $0.001 (1000 atomic units)
         }
 
         // Check basic tier
@@ -74,7 +74,7 @@ impl PricingConfig {
                 .iter()
                 .any(|p| self.matches_pattern(p, path))
         {
-            return Some(Decimal::from_str("0.001000").unwrap()); // $0.001
+            return Some(Decimal::from_str("0.000100").unwrap()); // $0.0001 (100 atomic units)
         }
 
         // Default: no payment required (be conservative)
