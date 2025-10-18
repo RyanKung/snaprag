@@ -50,7 +50,7 @@ pub async fn serve_api(
     let mcp_router = mcp::mcp_routes(state.clone());
 
     // Combine routes with optional payment middleware
-    let mut app = Router::new();
+    let mut app;
 
     #[cfg(feature = "payment")]
     if payment_enabled {
