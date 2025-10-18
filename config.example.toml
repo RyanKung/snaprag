@@ -1,33 +1,47 @@
 # SnapRAG Configuration
 
 [database]
-url = "postgresql://username:password@your-db-host:5432/your-database"
-max_connections = 20
-min_connections = 5
-connection_timeout = 30
+url = "postgresql://snaprag:hackinthebox_24601@192.168.1.192/snaprag"
+max_connections = 100
+min_connections = 20
+connection_timeout = 60
 
 [logging]
 level = "info"
 backtrace = true
 
 [embeddings]
-dimension = 1536
-model = "text-embedding-ada-002"
+dimension = 768
+model = "nomic-embed-text"
 
 [performance]
 enable_vector_indexes = true
 vector_index_lists = 100
 
-# Snapchain Synchronization Configuration
 [sync]
-snapchain_http_endpoint = "http://localhost:3381"
-snapchain_grpc_endpoint = "http://localhost:3383"
+snapchain_http_endpoint = "http://192.168.1.192:3381"
+snapchain_grpc_endpoint = "http://192.168.1.192:3383"
 enable_realtime_sync = true
-enable_historical_sync = false
+enable_historical_sync = true
 historical_sync_from_event_id = 0
-batch_size = 100
-sync_interval_ms = 1000
+batch_size = 500
+sync_interval_ms = 50
 # Shard IDs to sync:
 # 0 = Block shard (coordinator, contains shard witnesses and global state)
 # 1,2 = User shards (contain actual user transactions and messages)
-shard_ids = [0, 1, 2]
+shard_ids = [1, 2]
+
+
+[llm]
+llm_endpoint = "http://192.168.1.192:80"
+llm_key = "ollama"
+llm_model = "gemma3:27b"
+
+[x402]
+# x402 payment configuration
+# Payment address (defaults to burn address 0x0 - all payments destroyed)
+payment_address = "0x0000000000000000000000000000000000000000"
+# Use mainnet (base) or testnet (base-sepolia)
+use_testnet = false
+# Enable payment by default
+enabled = false
