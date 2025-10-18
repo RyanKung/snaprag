@@ -58,12 +58,16 @@ pub struct X402Config {
     /// Address to receive payments (defaults to burn address)
     #[serde(default = "default_payment_address")]
     pub payment_address: String,
-    /// Use testnet (base-sepolia) instead of mainnet (base)
-    #[serde(default)]
+    /// Use testnet (base-sepolia) - x402.org/facilitator only supports testnet currently
+    #[serde(default = "default_use_testnet")]
     pub use_testnet: bool,
     /// Enable payment by default
     #[serde(default)]
     pub enabled: bool,
+}
+
+fn default_use_testnet() -> bool {
+    true  // x402.org/facilitator currently only supports testnet
 }
 
 fn default_payment_address() -> String {
@@ -74,7 +78,7 @@ impl Default for X402Config {
     fn default() -> Self {
         Self {
             payment_address: default_payment_address(),
-            use_testnet: false,
+            use_testnet: true,  // x402.org/facilitator only supports testnet
             enabled: false,
         }
     }

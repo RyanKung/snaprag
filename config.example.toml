@@ -41,7 +41,7 @@ llm_model = "gemma3:27b"
 # x402 payment configuration
 # Payment address (defaults to burn address 0x0 - all payments destroyed)
 payment_address = "0x0000000000000000000000000000000000000000"
-# Use mainnet (base) or testnet (base-sepolia)
-use_testnet = false
+# Use testnet (base-sepolia) - x402.org/facilitator only supports testnet
+use_testnet = true
 # Enable payment by default
 enabled = false
