@@ -222,15 +222,15 @@ async fn main() -> Result<()> {
             } => {
                 snaprag::cli::handle_serve_api(
                     &config,
-                    host,
-                    port,
-                    cors,
+                    host.clone(),
+                    *port,
+                    *cors,
                     #[cfg(feature = "payment")]
-                    payment,
+                    *payment,
                     #[cfg(feature = "payment")]
-                    payment_address,
+                    payment_address.clone(),
                     #[cfg(feature = "payment")]
-                    testnet,
+                    *testnet,
                 )
                 .await?;
             }

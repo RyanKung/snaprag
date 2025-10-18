@@ -328,10 +328,10 @@ pub enum ServeCommands {
             #[cfg(feature = "payment")]
             #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
             payment_address: Option<String>,
-            /// Use testnet (base-sepolia) instead of mainnet (base)
+            /// Use testnet (base-sepolia) or mainnet (base). If not specified, uses config default.
             #[cfg(feature = "payment")]
             #[arg(long)]
-            testnet: bool,
+            testnet: Option<bool>,
     },
 }
 

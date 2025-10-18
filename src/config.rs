@@ -257,6 +257,7 @@ impl Default for AppConfig {
                 llm_key: "ollama".to_string(),
                 llm_model: "gemma3:27b".to_string(),
             },
+            x402: X402Config::default(),
         }
     }
 }

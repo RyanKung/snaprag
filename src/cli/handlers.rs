@@ -1538,7 +1538,7 @@ pub async fn handle_serve_api(
     cors: bool,
     #[cfg(feature = "payment")] payment: bool,
     #[cfg(feature = "payment")] payment_address: Option<String>,
-    #[cfg(feature = "payment")] testnet: bool,
+    #[cfg(feature = "payment")] testnet: Option<bool>,
 ) -> Result<()> {
     use crate::api::serve_api;
 
@@ -1549,6 +1549,9 @@ pub async fn handle_serve_api(
     println!("🌐 CORS: {}", if cors { "Enabled" } else { "Disabled" });
 
     #[cfg(feature = "payment")]
+    let testnet_final = testnet.unwrap_or(config.x402.use_testnet);
+
+    #[cfg(feature = "payment")]
     if payment {
         println!("💰 Payment: ENABLED");
         if let Some(addr) = &payment_address {
@@ -1556,7 +1559,7 @@ pub async fn handle_serve_api(
         }
         println!(
             "🌐 Network: {}",
-            if testnet {
+            if testnet_final {
                 "base-sepolia (testnet)"
             } else {
                 "base (mainnet)"
@@ -1582,7 +1585,7 @@ pub async fn handle_serve_api(
         #[cfg(feature = "payment")]
         payment_address,
         #[cfg(feature = "payment")]
-        testnet,
+        testnet_final,
     )
     .await?;
 
