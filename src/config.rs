@@ -54,6 +54,33 @@ fn default_llm_model() -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct X402Config {
+    /// Address to receive payments (defaults to burn address)
+    #[serde(default = "default_payment_address")]
+    pub payment_address: String,
+    /// Use testnet (base-sepolia) instead of mainnet (base)
+    #[serde(default)]
+    pub use_testnet: bool,
+    /// Enable payment by default
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+fn default_payment_address() -> String {
+    "0x0000000000000000000000000000000000000000".to_string()
+}
+
+impl Default for X402Config {
+    fn default() -> Self {
+        Self {
+            payment_address: default_payment_address(),
+            use_testnet: false,
+            enabled: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
     pub logging: LoggingConfig,
@@ -61,6 +88,8 @@ pub struct AppConfig {
     pub performance: PerformanceConfig,
     pub sync: SyncConfig,
     pub llm: LlmConfig,
+    #[serde(default)]
+    pub x402: X402Config,
 }
 
 impl AppConfig {

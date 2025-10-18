@@ -320,18 +320,18 @@ pub enum ServeCommands {
         /// Enable CORS
         #[arg(long)]
         cors: bool,
-        /// Enable x402 payment (requires --payment-address)
-        #[cfg(feature = "payment")]
-        #[arg(long)]
-        payment: bool,
-        /// Address to receive payments (required if --payment is enabled)
-        #[cfg(feature = "payment")]
-        #[arg(long)]
-        payment_address: Option<String>,
-        /// Use testnet (base-sepolia) instead of mainnet
-        #[cfg(feature = "payment")]
-        #[arg(long)]
-        testnet: bool,
+            /// Enable x402 payment
+            #[cfg(feature = "payment")]
+            #[arg(long)]
+            payment: bool,
+            /// Address to receive payments (defaults to 0x0 - burn address)
+            #[cfg(feature = "payment")]
+            #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
+            payment_address: Option<String>,
+            /// Use testnet (base-sepolia) instead of mainnet (base)
+            #[cfg(feature = "payment")]
+            #[arg(long)]
+            testnet: bool,
     },
 }
 
