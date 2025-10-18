@@ -50,13 +50,9 @@ pub async fn backfill_cast_embeddings_with_config(
     let process_limit = limit.unwrap_or(total_count as usize);
 
     // Process in batches with parallelism - configurable for different hardware
-    let batch_size = config
-        .map(|c| c.embeddings_batch_size())
-        .unwrap_or(100);
-    let parallel_tasks = config
-        .map(|c| c.embeddings_parallel_tasks())
-        .unwrap_or(5);
-    
+    let batch_size = config.map(|c| c.embeddings_batch_size()).unwrap_or(100);
+    let parallel_tasks = config.map(|c| c.embeddings_parallel_tasks()).unwrap_or(5);
+
     info!(
         "Using batch_size={}, parallel_tasks={} for embeddings generation",
         batch_size, parallel_tasks
@@ -68,7 +64,9 @@ pub async fn backfill_cast_embeddings_with_config(
         let current_batch_size = std::cmp::min(batch_size, process_limit - processed);
 
         // Get batch of casts without embeddings
-        let casts = db.get_casts_without_embeddings(current_batch_size, offset).await?;
+        let casts = db
+            .get_casts_without_embeddings(current_batch_size, offset)
+            .await?;
 
         if casts.is_empty() {
             break;

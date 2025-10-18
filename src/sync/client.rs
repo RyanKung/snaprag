@@ -177,7 +177,7 @@ pub mod proto {
 #[derive(Clone)]
 pub struct SnapchainClient {
     client: Client,
-    base_url: String,
+    base_url: String, // HTTP endpoint for REST API
     grpc_client: HubServiceClient<Channel>,
 }
 
@@ -189,29 +189,32 @@ pub struct SnapchainProtobufClient {
 }
 
 impl SnapchainClient {
-    /// Create a new Snapchain client
-    pub async fn new(endpoint: &str) -> Result<Self> {
+    /// Create a new Snapchain client with separate HTTP and gRPC endpoints
+    pub async fn new(http_endpoint: &str, grpc_endpoint: &str) -> Result<Self> {
         let client = Client::new();
-        let base_url = endpoint.trim_end_matches('/').to_string();
+        let base_url = http_endpoint.trim_end_matches('/').to_string();
 
         // Create gRPC client with increased message size limits for large batch requests
-        let endpoint_url = if endpoint.starts_with("http://") {
-            endpoint.to_string()
+        let grpc_url = if grpc_endpoint.starts_with("http://") {
+            grpc_endpoint.to_string()
         } else {
-            format!("http://{}", endpoint)
+            format!("http://{}", grpc_endpoint)
         };
 
-        println!("Creating gRPC client for endpoint: {}", endpoint_url);
+        tracing::debug!("Creating Snapchain client:");
+        tracing::debug!("  HTTP endpoint: {}", base_url);
+        tracing::debug!("  gRPC endpoint: {}", grpc_url);
 
         // Use the generated gRPC client
         let mut grpc_client =
-            crate::generated::grpc_client::hub_service_client::HubServiceClient::connect(
-                endpoint_url,
-            )
-            .await
-            .map_err(|e| {
-                crate::SnapRagError::Custom(format!("Failed to connect to gRPC endpoint: {}", e))
-            })?;
+            crate::generated::grpc_client::hub_service_client::HubServiceClient::connect(grpc_url)
+                .await
+                .map_err(|e| {
+                    crate::SnapRagError::Custom(format!(
+                        "Failed to connect to gRPC endpoint: {}",
+                        e
+                    ))
+                })?;
 
         // Set large message size limits for batch processing after client creation
         // Default is 4MB, we increase to 256MB to support batch_size up to 50
@@ -229,7 +232,11 @@ impl SnapchainClient {
 
     /// Create a new Snapchain client from AppConfig
     pub async fn from_config(config: &crate::AppConfig) -> Result<Self> {
-        Self::new(config.snapchain_grpc_endpoint()).await
+        Self::new(
+            config.snapchain_http_endpoint(),
+            config.snapchain_grpc_endpoint(),
+        )
+        .await
     }
 
     /// Get node information

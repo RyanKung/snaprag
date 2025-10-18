@@ -39,10 +39,18 @@ pub async fn serve_api(
     let embedding_service = Arc::new(EmbeddingService::new(config)?);
     let llm_service = Arc::new(LlmService::new(config)?);
 
+    // Initialize lazy loader for on-demand fetching
+    let snapchain_client = Arc::new(crate::sync::SnapchainClient::from_config(config).await?);
+    let lazy_loader = Some(Arc::new(crate::sync::LazyLoader::new(
+        database.clone(),
+        snapchain_client,
+    )));
+
     let state = AppState {
         database,
         embedding_service,
         llm_service,
+        lazy_loader,
     };
 
     // Build API routes

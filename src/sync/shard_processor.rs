@@ -439,18 +439,24 @@ impl ShardProcessor {
                     timestamps.push(timestamp);
                 }
 
-                // Dynamic SQL based on field name
+                // Dynamic SQL with timestamp check - only update if newer or equal
                 let sql = format!(
                     r#"
                     UPDATE user_profiles AS up
-                    SET {} = data.value,
-                        last_updated_timestamp = data.timestamp,
-                        last_updated_at = $4
+                    SET {} = CASE 
+                            WHEN data.timestamp >= up.last_updated_timestamp THEN data.value
+                            ELSE up.{}
+                        END,
+                        last_updated_timestamp = GREATEST(data.timestamp, up.last_updated_timestamp),
+                        last_updated_at = CASE 
+                            WHEN data.timestamp >= up.last_updated_timestamp THEN $4
+                            ELSE up.last_updated_at
+                        END
                     FROM unnest($1::bigint[], $2::text[], $3::bigint[]) 
                         AS data(fid, value, timestamp)
                     WHERE up.fid = data.fid
                     "#,
-                    field_name
+                    field_name, field_name
                 );
 
                 sqlx::query(&sql)
@@ -1037,7 +1043,7 @@ impl ShardProcessor {
         Ok(())
     }
 
-    /// Update a specific field in user profile
+    /// Update a specific field in user profile (timestamp-aware)
     async fn update_profile_field(
         &self,
         fid: i64,
@@ -1047,23 +1053,48 @@ impl ShardProcessor {
     ) -> Result<()> {
         let now = chrono::Utc::now();
 
-        // Build dynamic SQL based on field name
+        // Build dynamic SQL with timestamp check
+        // Only update if new data is newer OR timestamp is equal (for completeness)
         let sql = format!(
             r#"
             UPDATE user_profiles 
-            SET {} = $1, last_updated_timestamp = $2, last_updated_at = $3
+            SET {} = CASE 
+                    WHEN $2 >= last_updated_timestamp THEN $1
+                    ELSE {}
+                END,
+                last_updated_timestamp = GREATEST($2, last_updated_timestamp),
+                last_updated_at = CASE 
+                    WHEN $2 >= last_updated_timestamp THEN $3
+                    ELSE last_updated_at
+                END
             WHERE fid = $4
             "#,
-            field_name
+            field_name, field_name
         );
 
-        sqlx::query(&sql)
+        let result = sqlx::query(&sql)
             .bind(value)
             .bind(timestamp)
             .bind(now)
             .bind(fid)
             .execute(self.database.pool())
             .await?;
+
+        if result.rows_affected() > 0 {
+            tracing::trace!(
+                "Updated {} for FID {} (timestamp: {})",
+                field_name,
+                fid,
+                timestamp
+            );
+        } else {
+            tracing::trace!(
+                "Skipped update {} for FID {} (older timestamp: {})",
+                field_name,
+                fid,
+                timestamp
+            );
+        }
 
         Ok(())
     }

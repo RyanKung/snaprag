@@ -237,7 +237,31 @@ async fn call_tool(
                 .and_then(|v| v.as_i64())
                 .ok_or(StatusCode::BAD_REQUEST)?;
 
-            match state.database.get_user_profile(fid).await {
+            // Try database first, then lazy load if available
+            let profile_result = match state.database.get_user_profile(fid).await {
+                Ok(Some(p)) => Ok(Some(p)),
+                Ok(None) => {
+                    // Try lazy loading if available
+                    if let Some(loader) = &state.lazy_loader {
+                        info!("⚡ MCP: Profile {} not found, attempting lazy load", fid);
+                        match loader.fetch_user_profile(fid as u64).await {
+                            Ok(p) => {
+                                info!("✅ MCP: Successfully lazy loaded profile {}", fid);
+                                Ok(Some(p))
+                            }
+                            Err(e) => {
+                                info!("MCP: Failed to lazy load profile {}: {}", fid, e);
+                                Ok(None)
+                            }
+                        }
+                    } else {
+                        Ok(None)
+                    }
+                }
+                Err(e) => Err(e),
+            };
+
+            match profile_result {
                 Ok(Some(profile)) => {
                     let text =
                         serde_json::to_string_pretty(&profile).unwrap_or_else(|_| "{}".to_string());
@@ -252,7 +276,7 @@ async fn call_tool(
                 Ok(None) => Ok(Json(McpToolCallResponse {
                     content: vec![McpContent {
                         r#type: "text".to_string(),
-                        text: "Profile not found".to_string(),
+                        text: "Profile not found (even after lazy load attempt)".to_string(),
                     }],
                     is_error: true,
                 })),

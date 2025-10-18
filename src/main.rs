@@ -3,6 +3,7 @@ use snaprag::cli::CastCommands;
 use snaprag::cli::Cli;
 use snaprag::cli::Commands;
 use snaprag::cli::EmbeddingsCommands;
+use snaprag::cli::FetchCommands;
 use snaprag::cli::RagCommands;
 use snaprag::cli::ServeCommands;
 use snaprag::cli::SyncCommands;
@@ -206,6 +207,55 @@ async fn main() -> Result<()> {
             }
             EmbeddingsCommands::Stats => {
                 snaprag::cli::handle_embeddings_stats(&config).await?;
+            }
+        },
+        Commands::Fetch(fetch_command) => match fetch_command {
+            FetchCommands::User {
+                fid,
+                with_casts,
+                max_casts,
+                generate_embeddings,
+                embedding_endpoint,
+            } => {
+                snaprag::cli::handle_fetch_user(
+                    &config,
+                    fid,
+                    with_casts,
+                    max_casts,
+                    generate_embeddings,
+                    embedding_endpoint,
+                )
+                .await?;
+            }
+            FetchCommands::Users {
+                fids,
+                with_casts,
+                generate_embeddings,
+                embedding_endpoint,
+            } => {
+                snaprag::cli::handle_fetch_users(
+                    &config,
+                    fids,
+                    with_casts,
+                    generate_embeddings,
+                    embedding_endpoint,
+                )
+                .await?;
+            }
+            FetchCommands::Popular {
+                limit,
+                with_casts,
+                generate_embeddings,
+                embedding_endpoint,
+            } => {
+                snaprag::cli::handle_fetch_popular(
+                    &config,
+                    limit,
+                    with_casts,
+                    generate_embeddings,
+                    embedding_endpoint,
+                )
+                .await?;
             }
         },
         Commands::Serve(serve_command) => match serve_command {

@@ -1,10 +1,16 @@
-# SnapRAG Configuration
+# SnapRAG Configuration Example
+# Copy this file to config.toml and update with your settings
 
 [database]
-url = "postgresql://snaprag:password@127.0.0.1/snaprag"
+# PostgreSQL connection URL
+# Format: postgresql://username:password@host:port/database
+url = "postgresql://snaprag:your-password@localhost/snaprag"
 max_connections = 100
-min_connections = 20
+# For CLI usage: set min_connections=2 for faster startup
+# For API server: set min_connections=10-20 for better concurrency
+min_connections = 2
 connection_timeout = 60
+slow_query_threshold_secs = 1.5
 
 [logging]
 level = "info"
@@ -14,34 +20,74 @@ backtrace = true
 dimension = 768
 model = "nomic-embed-text"
 
+# Batch processing configuration (adjust based on GPU/CPU capacity)
+# For CPU-only: batch_size=100-200, parallel_tasks=5-10
+# For GPU (Tesla V100): batch_size=500-1000, parallel_tasks=100-200
+batch_size = 500          # Number of items to fetch from DB per batch
+parallel_tasks = 100      # Number of concurrent embedding requests
+
+# Multiple embedding endpoints (OpenAI-compatible APIs)
+# Use --endpoint flag to select: snaprag embeddings backfill-casts --endpoint openai
+[[embeddings.endpoints]]
+name = "ollama"
+endpoint = "http://localhost:11434"  # Default Ollama port
+model = "nomic-embed-text"
+provider = "ollama"
+# api_key not needed for Ollama
+
+[[embeddings.endpoints]]
+name = "openai"
+endpoint = "https://api.openai.com/v1"
+api_key = "sk-your-openai-api-key-here"  # Replace with your actual key
+model = "text-embedding-3-small"
+provider = "openai"
+
+[[embeddings.endpoints]]
+name = "azure"
+endpoint = "https://your-resource.openai.azure.com"  # Replace with your Azure endpoint
+api_key = "your-azure-api-key-here"
+model = "text-embedding-ada-002"
+provider = "openai"
+
+[[embeddings.endpoints]]
+name = "vllm"
+endpoint = "http://localhost:8000/v1"
+model = "BAAI/bge-large-en-v1.5"
+provider = "openai"  # vLLM uses OpenAI-compatible API
+
 [performance]
 enable_vector_indexes = true
 vector_index_lists = 100
 
 [sync]
-snapchain_http_endpoint = "http://192.168.1.192:3381"
-snapchain_grpc_endpoint = "http://192.168.1.192:3383"
+# Snapchain endpoints (HTTP for REST API, gRPC for streaming)
+snapchain_http_endpoint = "http://localhost:3381"
+snapchain_grpc_endpoint = "http://localhost:3383"
 enable_realtime_sync = true
 enable_historical_sync = true
 historical_sync_from_event_id = 0
 batch_size = 500
 sync_interval_ms = 50
+
 # Shard IDs to sync:
 # 0 = Block shard (coordinator, contains shard witnesses and global state)
 # 1,2 = User shards (contain actual user transactions and messages)
 shard_ids = [1, 2]
 
-
 [llm]
-llm_endpoint = "http://192.168.1.192:80"
+# LLM endpoint for RAG queries
+# Ollama default: http://localhost:11434
+# Remote: http://your-server:port
+llm_endpoint = "http://localhost:11434"
 llm_key = "ollama"
 llm_model = "gemma3:27b"
 
 [x402]
-# x402 payment configuration
-# Payment address (defaults to burn address 0x0 - all payments destroyed)
+# x402 payment configuration (optional, for paid API access)
+# Payment address - where USDC payments will be sent
+# Use burn address (0x0) to destroy payments, or your address to receive them
 payment_address = "0x0000000000000000000000000000000000000000"
-# Use testnet (base-sepolia) - x402.org/facilitator only supports testnet
+# Use testnet (base-sepolia) - x402.org/facilitator only supports testnet currently
 use_testnet = true
 # Enable payment by default
 enabled = false

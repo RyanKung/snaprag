@@ -25,12 +25,21 @@ impl Database {
             .acquire_timeout(std::time::Duration::from_secs(config.connection_timeout()))
             .after_connect(move |conn, _meta| {
                 Box::pin(async move {
-                    sqlx::query(&format!(
+                    // Try to set slow query logging, but don't fail if no permission
+                    // This requires ALTER SYSTEM or SUPERUSER privileges
+                    if let Err(e) = sqlx::query(&format!(
                         "SET log_min_duration_statement = {}",
                         threshold_ms
                     ))
                     .execute(&mut *conn)
-                    .await?;
+                    .await
+                    {
+                        tracing::debug!(
+                            "Could not set log_min_duration_statement (needs elevated privileges): {}",
+                            e
+                        );
+                        // Continue anyway - this is optional
+                    }
                     Ok(())
                 })
             });
@@ -206,12 +215,26 @@ impl Database {
                 bio_embedding VECTOR(1536),
                 interests_embedding VECTOR(1536),
                 last_updated_timestamp BIGINT NOT NULL,
-                last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                shard_id INTEGER,
+                block_height BIGINT,
+                transaction_fid BIGINT
             )
             "#,
         )
         .execute(&self.pool)
         .await?;
+
+        // Add tracking columns if they don't exist (for existing tables)
+        sqlx::query("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS shard_id INTEGER")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS block_height BIGINT")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS transaction_fid BIGINT")
+            .execute(&self.pool)
+            .await?;
 
         // Create user_profile_snapshots table
         sqlx::query(

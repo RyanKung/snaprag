@@ -97,6 +97,7 @@ pub use rag::{
     Retriever,
     SearchResult,
 };
+pub use sync::lazy_loader::LazyLoader;
 pub use sync::service::SyncService;
 use tracing::info;
 
@@ -105,6 +106,7 @@ pub struct SnapRag {
     config: AppConfig,
     database: Arc<Database>,
     sync_service: Option<Arc<SyncService>>,
+    lazy_loader: Option<Arc<LazyLoader>>,
 }
 
 impl SnapRag {
@@ -115,6 +117,24 @@ impl SnapRag {
             config: config.clone(),
             database,
             sync_service: None,
+            lazy_loader: None,
+        })
+    }
+
+    /// Create SnapRAG instance with lazy loading enabled
+    pub async fn new_with_lazy_loading(config: &AppConfig) -> Result<Self> {
+        let database = Arc::new(Database::from_config(config).await?);
+        let snapchain_client = Arc::new(sync::SnapchainClient::from_config(config).await?);
+        let lazy_loader = Some(Arc::new(LazyLoader::new(
+            database.clone(),
+            snapchain_client,
+        )));
+
+        Ok(Self {
+            config: config.clone(),
+            database,
+            sync_service: None,
+            lazy_loader,
         })
     }
 
@@ -128,6 +148,62 @@ impl SnapRag {
     /// Get the database instance for direct access
     pub fn database(&self) -> &Arc<Database> {
         &self.database
+    }
+
+    /// Get reference to lazy loader
+    pub fn lazy_loader(&self) -> Option<&Arc<LazyLoader>> {
+        self.lazy_loader.as_ref()
+    }
+
+    /// Get user profile with automatic lazy loading
+    pub async fn get_user_profile_smart(&self, fid: i64) -> Result<Option<UserProfile>> {
+        // Try database first
+        if let Some(profile) = self.database.get_user_profile(fid).await? {
+            return Ok(Some(profile));
+        }
+
+        // If lazy loader is available, try lazy loading
+        if let Some(loader) = &self.lazy_loader {
+            match loader.fetch_user_profile(fid as u64).await {
+                Ok(profile) => Ok(Some(profile)),
+                Err(e) => {
+                    tracing::warn!("Failed to lazy load profile {}: {}", fid, e);
+                    Ok(None) // Graceful degradation
+                }
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get user casts with automatic lazy loading
+    pub async fn get_user_casts_smart(&self, fid: i64, limit: Option<i64>) -> Result<Vec<Cast>> {
+        // Try database first
+        let existing_casts = self.database.get_casts_by_fid(fid, limit, Some(0)).await?;
+
+        if !existing_casts.is_empty() {
+            return Ok(existing_casts);
+        }
+
+        // If lazy loader is available, try lazy loading
+        if let Some(loader) = &self.lazy_loader {
+            match loader.fetch_user_casts(fid as u64).await {
+                Ok(casts) => {
+                    // Return limited results if requested
+                    if let Some(lim) = limit {
+                        Ok(casts.into_iter().take(lim as usize).collect())
+                    } else {
+                        Ok(casts)
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to lazy load casts for {}: {}", fid, e);
+                    Ok(Vec::new())
+                }
+            }
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     /// Override sync configuration from command-line arguments

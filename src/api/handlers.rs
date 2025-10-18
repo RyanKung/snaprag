@@ -27,6 +27,7 @@ pub struct AppState {
     pub database: Arc<Database>,
     pub embedding_service: Arc<EmbeddingService>,
     pub llm_service: Arc<LlmService>,
+    pub lazy_loader: Option<Arc<crate::sync::LazyLoader>>,
 }
 
 /// Health check handler
@@ -37,15 +38,42 @@ pub async fn health() -> Json<ApiResponse<HealthResponse>> {
     }))
 }
 
-/// Get profile by FID
+/// Get profile by FID (with automatic lazy loading)
 pub async fn get_profile(
     State(state): State<AppState>,
     Path(fid): Path<i64>,
 ) -> Result<Json<ApiResponse<ProfileResponse>>, StatusCode> {
     info!("GET /api/profiles/{}", fid);
 
-    match state.database.get_user_profile(fid).await {
-        Ok(Some(profile)) => Ok(Json(ApiResponse::success(ProfileResponse {
+    // Try database first
+    let profile = match state.database.get_user_profile(fid).await {
+        Ok(Some(p)) => Some(p),
+        Ok(None) => {
+            // Try lazy loading if available
+            if let Some(loader) = &state.lazy_loader {
+                info!("⚡ Profile {} not found, attempting lazy load", fid);
+                match loader.fetch_user_profile(fid as u64).await {
+                    Ok(p) => {
+                        info!("✅ Successfully lazy loaded profile {}", fid);
+                        Some(p)
+                    }
+                    Err(e) => {
+                        info!("Failed to lazy load profile {}: {}", fid, e);
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        }
+        Err(e) => {
+            error!("Error fetching profile: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    match profile {
+        Some(profile) => Ok(Json(ApiResponse::success(ProfileResponse {
             fid: profile.fid,
             username: profile.username,
             display_name: profile.display_name,
@@ -55,11 +83,7 @@ pub async fn get_profile(
             twitter_username: profile.twitter_username,
             github_username: profile.github_username,
         }))),
-        Ok(None) => Err(StatusCode::NOT_FOUND),
-        Err(e) => {
-            error!("Error fetching profile: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+        None => Err(StatusCode::NOT_FOUND),
     }
 }
 

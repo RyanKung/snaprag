@@ -138,6 +138,59 @@ pub enum Commands {
     /// Serve API commands
     #[command(subcommand)]
     Serve(ServeCommands),
+    /// Fetch user data on-demand (lazy loading)
+    #[command(subcommand)]
+    Fetch(FetchCommands),
+}
+
+#[derive(Subcommand)]
+pub enum FetchCommands {
+    /// Fetch single user profile and optionally their casts
+    User {
+        /// FID to fetch
+        fid: u64,
+        /// Also fetch user's casts
+        #[arg(long)]
+        with_casts: bool,
+        /// Maximum number of casts to fetch
+        #[arg(long, default_value = "1000")]
+        max_casts: usize,
+        /// Generate embeddings for fetched casts
+        #[arg(long)]
+        generate_embeddings: bool,
+        /// Embedding endpoint to use (from config)
+        #[arg(long)]
+        embedding_endpoint: Option<String>,
+    },
+    /// Batch fetch multiple users
+    Users {
+        /// Comma-separated FIDs (e.g., "99,100,101")
+        fids: String,
+        /// Also fetch their casts
+        #[arg(long)]
+        with_casts: bool,
+        /// Generate embeddings for fetched casts
+        #[arg(long)]
+        generate_embeddings: bool,
+        /// Embedding endpoint to use
+        #[arg(long)]
+        embedding_endpoint: Option<String>,
+    },
+    /// Preload popular users (top N by activity)
+    Popular {
+        /// Number of popular users to preload
+        #[arg(short, long, default_value = "100")]
+        limit: usize,
+        /// Also fetch their casts
+        #[arg(long)]
+        with_casts: bool,
+        /// Generate embeddings for fetched casts
+        #[arg(long)]
+        generate_embeddings: bool,
+        /// Embedding endpoint to use
+        #[arg(long)]
+        embedding_endpoint: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]

@@ -42,7 +42,7 @@ pub async fn backfill_embeddings(
     info!("Found {} profiles to process", profiles.len());
 
     // Process in batches (profiles have multiple embeddings each)
-    const BATCH_SIZE: usize = 100;  // Increased for better GPU utilization
+    const BATCH_SIZE: usize = 100; // Increased for better GPU utilization
     for (batch_idx, chunk) in profiles.chunks(BATCH_SIZE).enumerate() {
         info!(
             "Processing batch {}/{} ({} profiles)",
