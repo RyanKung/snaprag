@@ -8,6 +8,7 @@
 
 pub mod commands;
 pub mod handlers;
+pub mod init_handler;
 pub mod output;
 
 pub use commands::*;
@@ -30,4 +31,5 @@ pub use handlers::handle_reset_command;
 pub use handlers::handle_search_command;
 pub use handlers::handle_stats_command;
 pub use handlers::handle_sync_command;
+pub use init_handler::handle_init_command;
 pub use output::*;

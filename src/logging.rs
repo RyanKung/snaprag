@@ -29,11 +29,16 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
     // Set up environment filter - use config if available, otherwise default
     let env_filter = if let Some(config) = config {
         let level = &config.logging.level;
-        EnvFilter::new(&format!("{},snaprag={}", level, level))
+        // 🚀 Always suppress sqlx SQL queries and third-party library noise
+        EnvFilter::new(&format!(
+            "warn,snaprag={},sqlx=warn,h2=warn,tonic=warn,hyper=warn,tower=warn",
+            level
+        ))
     } else {
         // Fallback to environment variable or default to info level
         // Only show warnings from third-party libraries, info from snaprag
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn,snaprag=info"))
+        EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new("warn,snaprag=info,sqlx=warn"))
     };
 
     // Set up file appender for all logs
@@ -95,11 +100,19 @@ pub fn init_logging_with_level(level: &str) -> Result<()> {
     }
 
     // Set up environment filter with custom level
-    // Even in debug mode, keep third-party libraries at info level to reduce noise
-    let env_filter = if level == "debug" {
-        EnvFilter::new("info,snaprag=debug,sqlx=info,h2=info,tonic=info,hyper=info,tower=info")
+    // Even in debug mode, keep third-party libraries at warn level to reduce noise
+    let env_filter = if level == "debug" || level == "trace" {
+        // 🚀 In debug/trace mode, still suppress SQL queries unless explicitly needed
+        EnvFilter::new(&format!(
+            "warn,snaprag={},sqlx=warn,h2=warn,tonic=warn,hyper=warn,tower=warn",
+            level
+        ))
     } else {
-        EnvFilter::new(&format!("{},snaprag={}", level, level))
+        // 🚀 For info/warn/error levels, suppress all third-party noise
+        EnvFilter::new(&format!(
+            "warn,snaprag={},sqlx=warn,h2=warn,tonic=warn,hyper=warn,tower=warn",
+            level
+        ))
     };
 
     // Set up file appender for all logs

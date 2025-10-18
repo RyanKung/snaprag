@@ -28,12 +28,25 @@ async fn main() -> Result<()> {
     // Create SnapRAG instance
     let snaprag = SnapRag::new(&config).await?;
 
-    // Initialize database schema
-    snaprag.init_database().await?;
-    info!("Database schema initialized");
+    // 🚀 OPTIMIZATION: Only initialize database schema for commands that need it
+    // Skip for read-only or sync management commands
+    let needs_schema_init = matches!(
+        cli.command,
+        Commands::Init { .. } | Commands::Reset { .. } | Commands::Embeddings(..)
+    );
+    
+    if needs_schema_init {
+        snaprag.init_database().await?;
+        info!("Database schema initialized");
+    } else {
+        tracing::debug!("Skipping schema initialization for this command");
+    }
 
     // Execute the requested command
     match cli.command {
+        Commands::Init { force, skip_indexes } => {
+            snaprag::cli::handle_init_command(&snaprag, force, skip_indexes).await?;
+        }
         Commands::List {
             data_type,
             limit,

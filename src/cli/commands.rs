@@ -19,6 +19,15 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Initialize database schema and indexes
+    Init {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        /// Skip creating indexes (faster initialization, add indexes later)
+        #[arg(long)]
+        skip_indexes: bool,
+    },
     /// List data from the database
     List {
         /// The type of data to list
