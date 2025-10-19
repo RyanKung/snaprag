@@ -2,38 +2,14 @@
 //!
 //! This module contains all CLI-related functionality including:
 //! - Command line argument parsing
-//! - Command handlers
+//! - Command handlers (organized by domain in handlers/ subdirectory)
 //! - Output formatting
 //! - Interactive prompts
 
 pub mod commands;
 pub mod handlers;
-pub mod init_handler;
 pub mod output;
 
 pub use commands::*;
-pub use handlers::handle_activity_command;
-pub use handlers::handle_cast_embeddings_backfill;
-pub use handlers::handle_cast_recent;
-pub use handlers::handle_cast_search;
-pub use handlers::handle_cast_thread;
-pub use handlers::handle_config_command;
-pub use handlers::handle_dashboard_command;
-pub use handlers::handle_embeddings_backfill;
-pub use handlers::handle_embeddings_generate;
-pub use handlers::handle_embeddings_stats;
-pub use handlers::handle_embeddings_test;
-pub use handlers::handle_fetch_popular;
-pub use handlers::handle_fetch_user;
-pub use handlers::handle_fetch_users;
-pub use handlers::handle_list_command;
-pub use handlers::handle_rag_query;
-pub use handlers::handle_rag_query_casts;
-pub use handlers::handle_rag_search;
-pub use handlers::handle_reset_command;
-pub use handlers::handle_search_command;
-pub use handlers::handle_serve_api;
-pub use handlers::handle_stats_command;
-pub use handlers::handle_sync_command;
-pub use init_handler::handle_init_command;
+pub use handlers::*;
 pub use output::*;

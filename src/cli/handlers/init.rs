@@ -1,13 +1,16 @@
-//! Database initialization handler
+//! Database initialization and reset handlers
 
-use crate::cli::output::print_info;
-use crate::cli::output::print_success;
-use crate::cli::output::print_warning;
+use crate::cli::output::{print_info, print_prompt, print_success, print_warning};
 use crate::Result;
 use crate::SnapRag;
+use std::io::{stdin, Read};
 
 /// Handle database initialization command
-pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: bool) -> Result<()> {
+pub async fn handle_init_command(
+    snaprag: &SnapRag,
+    force: bool,
+    skip_indexes: bool,
+) -> Result<()> {
     if !force {
         print_warning("This will initialize the database schema and create indexes.");
         print_warning("This operation is safe - it uses CREATE IF NOT EXISTS.");
@@ -30,7 +33,9 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
             if e.to_string().contains("vector") || e.to_string().contains("extension") {
                 print_warning(&format!("⚠️  Could not enable pgvector extension: {}", e));
                 print_warning("Please run on the database server (192.168.1.192):");
-                println!("  sudo -u postgres psql -d snaprag -c 'CREATE EXTENSION IF NOT EXISTS vector;'");
+                println!(
+                    "  sudo -u postgres psql -d snaprag -c 'CREATE EXTENSION IF NOT EXISTS vector;'"
+                );
                 println!();
                 println!("Then run: snaprag init --force");
                 return Err(e);
@@ -63,10 +68,81 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
     Ok(())
 }
 
+/// Handle database reset command
+pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> {
+    if !force {
+        print_warning("This will DROP ALL TABLES from the database and remove lock files!");
+        print_warning("This is a complete reset - all data will be lost!");
+        print_prompt("Are you sure you want to continue? (y/N)");
+
+        let mut input = String::new();
+        stdin().read_line(&mut input)?;
+
+        if !input.trim().to_lowercase().starts_with('y') {
+            print_info("Operation cancelled.");
+            return Ok(());
+        }
+    }
+
+    print_info("🔥 Resetting database - DROPPING ALL TABLES...");
+
+    // Remove lock file if it exists
+    if std::path::Path::new("snaprag.lock").exists() {
+        std::fs::remove_file("snaprag.lock")?;
+        print_success("Removed snaprag.lock file");
+    } else {
+        print_info("No lock file found");
+    }
+
+    // 🚀 DROP all tables (complete reset)
+    let tables = [
+        "cast_embeddings", // Drop first due to FK constraint
+        "user_activity_timeline",
+        "user_profiles",
+        "user_profile_snapshots",
+        "user_profile_trends",
+        "user_data",
+        "user_data_changes",
+        "casts",
+        "links",
+        "username_proofs",
+        "user_activities",
+        "processed_messages",
+        "sync_progress",
+        "sync_stats",
+    ];
+
+    for table in &tables {
+        match sqlx::query(&format!("DROP TABLE IF EXISTS {} CASCADE", table))
+            .execute(snaprag.database().pool())
+            .await
+        {
+            Ok(_) => print_success(&format!("Dropped table: {}", table)),
+            Err(e) => print_warning(&format!("Could not drop {}: {}", table, e)),
+        }
+    }
+
+    // Drop the trigger function
+    match sqlx::query("DROP FUNCTION IF EXISTS update_cast_embeddings_updated_at() CASCADE")
+        .execute(snaprag.database().pool())
+        .await
+    {
+        Ok(_) => print_success("Dropped trigger function"),
+        Err(_) => {}
+    }
+
+    println!();
+    print_success("✅ Database completely reset!");
+    print_info("ℹ️  To reinitialize, run:");
+    println!("   snaprag init --force");
+
+    Ok(())
+}
+
 /// Run complete database initialization from migration file
 async fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
     // Write SQL file to temp location
-    let init_sql = include_str!("../../migrations/000_complete_init.sql");
+    let init_sql = include_str!("../../../migrations/000_complete_init.sql");
     let temp_sql_path = "/tmp/snaprag_init.sql";
     std::fs::write(temp_sql_path, init_sql)?;
 
@@ -221,3 +297,4 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
 
     Ok(())
 }
+

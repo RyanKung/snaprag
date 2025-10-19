@@ -1,0 +1,367 @@
+//! Lazy loading (on-demand fetch) handlers
+
+use crate::cli::output::*;
+use crate::AppConfig;
+use crate::Result;
+use crate::SnapRag;
+use std::sync::Arc;
+
+use crate::database::Database;
+
+pub async fn handle_fetch_user(
+    config: &AppConfig,
+    fid: u64,
+    with_casts: bool,
+    max_casts: usize,
+    generate_embeddings: bool,
+    embedding_endpoint: Option<String>,
+) -> Result<()> {
+    use crate::sync::client::SnapchainClient;
+    use crate::sync::lazy_loader::LazyLoader;
+
+    let start_time = std::time::Instant::now();
+
+    print_info(&format!("🔄 Fetching user {} on demand...", fid));
+
+    // Create lazy loader
+    tracing::debug!("⏱️  Connecting to database...");
+    let db_start = std::time::Instant::now();
+    let database = Arc::new(Database::from_config(config).await?);
+    tracing::debug!("   Database connected in {:?}", db_start.elapsed());
+
+    tracing::debug!("⏱️  Connecting to Snapchain...");
+    let client_start = std::time::Instant::now();
+    let snapchain_client = Arc::new(SnapchainClient::from_config(config).await?);
+    tracing::debug!("   Snapchain connected in {:?}", client_start.elapsed());
+
+    let lazy_loader = LazyLoader::new(database.clone(), snapchain_client);
+
+    // Smart fetch: check database first, only fetch if not found
+    let profile = lazy_loader
+        .get_user_profile_smart(fid as i64)
+        .await?
+        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {} not found", fid)))?;
+
+    println!("\n✅ Profile loaded successfully:");
+    println!("   FID: {}", profile.fid);
+    if let Some(username) = &profile.username {
+        println!("   Username: @{}", username);
+    }
+    if let Some(display_name) = &profile.display_name {
+        println!("   Display Name: {}", display_name);
+    }
+    if let Some(bio) = &profile.bio {
+        let bio_preview = if bio.len() > 100 {
+            format!("{}...", &bio[..100])
+        } else {
+            bio.clone()
+        };
+        println!("   Bio: {}", bio_preview);
+    }
+
+    // Fetch casts if requested
+    if with_casts {
+        print_info(&format!("🔄 Fetching casts for FID {}...", fid));
+        let casts = lazy_loader.get_user_casts_smart(fid as i64).await?;
+        println!("   ✅ Loaded {} casts", casts.len());
+
+        if !casts.is_empty() {
+            println!("\n📝 Recent casts:");
+            for (idx, cast) in casts.iter().take(5).enumerate() {
+                if let Some(text) = &cast.text {
+                    let preview = if text.len() > 80 {
+                        format!("{}...", &text[..80])
+                    } else {
+                        text.clone()
+                    };
+                    println!("   {}. {}", idx + 1, preview);
+                }
+            }
+            if casts.len() > 5 {
+                println!("   ... and {} more", casts.len() - 5);
+            }
+
+            // Generate embeddings if requested
+            if generate_embeddings {
+                print_info(&format!(
+                    "🔮 Generating embeddings for {} casts...",
+                    casts.len()
+                ));
+
+                let embedding_service = if let Some(ref endpoint_name) = embedding_endpoint {
+                    let endpoint_config =
+                        config
+                            .get_embedding_endpoint(endpoint_name)
+                            .ok_or_else(|| {
+                                crate::SnapRagError::Custom(format!(
+                                    "Endpoint '{}' not found",
+                                    endpoint_name
+                                ))
+                            })?;
+                    let embedding_config =
+                        crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config);
+                    Arc::new(crate::embeddings::EmbeddingService::from_config(
+                        embedding_config,
+                    )?)
+                } else {
+                    Arc::new(crate::embeddings::EmbeddingService::new(config)?)
+                };
+
+                let mut success = 0;
+                let mut skipped = 0;
+                let mut failed = 0;
+
+                for cast in casts.iter() {
+                    // Skip casts without text
+                    let Some(ref text) = cast.text else {
+                        skipped += 1;
+                        continue;
+                    };
+                    if text.trim().is_empty() {
+                        skipped += 1;
+                        continue;
+                    }
+
+                    // Generate embedding
+                    match embedding_service.generate(text).await {
+                        Ok(embedding) => {
+                            // Store in database
+                            match database
+                                .store_cast_embedding(
+                                    &cast.message_hash,
+                                    cast.fid,
+                                    text,
+                                    &embedding,
+                                )
+                                .await
+                            {
+                                Ok(_) => {
+                                    success += 1;
+                                    if success % 10 == 0 {
+                                        print!(".");
+                                        std::io::Write::flush(&mut std::io::stdout()).ok();
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to store embedding: {}", e);
+                                    failed += 1;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to generate embedding: {}", e);
+                            failed += 1;
+                        }
+                    }
+                }
+
+                println!();
+                println!(
+                    "   ✅ Embeddings: {} success, {} skipped, {} failed",
+                    success, skipped, failed
+                );
+            }
+        }
+    }
+
+    tracing::debug!("⏱️  Total time: {:?}", start_time.elapsed());
+    print_success(&format!("✅ Successfully fetched FID {}", fid));
+    Ok(())
+}
+
+/// Handle fetch users (batch) command
+pub async fn handle_fetch_users(
+    config: &AppConfig,
+    fids_str: String,
+    with_casts: bool,
+    generate_embeddings: bool,
+    embedding_endpoint: Option<String>,
+) -> Result<()> {
+    use crate::sync::client::SnapchainClient;
+    use crate::sync::lazy_loader::LazyLoader;
+
+    // Parse FIDs
+    let fids: Vec<u64> = fids_str
+        .split(',')
+        .filter_map(|s| s.trim().parse::<u64>().ok())
+        .collect();
+
+    if fids.is_empty() {
+        print_error("No valid FIDs provided. Use format: 99,100,101");
+        return Ok(());
+    }
+
+    print_info(&format!(
+        "🔄 Batch fetching {} users on demand...",
+        fids.len()
+    ));
+
+    // Create lazy loader
+    let database = Arc::new(Database::from_config(config).await?);
+    let snapchain_client = Arc::new(SnapchainClient::from_config(config).await?);
+    let lazy_loader = LazyLoader::new(database.clone(), snapchain_client);
+
+    let mut success_count = 0;
+    let mut fail_count = 0;
+    let mut total_casts = 0;
+
+    for (idx, fid) in fids.iter().enumerate() {
+        print_info(&format!(
+            "[{}/{}] Fetching FID {}...",
+            idx + 1,
+            fids.len(),
+            fid
+        ));
+
+        // Use smart queries that check database first
+        let profile_result = lazy_loader.get_user_profile_smart(*fid as i64).await;
+        let casts_result = if with_casts {
+            lazy_loader.get_user_casts_smart(*fid as i64).await
+        } else {
+            Ok(Vec::new())
+        };
+
+        let result = match (profile_result, casts_result) {
+            (Ok(Some(profile)), Ok(casts)) => Ok((profile, casts)),
+            (Ok(None), _) => Err(crate::SnapRagError::Custom(format!(
+                "User {} not found",
+                fid
+            ))),
+            (Err(e), _) | (_, Err(e)) => Err(e),
+        };
+
+        match result {
+            Ok((profile, casts)) => {
+                success_count += 1;
+                total_casts += casts.len();
+                println!(
+                    "   ✅ @{} loaded{}",
+                    profile.username.as_deref().unwrap_or("unknown"),
+                    if with_casts {
+                        format!(" with {} casts", casts.len())
+                    } else {
+                        String::new()
+                    }
+                );
+            }
+            Err(e) => {
+                fail_count += 1;
+                println!("   ❌ Failed: {}", e);
+            }
+        }
+
+        // Small delay to avoid overwhelming the server
+        if idx < fids.len() - 1 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+
+    println!("\n📊 Batch fetch complete:");
+    println!("   ✅ Success: {}", success_count);
+    if fail_count > 0 {
+        println!("   ❌ Failed: {}", fail_count);
+    }
+    if with_casts {
+        println!("   📝 Total casts: {}", total_casts);
+    }
+
+    Ok(())
+}
+
+/// Handle fetch popular users command
+pub async fn handle_fetch_popular(
+    config: &AppConfig,
+    limit: usize,
+    with_casts: bool,
+    generate_embeddings: bool,
+    embedding_endpoint: Option<String>,
+) -> Result<()> {
+    use crate::sync::client::SnapchainClient;
+    use crate::sync::lazy_loader::LazyLoader;
+
+    print_info(&format!("🔄 Fetching top {} popular users...", limit));
+
+    // Create lazy loader
+    let database = Arc::new(Database::from_config(config).await?);
+    let snapchain_client = Arc::new(SnapchainClient::from_config(config).await?);
+    let lazy_loader = LazyLoader::new(database.clone(), snapchain_client);
+
+    // Get popular FIDs from activity timeline
+    let popular_fids = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT fid
+        FROM user_activity_timeline
+        GROUP BY fid
+        ORDER BY COUNT(*) DESC
+        LIMIT $1
+        "#,
+    )
+    .bind(limit as i64)
+    .fetch_all(database.pool())
+    .await?;
+
+    println!("   Found {} popular FIDs\n", popular_fids.len());
+
+    let mut success_count = 0;
+    let mut total_casts = 0;
+
+    for (idx, fid) in popular_fids.iter().enumerate() {
+        print_info(&format!(
+            "[{}/{}] Fetching FID {}...",
+            idx + 1,
+            popular_fids.len(),
+            fid
+        ));
+
+        // Use smart queries that check database first
+        let profile_result = lazy_loader.get_user_profile_smart(*fid).await;
+        let casts_result = if with_casts {
+            lazy_loader.get_user_casts_smart(*fid).await
+        } else {
+            Ok(Vec::new())
+        };
+
+        let result = match (profile_result, casts_result) {
+            (Ok(Some(profile)), Ok(casts)) => Ok((profile, casts)),
+            (Ok(None), _) => Err(crate::SnapRagError::Custom(format!(
+                "User {} not found",
+                fid
+            ))),
+            (Err(e), _) | (_, Err(e)) => Err(e),
+        };
+
+        match result {
+            Ok((profile, casts)) => {
+                success_count += 1;
+                total_casts += casts.len();
+                println!(
+                    "   ✅ @{} loaded{}",
+                    profile.username.as_deref().unwrap_or("unknown"),
+                    if with_casts {
+                        format!(" with {} casts", casts.len())
+                    } else {
+                        String::new()
+                    }
+                );
+            }
+            Err(e) => {
+                println!("   ⚠️  Skipped: {}", e);
+            }
+        }
+
+        // Delay between requests
+        if idx < popular_fids.len() - 1 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        }
+    }
+
+    println!("\n📊 Preload complete:");
+    println!("   ✅ Loaded: {}/{}", success_count, popular_fids.len());
+    if with_casts {
+        println!("   📝 Total casts: {}", total_casts);
+    }
+
+    print_success("✅ Popular users preloaded!");
+    Ok(())
+}
+
