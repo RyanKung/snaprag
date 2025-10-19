@@ -11,8 +11,6 @@ pub async fn handle_stats_command(
     detailed: bool,
     export: Option<String>,
 ) -> Result<()> {
-    // TODO: Re-enable after first init
-    // snaprag.database().verify_schema_or_error().await?;
     let stats = snaprag.get_statistics().await?;
     print_statistics(&stats, detailed);
 
@@ -25,11 +23,88 @@ pub async fn handle_stats_command(
     Ok(())
 }
 
-/// Handle search command
-/// Handle dashboard command
+/// Handle dashboard command (FAST version with minimal queries)
 pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
-    let stats = snaprag.get_statistics().await?;
-    print_dashboard(&stats);
+    print_info("📊 SnapRAG Dashboard (Fast Mode)");
+    println!();
+
+    // Use faster queries with limited data
+    let pool = snaprag.database().pool();
+
+    // Use PostgreSQL statistics for instant results on large tables
+    let stats: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT relname, reltuples::bigint FROM pg_class 
+         WHERE relname IN ('user_profiles', 'casts', 'user_activity_timeline')"
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut total_profiles = 0i64;
+    let mut total_casts = 0i64;
+    let mut total_activities = 0i64;
+
+    for (table, count) in stats {
+        match table.as_str() {
+            "user_profiles" => total_profiles = count,
+            "casts" => total_casts = count,
+            "user_activity_timeline" => total_activities = count,
+            _ => {}
+        }
+    }
+
+    // Get embeddings count
+    let profiles_with_embeddings: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_profiles WHERE profile_embedding IS NOT NULL"
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let casts_with_embeddings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cast_embeddings")
+        .fetch_one(pool)
+        .await?;
+
+    // Latest activity (fast with index)
+    let latest_timestamp: Option<i64> = sqlx::query_scalar(
+        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1"
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    // Display results
+    println!("📈 Database Statistics:");
+    println!("  Profiles: {}", format_number(total_profiles));
+    println!("  Casts: {}", format_number(total_casts));
+    println!("  Activities: ~{}", format_number(total_activities));
+    println!();
+
+    println!("🔮 Embeddings:");
+    println!("  Profiles: {} ({:.1}%)", 
+        format_number(profiles_with_embeddings),
+        (profiles_with_embeddings as f64 / total_profiles as f64 * 100.0)
+    );
+    println!("  Casts: {} ({:.1}%)", 
+        format_number(casts_with_embeddings),
+        (casts_with_embeddings as f64 / total_casts.max(1) as f64 * 100.0)
+    );
+    println!();
+
+    if let Some(ts) = latest_timestamp {
+        if let Some(dt) = chrono::DateTime::from_timestamp(ts, 0) {
+            println!("⏰ Latest Activity: {}", dt.format("%Y-%m-%d %H:%M:%S UTC"));
+            println!();
+        }
+    }
+
+    // Sync status
+    if let Some(lock) = snaprag.get_sync_status()? {
+        println!("🔄 Sync Status: {}", lock.status);
+        println!("  Messages: {}", format_number(lock.progress.total_messages_processed as i64));
+        println!("  Blocks: {}", format_number(lock.progress.total_blocks_processed as i64));
+        println!();
+    }
+
+    print_info("💡 Tip: Use 'snaprag stats' for detailed statistics");
+    
     Ok(())
 }
 
@@ -117,18 +192,18 @@ pub(crate) async fn print_sync_status(snaprag: &SnapRag) -> Result<()> {
     Ok(())
 }
 
-/// Get the timestamp of the latest synced message
+/// Get the timestamp of the latest synced message (fast version)
 async fn get_latest_message_time(snaprag: &SnapRag) -> Result<String> {
-    // Farcaster epoch: 2021-01-01 00:00:00 UTC
     const FARCASTER_EPOCH: i64 = 1609459200;
 
-    let latest_timestamp =
-        sqlx::query_scalar::<_, Option<i64>>("SELECT MAX(timestamp) FROM user_activity_timeline")
-            .fetch_one(snaprag.database().pool())
-            .await?;
+    // Use LIMIT 1 with ORDER BY DESC - uses index efficiently
+    let latest_timestamp = sqlx::query_scalar::<_, Option<i64>>(
+        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1"
+    )
+    .fetch_one(snaprag.database().pool())
+    .await?;
 
     if let Some(ts) = latest_timestamp {
-        // Convert Farcaster timestamp to actual time
         let actual_timestamp = FARCASTER_EPOCH + ts;
         let datetime = chrono::DateTime::from_timestamp(actual_timestamp, 0)
             .ok_or_else(|| crate::SnapRagError::Custom("Invalid timestamp".to_string()))?;
@@ -143,3 +218,20 @@ async fn get_latest_message_time(snaprag: &SnapRag) -> Result<String> {
     }
 }
 
+/// Format large numbers with commas
+fn format_number(n: i64) -> String {
+    let s = n.to_string();
+    let mut result = String::new();
+    let mut count = 0;
+    
+    for c in s.chars().rev() {
+        if count == 3 {
+            result.push(',');
+            count = 0;
+        }
+        result.push(c);
+        count += 1;
+    }
+    
+    result.chars().rev().collect()
+}
