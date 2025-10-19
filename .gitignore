@@ -137,6 +137,9 @@ snaprag_sync_state.json
 !Cargo.lock
 .env.compile
 
+# Demo videos (keep only quick_demo.gif in root)
+demo/
+
 # Generated documentation files (keep only essential docs)
 *.md
 !README.md

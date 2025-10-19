@@ -12,6 +12,10 @@
 
 *A comprehensive PostgreSQL-based RAG foundation framework that provides data synchronization, vector search, and advanced database query capabilities for Farcaster protocol data*
 
+<br/>
+
+![Demo](./quick_demo.gif)
+
 </div>
 
 ## 💭 Philosophy: Dancing in Chains
