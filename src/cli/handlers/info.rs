@@ -95,24 +95,44 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
         }
     }
 
-    // Sync status - show actual sync progress from database
-    if let Some(lock) = snaprag.get_sync_status()? {
-        println!("🔄 Sync Status: {}", lock.status);
-        println!("  Messages: {}", format_number(lock.progress.total_messages_processed as i64));
+    // Sync status - read directly from database (real-time)
+    let sync_info: Vec<(i32, i64, String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+        "SELECT shard_id, last_processed_height, status, updated_at 
+         FROM sync_progress 
+         ORDER BY shard_id"
+    )
+    .fetch_all(pool)
+    .await?;
+    
+    if !sync_info.is_empty() {
+        println!("🔄 Sync Status (Real-time from DB):");
         
-        // Get actual block heights from database
-        let shard_heights: Vec<(i32, i64)> = sqlx::query_as(
-            "SELECT shard_id, last_processed_height FROM sync_progress ORDER BY shard_id"
-        )
-        .fetch_all(pool)
-        .await?;
-        
-        if !shard_heights.is_empty() {
-            println!("  Sync Heights:");
-            for (shard_id, height) in &shard_heights {
-                println!("    Shard {}: {}", shard_id, format_number(*height));
-            }
+        let mut total_height = 0i64;
+        for (shard_id, height, status, updated_at) in &sync_info {
+            total_height += height;
+            
+            // Calculate time since last update
+            let now = chrono::Utc::now();
+            let duration = now.signed_duration_since(*updated_at);
+            let time_ago = if duration.num_seconds() < 60 {
+                format!("{}s ago", duration.num_seconds())
+            } else if duration.num_minutes() < 60 {
+                format!("{}m ago", duration.num_minutes())
+            } else {
+                format!("{}h ago", duration.num_hours())
+            };
+            
+            println!("  Shard {}: {} ({}) - {}", 
+                shard_id, 
+                format_number(*height), 
+                status,
+                time_ago
+            );
         }
+        
+        // Estimate total messages (activities)
+        let avg_height = total_height / sync_info.len() as i64;
+        println!("  Avg Height: {}", format_number(avg_height));
         println!();
     }
 
