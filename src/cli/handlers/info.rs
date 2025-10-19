@@ -95,11 +95,24 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
         }
     }
 
-    // Sync status
+    // Sync status - show actual sync progress from database
     if let Some(lock) = snaprag.get_sync_status()? {
         println!("🔄 Sync Status: {}", lock.status);
         println!("  Messages: {}", format_number(lock.progress.total_messages_processed as i64));
-        println!("  Blocks: {}", format_number(lock.progress.total_blocks_processed as i64));
+        
+        // Get actual block heights from database
+        let shard_heights: Vec<(i32, i64)> = sqlx::query_as(
+            "SELECT shard_id, last_processed_height FROM sync_progress ORDER BY shard_id"
+        )
+        .fetch_all(pool)
+        .await?;
+        
+        if !shard_heights.is_empty() {
+            println!("  Sync Heights:");
+            for (shard_id, height) in &shard_heights {
+                println!("    Shard {}: {}", shard_id, format_number(*height));
+            }
+        }
         println!();
     }
 
