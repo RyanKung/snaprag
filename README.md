@@ -14,7 +14,59 @@
 
 </div>
 
-## 🎯 Overview
+## 💭 Philosophy: Dancing in Chains
+
+In recent years, as Crypto and LLM technology evolved in parallel, a subtle yet profound realization began to surface: philosophically, LLM might stand at the exact opposite end of Crypto. These two domains represent radically different human responses to entropy — one seeks to impose rational order, the other chooses to dance faster in the chaos.
+
+**Crypto** — especially in its cryptopunk ethos — is an art of entropy control, using cryptography as a blade to carve order into a high-entropy world. Meanwhile, the **LLM community** behaves more like a tribe of intuitive dancers around a black box, embracing vibes, emergence, and generative chaos, without insisting on transparency, verification, or absolute control.
+
+This core divergence creates two entirely different cultures:
+- **Crypto** worships openness, transparency, and permissionless access.
+- **LLM culture** seems content with black-box outputs, hardware aristocracy, and closed creative loops.
+
+**To fuse the two is to dance in chains.**
+
+SnapRAG is precisely such a Don Quixote–style endeavor.
+
+## 🎯 What is SnapRAG?
+
+It is **fully open-source**, written in Rust, with extreme performance and absolutely no hidden backend logic. No vendor lock-in, no gated APIs — anyone can run it locally and hold full sovereignty over their AI stack. Built on top of the decentralized social protocol **Farcaster**, SnapRAG leverages a full Snapchain node to synchronize every piece of raw network data, forming the foundation of a truly omniscient Farcaster AI.
+
+### 📊 Current Farcaster Network Scale
+
+As of today, the Snapchain network has produced:
+
+- **17,894,257 blocks**
+- **1,393,099 registered users**  
+- **224,749,776 casts**
+
+This is a dataset of **massive scale**.
+
+But unlike Twitter, Farcaster grants radical **data freedom** — run a node, and you instantly gain access to everyone's data. No rate limits, no API gatekeeping, no silent throttling. On top of this freedom, SnapRAG offers a powerful operational toolkit:
+
+- ✅ Import all Farcaster data into a local database
+- ✅ Vectorize all Casts into embeddings
+- ✅ Perform high-performance semantic search — locally
+
+For developers, this is the moment of **reclaiming AI computation sovereignty**:
+
+> **Your node. Your database. Your embeddings. Your AI** — not rented from someone else's API ceiling.
+
+### 🚀 Full Capability Surface
+
+SnapRAG is not just a tool — it is a **full capability surface**.
+
+It is a **CLI**, an **API service**, and an **MCP-compatible interface**, all with built-in support for our Farcaster-native protocol **x402**. This means SnapRAG can serve both individual hackers and teams seeking to build minimal-profitable open AI infrastructure on Farcaster.
+
+We deeply respect the work done by **Neynar** — it's a fantastic product. But it remains closed. SnapRAG openly invites teams like Neynar to migrate onto this open infrastructure and run truly real-time, open, permissionless AI services at Farcaster scale.
+
+**Because that's what blockchain ethos demands.**
+
+Everything we do is so that the spirit of Crypto does not dissolve in the age of AI.
+
+---
+
+## 🎯 Technical Overview
 
 SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for Farcaster protocol data. It provides a complete data synchronization layer, vector search capabilities, and advanced database query functionality, making it an ideal foundation for building RAG (Retrieval-Augmented Generation) applications on top of Farcaster data.
 
