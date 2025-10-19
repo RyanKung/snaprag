@@ -31,26 +31,37 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     // Use faster queries with limited data
     let pool = snaprag.database().pool();
 
-    // Use PostgreSQL statistics for instant results on large tables
-    let stats: Vec<(String, i64)> = sqlx::query_as(
+    // For small tables (user_profiles), use exact COUNT for accuracy
+    // For large tables (casts, activities), use PostgreSQL statistics for speed
+    let total_profiles: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profiles")
+        .fetch_one(pool)
+        .await?;
+
+    // Use pg_class.reltuples for large tables (instant vs minutes for COUNT)
+    let large_table_stats: Vec<(String, i64)> = sqlx::query_as(
         "SELECT relname, reltuples::bigint FROM pg_class 
-         WHERE relname IN ('user_profiles', 'casts', 'user_activity_timeline')"
+         WHERE relname IN ('casts', 'user_activity_timeline')"
     )
     .fetch_all(pool)
     .await?;
 
-    let mut total_profiles = 0i64;
     let mut total_casts = 0i64;
     let mut total_activities = 0i64;
 
-    for (table, count) in stats {
+    for (table, count) in large_table_stats {
         match table.as_str() {
-            "user_profiles" => total_profiles = count,
             "casts" => total_casts = count,
             "user_activity_timeline" => total_activities = count,
             _ => {}
         }
     }
+
+    // Get profiles with username (fast partial index count)
+    let profiles_with_username: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_profiles WHERE username IS NOT NULL AND username != ''"
+    )
+    .fetch_one(pool)
+    .await?;
 
     // Get embeddings count
     let profiles_with_embeddings: i64 = sqlx::query_scalar(
@@ -72,9 +83,13 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
     // Display results
     println!("📈 Database Statistics:");
-    println!("  Profiles: {}", format_number(total_profiles));
-    println!("  Casts: {}", format_number(total_casts));
-    println!("  Activities: ~{}", format_number(total_activities));
+    println!("  Total Profiles: {} (exact)", format_number(total_profiles));
+    println!("  └─ With Username: {} ({:.1}%)", 
+        format_number(profiles_with_username),
+        (profiles_with_username as f64 / total_profiles.max(1) as f64 * 100.0)
+    );
+    println!("  Casts: ~{} (estimated)", format_number(total_casts));
+    println!("  Activities: ~{} (estimated)", format_number(total_activities));
     println!();
 
     println!("🔮 Embeddings:");
