@@ -209,6 +209,27 @@ async fn main() -> Result<()> {
                 snaprag::cli::handle_embeddings_stats(&config).await?;
             }
         },
+        Commands::Ask {
+            user,
+            question,
+            chat,
+            fetch_casts,
+            context_limit,
+            temperature,
+            verbose,
+        } => {
+            snaprag::cli::handle_ask(
+                &config,
+                user,
+                question,
+                chat,
+                fetch_casts,
+                context_limit,
+                temperature,
+                verbose,
+            )
+            .await?;
+        }
         Commands::Fetch(fetch_command) => match fetch_command {
             FetchCommands::User {
                 fid,

@@ -29,6 +29,7 @@ pub struct AppState {
     pub embedding_service: Arc<EmbeddingService>,
     pub llm_service: Arc<LlmService>,
     pub lazy_loader: Option<Arc<crate::sync::LazyLoader>>,
+    pub session_manager: Arc<crate::api::session::SessionManager>,
 }
 
 /// Health check handler
@@ -256,14 +257,20 @@ pub async fn fetch_user(
     Path(fid): Path<i64>,
     Json(req): Json<FetchUserRequest>,
 ) -> Result<Json<ApiResponse<FetchResponse>>, StatusCode> {
-    info!("POST /api/fetch/user/{} (with_casts={}, embeddings={})", fid, req.with_casts, req.generate_embeddings);
+    info!(
+        "POST /api/fetch/user/{} (with_casts={}, embeddings={})",
+        fid, req.with_casts, req.generate_embeddings
+    );
 
     let Some(ref loader) = state.lazy_loader else {
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     };
 
     // Check if in database (to determine source)
-    let in_db = state.database.get_user_profile(fid).await
+    let in_db = state
+        .database
+        .get_user_profile(fid)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .is_some();
 
@@ -279,7 +286,9 @@ pub async fn fetch_user(
 
     // Fetch casts if requested
     let casts = if req.with_casts {
-        loader.get_user_casts_smart(fid).await
+        loader
+            .get_user_casts_smart(fid)
+            .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     } else {
         Vec::new()
@@ -293,8 +302,13 @@ pub async fn fetch_user(
             match state.database.pool().acquire().await {
                 Ok(_) => {
                     // Create embedding service with specified endpoint
-                    Arc::new(crate::embeddings::EmbeddingService::new(&crate::config::AppConfig::load().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
-                        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+                    Arc::new(
+                        crate::embeddings::EmbeddingService::new(
+                            &crate::config::AppConfig::load()
+                                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+                        )
+                        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+                    )
                 }
                 Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
             }
@@ -307,12 +321,10 @@ pub async fn fetch_user(
             if let Some(ref text) = cast.text {
                 if !text.trim().is_empty() {
                     if let Ok(embedding) = embedding_service.generate(text).await {
-                        let _ = state.database.store_cast_embedding(
-                            &cast.message_hash,
-                            cast.fid,
-                            text,
-                            &embedding,
-                        ).await;
+                        let _ = state
+                            .database
+                            .store_cast_embedding(&cast.message_hash, cast.fid, text, &embedding)
+                            .await;
                         success += 1;
                     }
                 }
@@ -334,7 +346,11 @@ pub async fn fetch_user(
         },
         casts_count: casts.len(),
         embeddings_generated,
-        source: if in_db { "database".to_string() } else { "snapchain".to_string() },
+        source: if in_db {
+            "database".to_string()
+        } else {
+            "snapchain".to_string()
+        },
     })))
 }
 
@@ -361,7 +377,10 @@ pub async fn fetch_users_batch(
 
         // Fetch casts if requested
         let casts = if req.with_casts {
-            loader.get_user_casts_smart(fid as i64).await.unwrap_or_default()
+            loader
+                .get_user_casts_smart(fid as i64)
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -422,4 +441,303 @@ pub async fn get_stats(
         profiles_with_embeddings,
         casts_with_embeddings,
     })))
+}
+
+/// Create a new chat session
+pub async fn create_chat_session(
+    State(state): State<AppState>,
+    Json(req): Json<CreateChatRequest>,
+) -> Result<Json<ApiResponse<CreateChatResponse>>, StatusCode> {
+    info!("POST /api/chat/create - user: {}", req.user);
+
+    // Parse user identifier (FID or username)
+    let fid = match parse_user_identifier(&req.user, &state.database).await {
+        Ok(fid) => fid,
+        Err(e) => {
+            error!("Failed to parse user identifier: {}", e);
+            return Ok(Json(ApiResponse::error(format!(
+                "Invalid user identifier: {}",
+                e
+            ))));
+        }
+    };
+
+    // Get user profile
+    let profile = match state.database.get_user_profile(fid as i64).await {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return Ok(Json(ApiResponse::error(format!("User {} not found", fid))));
+        }
+        Err(e) => {
+            error!("Database error: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // Count user's casts
+    let casts_count = match state
+        .database
+        .get_casts_by_fid(fid as i64, Some(1), Some(0))
+        .await
+    {
+        Ok(casts) => {
+            // Get actual count
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts WHERE fid = $1")
+                .bind(fid as i64)
+                .fetch_one(state.database.pool())
+                .await
+                .unwrap_or(0) as usize
+        }
+        Err(_) => 0,
+    };
+
+    // Create session
+    let session = state.session_manager.create_session(
+        fid as i64,
+        profile.username.clone(),
+        profile.display_name.clone(),
+        req.context_limit,
+        req.temperature,
+    );
+
+    info!(
+        "Created chat session: {} for FID {}",
+        session.session_id, fid
+    );
+
+    Ok(Json(ApiResponse::success(CreateChatResponse {
+        session_id: session.session_id,
+        fid: fid as i64,
+        username: profile.username,
+        display_name: profile.display_name,
+        bio: profile.bio,
+        total_casts: casts_count,
+    })))
+}
+
+/// Send a message in a chat session
+pub async fn send_chat_message(
+    State(state): State<AppState>,
+    Json(req): Json<ChatMessageRequest>,
+) -> Result<Json<ApiResponse<ChatMessageResponse>>, StatusCode> {
+    info!("POST /api/chat/message - session: {}", req.session_id);
+
+    // Get session
+    let mut session = match state.session_manager.get_session(&req.session_id) {
+        Some(s) => s,
+        None => {
+            return Ok(Json(ApiResponse::error("Session not found or expired")));
+        }
+    };
+
+    // Get user profile
+    let profile = match state.database.get_user_profile(session.fid).await {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return Ok(Json(ApiResponse::error(format!(
+                "User {} not found",
+                session.fid
+            ))));
+        }
+        Err(e) => {
+            error!("Database error: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    // Generate query embedding
+    let query_embedding = match state.embedding_service.generate(&req.message).await {
+        Ok(emb) => emb,
+        Err(e) => {
+            error!("Embedding generation failed: {}", e);
+            return Ok(Json(ApiResponse::error("Failed to process question")));
+        }
+    };
+
+    // Search for relevant casts
+    let search_limit = (session.context_limit * 5).max(100);
+    let search_results = match state
+        .database
+        .semantic_search_casts_simple(query_embedding, search_limit as i64, Some(0.3))
+        .await
+    {
+        Ok(results) => results,
+        Err(e) => {
+            error!("Vector search failed: {}", e);
+            return Ok(Json(ApiResponse::error("Failed to search context")));
+        }
+    };
+
+    // Filter to this user and prioritize substantial content
+    let mut user_casts: Vec<_> = search_results
+        .into_iter()
+        .filter(|r| r.fid == session.fid)
+        .collect();
+
+    // Calculate current timestamp
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    // Sort by: relevance * substance * recency
+    user_casts.sort_by(|a, b| {
+        // Recency factor: newer posts (< 30 days) = 1.0, older (> 1 year) = 0.5
+        let age_a_days = ((now - a.timestamp) as f32) / 86400.0;
+        let age_b_days = ((now - b.timestamp) as f32) / 86400.0;
+        let recency_a = (1.0 - (age_a_days / 365.0).min(0.5)).max(0.5);
+        let recency_b = (1.0 - (age_b_days / 365.0).min(0.5)).max(0.5);
+
+        // Combined score: similarity * substance * recency
+        let score_a = a.similarity * (a.text.len() as f32).ln().max(1.0) * recency_a;
+        let score_b = b.similarity * (b.text.len() as f32).ln().max(1.0) * recency_b;
+
+        score_b
+            .partial_cmp(&score_a)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    user_casts.truncate(session.context_limit);
+
+    // Build context
+    let context = build_chat_context(&profile, &user_casts, &session, &req.message);
+
+    // Generate response
+    let response_text = match state
+        .llm_service
+        .generate_with_params(&context, session.temperature, 2000)
+        .await
+    {
+        Ok(text) => text,
+        Err(e) => {
+            error!("LLM generation failed: {}", e);
+            return Ok(Json(ApiResponse::error("Failed to generate response")));
+        }
+    };
+
+    // Add to conversation history
+    session.add_message("user", req.message.clone());
+    session.add_message("assistant", response_text.clone());
+
+    // Update session
+    state.session_manager.update_session(session.clone());
+
+    Ok(Json(ApiResponse::success(ChatMessageResponse {
+        session_id: session.session_id,
+        message: response_text,
+        relevant_casts_count: user_casts.len(),
+        conversation_length: session.conversation_history.len(),
+    })))
+}
+
+/// Get session information
+pub async fn get_chat_session(
+    State(state): State<AppState>,
+    Query(req): Query<GetSessionRequest>,
+) -> Result<Json<ApiResponse<SessionInfoResponse>>, StatusCode> {
+    info!("GET /api/chat/session - session: {}", req.session_id);
+
+    match state.session_manager.get_session(&req.session_id) {
+        Some(session) => Ok(Json(ApiResponse::success(SessionInfoResponse {
+            session_id: session.session_id,
+            fid: session.fid,
+            username: session.username,
+            display_name: session.display_name,
+            conversation_history: session.conversation_history,
+            created_at: session.created_at,
+            last_activity: session.last_activity,
+        }))),
+        None => Ok(Json(ApiResponse::error("Session not found or expired"))),
+    }
+}
+
+/// Delete a chat session
+pub async fn delete_chat_session(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    info!("DELETE /api/chat/session/{}", session_id);
+
+    state.session_manager.delete_session(&session_id);
+    Ok(Json(ApiResponse::success(())))
+}
+
+/// Parse user identifier (FID or username)
+async fn parse_user_identifier(identifier: &str, database: &Database) -> crate::Result<u64> {
+    let trimmed = identifier.trim();
+
+    if trimmed.starts_with('@') {
+        let username = trimmed.trim_start_matches('@');
+        let profile = database
+            .get_user_profile_by_username(username)
+            .await?
+            .ok_or_else(|| {
+                crate::SnapRagError::Custom(format!("Username @{} not found", username))
+            })?;
+        Ok(profile.fid as u64)
+    } else {
+        trimmed.parse::<u64>().map_err(|_| {
+            crate::SnapRagError::Custom(format!("Invalid user identifier: {}", identifier))
+        })
+    }
+}
+
+/// Build chat context from profile, casts, and history
+fn build_chat_context(
+    profile: &crate::models::UserProfile,
+    relevant_casts: &[crate::models::CastSearchResult],
+    session: &crate::api::session::ChatSession,
+    question: &str,
+) -> String {
+    let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
+    let username = profile.username.as_deref();
+
+    let mut context = String::new();
+    context.push_str(&format!("You are {}, a Farcaster user", display_name));
+    if let Some(username) = username {
+        context.push_str(&format!(" (@{})", username));
+    }
+    context.push_str(&format!(". FID: {}.\n\n", profile.fid));
+
+    if let Some(bio) = &profile.bio {
+        context.push_str(&format!("Bio: {}\n\n", bio));
+    }
+
+    // Add relevant casts as style reference
+    if !relevant_casts.is_empty() {
+        let avg_length: usize = relevant_casts.iter().map(|c| c.text.len()).sum::<usize>()
+            / relevant_casts.len().max(1);
+
+        context.push_str("===== YOUR ACTUAL POSTS =====\n\n");
+        for (idx, result) in relevant_casts.iter().take(15).enumerate() {
+            context.push_str(&format!("{}. {}\n", idx + 1, result.text));
+        }
+        context.push_str(&format!("\nAverage length: {} chars\n\n", avg_length));
+
+        context.push_str("===== CRITICAL STYLE RULES =====\n");
+        if avg_length < 80 {
+            context.push_str(
+                "⚠️ You write VERY SHORT posts. KEEP YOUR ANSWER BRIEF (under 100 chars)!\n",
+            );
+            context.push_str("Examples: '5-10 words', 'one short sentence', 'super concise'.\n");
+        } else if avg_length < 150 {
+            context.push_str("You're concise. Keep answers to 1-2 sentences.\n");
+        } else {
+            context.push_str("You write detailed posts. 2-3 sentences is fine.\n");
+        }
+        context.push_str("MATCH the examples: same length, same emoji usage, same energy.\n\n");
+    }
+
+    // Add conversation history
+    if !session.conversation_history.is_empty() {
+        context.push_str("Previous conversation:\n\n");
+        for msg in &session.conversation_history {
+            let role_label = if msg.role == "user" { "User" } else { "You" };
+            context.push_str(&format!("{}: {}\n", role_label, msg.content));
+        }
+        context.push_str("\n");
+    }
+
+    context.push_str(&format!("User: {}\n\nYou:", question));
+
+    context
 }

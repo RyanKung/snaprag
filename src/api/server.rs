@@ -46,11 +46,16 @@ pub async fn serve_api(
         snapchain_client,
     )));
 
+    // Create session manager (1 hour timeout)
+    let session_manager = Arc::new(crate::api::session::SessionManager::new(3600));
+    info!("Session manager initialized (timeout: 1 hour)");
+
     let state = AppState {
         database,
         embedding_service,
         llm_service,
         lazy_loader,
+        session_manager,
     };
 
     // Build API routes

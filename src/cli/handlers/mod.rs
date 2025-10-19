@@ -10,7 +10,9 @@
 //! - sync: Synchronization commands
 //! - serve: API server
 //! - info: Information display (stats, dashboard, config)
+//! - ask: AI role-playing as a specific user
 
+pub mod ask;
 pub mod cast;
 pub mod data;
 pub mod embeddings;
@@ -22,6 +24,7 @@ pub mod serve;
 pub mod sync;
 
 // Re-export all public handlers
+pub use ask::*;
 pub use cast::*;
 pub use data::*;
 pub use embeddings::*;

@@ -1,12 +1,12 @@
 //! Lazy loading (on-demand fetch) handlers
 
+use std::sync::Arc;
+
 use crate::cli::output::*;
+use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
-use std::sync::Arc;
-
-use crate::database::Database;
 
 pub async fn handle_fetch_user(
     config: &AppConfig,
@@ -62,7 +62,14 @@ pub async fn handle_fetch_user(
     // Fetch casts if requested
     if with_casts {
         print_info(&format!("🔄 Fetching casts for FID {}...", fid));
-        let casts = lazy_loader.get_user_casts_smart(fid as i64).await?;
+        let limit = if max_casts > 0 {
+            Some(max_casts)
+        } else {
+            None // No limit
+        };
+        let casts = lazy_loader
+            .get_user_casts_smart_with_limit(fid as i64, limit)
+            .await?;
         println!("   ✅ Loaded {} casts", casts.len());
 
         if !casts.is_empty() {
@@ -83,14 +90,43 @@ pub async fn handle_fetch_user(
 
             // Generate embeddings if requested
             if generate_embeddings {
-                print_info(&format!(
-                    "🔮 Generating embeddings for {} casts...",
-                    casts.len()
-                ));
+                // First, check which casts don't have embeddings yet
+                print_info("🔍 Checking for existing embeddings...");
 
-                let embedding_service = if let Some(ref endpoint_name) = embedding_endpoint {
-                    let endpoint_config =
-                        config
+                // Collect message hashes from casts with text
+                let message_hashes: Vec<Vec<u8>> = casts
+                    .iter()
+                    .filter(|c| {
+                        c.text
+                            .as_ref()
+                            .map(|t| !t.trim().is_empty())
+                            .unwrap_or(false)
+                    })
+                    .map(|c| c.message_hash.clone())
+                    .collect();
+
+                // Efficiently check which ones are missing embeddings
+                let missing_hashes = database.get_missing_embeddings(&message_hashes).await?;
+
+                let casts_without_embeddings: Vec<_> = casts
+                    .iter()
+                    .filter(|cast| missing_hashes.contains(&cast.message_hash))
+                    .cloned()
+                    .collect();
+
+                let existing_count = message_hashes.len() - casts_without_embeddings.len();
+                println!("   ✅ {} already have embeddings", existing_count);
+
+                if casts_without_embeddings.is_empty() {
+                    println!("   ℹ️  All casts already have embeddings. Skipping generation.");
+                } else {
+                    print_info(&format!(
+                        "🔮 Generating embeddings for {} casts...",
+                        casts_without_embeddings.len()
+                    ));
+
+                    let embedding_service = if let Some(ref endpoint_name) = embedding_endpoint {
+                        let endpoint_config = config
                             .get_embedding_endpoint(endpoint_name)
                             .ok_or_else(|| {
                                 crate::SnapRagError::Custom(format!(
@@ -98,68 +134,81 @@ pub async fn handle_fetch_user(
                                     endpoint_name
                                 ))
                             })?;
-                    let embedding_config =
-                        crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config);
-                    Arc::new(crate::embeddings::EmbeddingService::from_config(
-                        embedding_config,
-                    )?)
-                } else {
-                    Arc::new(crate::embeddings::EmbeddingService::new(config)?)
-                };
-
-                let mut success = 0;
-                let mut skipped = 0;
-                let mut failed = 0;
-
-                for cast in casts.iter() {
-                    // Skip casts without text
-                    let Some(ref text) = cast.text else {
-                        skipped += 1;
-                        continue;
+                        let embedding_config = crate::embeddings::EmbeddingConfig::from_endpoint(
+                            config,
+                            endpoint_config,
+                        );
+                        Arc::new(crate::embeddings::EmbeddingService::from_config(
+                            embedding_config,
+                        )?)
+                    } else {
+                        Arc::new(crate::embeddings::EmbeddingService::new(config)?)
                     };
-                    if text.trim().is_empty() {
-                        skipped += 1;
-                        continue;
-                    }
 
-                    // Generate embedding
-                    match embedding_service.generate(text).await {
-                        Ok(embedding) => {
-                            // Store in database
-                            match database
-                                .store_cast_embedding(
-                                    &cast.message_hash,
-                                    cast.fid,
-                                    text,
-                                    &embedding,
-                                )
-                                .await
-                            {
-                                Ok(_) => {
-                                    success += 1;
-                                    if success % 10 == 0 {
-                                        print!(".");
-                                        std::io::Write::flush(&mut std::io::stdout()).ok();
+                    let mut success = 0;
+                    let mut skipped = 0;
+                    let mut failed = 0;
+                    let total = casts_without_embeddings.len();
+
+                    for (idx, cast) in casts_without_embeddings.iter().enumerate() {
+                        // Skip casts without text
+                        let Some(ref text) = cast.text else {
+                            skipped += 1;
+                            continue;
+                        };
+                        if text.trim().is_empty() {
+                            skipped += 1;
+                            continue;
+                        }
+
+                        // Generate embedding
+                        match embedding_service.generate(text).await {
+                            Ok(embedding) => {
+                                // Store in database
+                                match database
+                                    .store_cast_embedding(
+                                        &cast.message_hash,
+                                        cast.fid,
+                                        text,
+                                        &embedding,
+                                    )
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        success += 1;
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Failed to store embedding: {}", e);
+                                        failed += 1;
                                     }
                                 }
-                                Err(e) => {
-                                    tracing::warn!("Failed to store embedding: {}", e);
-                                    failed += 1;
-                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to generate embedding: {}", e);
+                                failed += 1;
                             }
                         }
-                        Err(e) => {
-                            tracing::warn!("Failed to generate embedding: {}", e);
-                            failed += 1;
-                        }
-                    }
-                }
 
-                println!();
-                println!(
-                    "   ✅ Embeddings: {} success, {} skipped, {} failed",
-                    success, skipped, failed
-                );
+                        // Update progress bar
+                        let processed = idx + 1;
+                        let percentage = (processed as f64 / total as f64 * 100.0) as u32;
+                        let bar_width = 40;
+                        let filled = (processed as f64 / total as f64 * bar_width as f64) as usize;
+                        let bar: String = "█".repeat(filled) + &"░".repeat(bar_width - filled);
+
+                        print!(
+                            "\r   Progress: [{}] {}% ({}/{}) - ✅ {} ⏭ {} ❌ {}",
+                            bar, percentage, processed, total, success, skipped, failed
+                        );
+                        std::io::Write::flush(&mut std::io::stdout()).ok();
+                    }
+
+                    println!();
+                    println!(
+                        "   ✅ Embeddings: {} success, {} skipped, {} failed",
+                        success, skipped, failed
+                    );
+                }
             }
         }
     }
@@ -364,4 +413,3 @@ pub async fn handle_fetch_popular(
     print_success("✅ Popular users preloaded!");
     Ok(())
 }
-

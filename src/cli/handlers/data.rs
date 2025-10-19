@@ -2,8 +2,8 @@
 
 use crate::cli::commands::DataType;
 use crate::cli::output::*;
-use crate::SnapRag;
 use crate::Result;
+use crate::SnapRag;
 
 /// Handle list command
 pub async fn handle_list_command(
@@ -398,4 +398,3 @@ pub async fn handle_activity_command(
 
     Ok(())
 }
-

@@ -2,7 +2,49 @@ use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 mod api;
+mod payment;
 mod wallet;
+
+/// Handle payment flow: sign and retry request with payment header
+async fn handle_payment(
+    requirements: &payment::PaymentRequirements,
+    account: &wallet::WalletAccount,
+    api_url: &str,
+    endpoint: &api::EndpointInfo,
+    body: Option<String>,
+) -> Result<api::ApiResponse, String> {
+    // Generate nonce and timestamp
+    let nonce = payment::generate_nonce();
+    let timestamp = payment::get_timestamp();
+
+    // Get payer address
+    let payer = account
+        .address
+        .as_ref()
+        .ok_or("No wallet address available")?;
+
+    // Create EIP-712 typed data
+    let typed_data = payment::create_eip712_typed_data(requirements, payer, &nonce, timestamp)?;
+
+    // Sign with MetaMask
+    let signature = wallet::sign_eip712(&typed_data)
+        .await
+        .map_err(|e| format!("Failed to sign payment: {}", e))?;
+
+    // Create payment payload
+    let payment_payload =
+        payment::create_payment_payload(requirements, payer, &signature, &nonce, timestamp);
+
+    // Encode to base64
+    let payment_header = payment_payload
+        .to_base64()
+        .map_err(|e| format!("Failed to encode payment: {}", e))?;
+
+    // Retry request with payment
+    api::make_request(api_url, endpoint, body, Some(payment_header))
+        .await
+        .map_err(|e| format!("Request with payment failed: {}", e))
+}
 
 #[function_component]
 fn App() -> Html {
@@ -123,6 +165,7 @@ fn App() -> Html {
         let request_body = request_body.clone();
         let response = response.clone();
         let is_loading = is_loading.clone();
+        let wallet_account = wallet_account.clone();
 
         Callback::from(move |_| {
             let api_url = (*api_url).clone();
@@ -131,20 +174,65 @@ fn App() -> Html {
             let request_body = (*request_body).clone();
             let response = response.clone();
             let is_loading = is_loading.clone();
+            let wallet_account = wallet_account.clone();
 
             spawn_local(async move {
                 if let Some(endpoint) = endpoints.get(selected_endpoint) {
                     is_loading.set(true);
                     
                     let body = if endpoint.method == "POST" && !request_body.is_empty() {
-                        Some(request_body)
+                        Some(request_body.clone())
                     } else {
                         None
                     };
 
-                    match api::make_request(&api_url, endpoint, body, None).await {
+                    // First attempt without payment
+                    match api::make_request(&api_url, endpoint, body.clone(), None).await {
                         Ok(resp) => {
-                            response.set(Some(resp));
+                            // Check if payment is required (402)
+                            if resp.status == 402 {
+                                // Try to handle payment automatically
+                                if let Some(account) = (*wallet_account).clone() {
+                                    if account.is_connected {
+                                        // Parse payment requirements
+                                        if let Ok(payment_resp) = serde_json::from_str::<payment::PaymentRequirementsResponse>(&resp.body) {
+                                            if let Some(requirements) = payment_resp.accepts.first() {
+                                                // Show initial 402 response
+                                                response.set(Some(resp.clone()));
+                                                
+                                                // Attempt payment
+                                                match handle_payment(requirements, &account, &api_url, endpoint, body).await {
+                                                    Ok(paid_resp) => {
+                                                        response.set(Some(paid_resp));
+                                                    }
+                                                    Err(e) => {
+                                                        // Show payment error
+                                                        response.set(Some(api::ApiResponse {
+                                                            status: 402,
+                                                            status_text: "Payment Failed".to_string(),
+                                                            headers: vec![],
+                                                            body: format!("{{\"error\": \"Payment failed: {}\", \"original_requirements\": {}}}", e, resp.body),
+                                                        }));
+                                                    }
+                                                }
+                                            } else {
+                                                response.set(Some(resp));
+                                            }
+                                        } else {
+                                            response.set(Some(resp));
+                                        }
+                                    } else {
+                                        // Wallet not connected, show 402
+                                        response.set(Some(resp));
+                                    }
+                                } else {
+                                    // No wallet, show 402
+                                    response.set(Some(resp));
+                                }
+                            } else {
+                                // Not a payment required response
+                                response.set(Some(resp));
+                            }
                         }
                         Err(e) => {
                             response.set(Some(api::ApiResponse {
@@ -386,6 +474,44 @@ fn App() -> Html {
                                                             {format!("{} {}", resp.status, resp.status_text)}
                                                         </span>
                                                     </div>
+
+                                                    {
+                                                        // Show payment info for 402 responses
+                                                        if resp.status == 402 {
+                                                            html! {
+                                                                <div class="alert alert-warning" style="margin-bottom: 15px;">
+                                                                    {
+                                                                        if let Some(account) = (*wallet_account).clone() {
+                                                                            if account.is_connected {
+                                                                                html! { 
+                                                                                    <>
+                                                                                        {"💳 Payment signature requested. "}
+                                                                                        {"Please sign the payment in MetaMask to continue."}
+                                                                                    </>
+                                                                                }
+                                                                            } else {
+                                                                                html! {
+                                                                                    <>
+                                                                                        {"⚠️ Payment required but wallet not connected. "}
+                                                                                        {"Please connect your wallet and try again."}
+                                                                                    </>
+                                                                                }
+                                                                            }
+                                                                        } else {
+                                                                            html! {
+                                                                                <>
+                                                                                    {"⚠️ Payment required but no wallet connected. "}
+                                                                                    {"Please connect MetaMask and try again."}
+                                                                                </>
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                </div>
+                                                            }
+                                                        } else {
+                                                            html! {}
+                                                        }
+                                                    }
 
                                                     <div class="tabs">
                                                         <button 

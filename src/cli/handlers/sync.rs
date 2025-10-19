@@ -1,13 +1,13 @@
 //! Synchronization handlers
 
+use std::sync::Arc;
+
+use super::info::print_sync_status;
+use crate::cli::commands::SyncCommands;
 use crate::cli::output::*;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
-use std::sync::Arc;
-
-use crate::cli::commands::SyncCommands;
-use super::info::print_sync_status;
 
 pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommands) -> Result<()> {
     // For commands that need database access, verify schema is initialized
@@ -132,4 +132,3 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
     }
     Ok(())
 }
-

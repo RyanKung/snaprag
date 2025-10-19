@@ -3,6 +3,72 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+/// Create chat session request
+#[derive(Debug, Deserialize)]
+pub struct CreateChatRequest {
+    /// FID or username (@xxx) to chat with
+    pub user: String,
+    /// Maximum number of relevant casts to use as context
+    #[serde(default = "default_context_limit")]
+    pub context_limit: usize,
+    /// LLM temperature (0.0 - 1.0)
+    #[serde(default = "default_temperature")]
+    pub temperature: f32,
+}
+
+fn default_context_limit() -> usize {
+    20
+}
+
+fn default_temperature() -> f32 {
+    0.7
+}
+
+/// Create chat session response
+#[derive(Debug, Serialize)]
+pub struct CreateChatResponse {
+    pub session_id: String,
+    pub fid: i64,
+    pub username: Option<String>,
+    pub display_name: Option<String>,
+    pub bio: Option<String>,
+    pub total_casts: usize,
+}
+
+/// Send chat message request
+#[derive(Debug, Deserialize)]
+pub struct ChatMessageRequest {
+    pub session_id: String,
+    pub message: String,
+}
+
+/// Chat message response
+#[derive(Debug, Serialize)]
+pub struct ChatMessageResponse {
+    pub session_id: String,
+    pub message: String,
+    pub relevant_casts_count: usize,
+    pub conversation_length: usize,
+}
+
+/// Get session info request
+#[derive(Debug, Deserialize)]
+pub struct GetSessionRequest {
+    pub session_id: String,
+}
+
+/// Session info response
+#[derive(Debug, Serialize)]
+pub struct SessionInfoResponse {
+    pub session_id: String,
+    pub fid: i64,
+    pub username: Option<String>,
+    pub display_name: Option<String>,
+    pub conversation_history: Vec<super::session::ChatMessage>,
+    pub created_at: u64,
+    pub last_activity: u64,
+}
+
 /// Standard API response wrapper
 #[derive(Debug, Serialize)]
 pub struct ApiResponse<T> {
@@ -90,10 +156,6 @@ pub struct RagQueryRequest {
 
 fn default_rag_limit() -> usize {
     10
-}
-
-fn default_temperature() -> f32 {
-    0.7
 }
 
 fn default_max_tokens() -> usize {

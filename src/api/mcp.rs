@@ -164,7 +164,8 @@ async fn list_tools() -> Json<Vec<McpTool>> {
         },
         McpTool {
             name: "fetch_user".to_string(),
-            description: "Fetch user profile and optionally casts with embeddings generation".to_string(),
+            description: "Fetch user profile and optionally casts with embeddings generation"
+                .to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -372,8 +373,8 @@ async fn call_tool(
                 Vec::new()
             };
 
-            let mut response_text = serde_json::to_string_pretty(&profile)
-                .unwrap_or_else(|_| "{}".to_string());
+            let mut response_text =
+                serde_json::to_string_pretty(&profile).unwrap_or_else(|_| "{}".to_string());
 
             if with_casts {
                 response_text.push_str(&format!("\n\nCasts: {} loaded", casts.len()));
@@ -385,12 +386,15 @@ async fn call_tool(
                     if let Some(ref text) = cast.text {
                         if !text.trim().is_empty() {
                             if let Ok(embedding) = state.embedding_service.generate(text).await {
-                                let _ = state.database.store_cast_embedding(
-                                    &cast.message_hash,
-                                    cast.fid,
-                                    text,
-                                    &embedding,
-                                ).await;
+                                let _ = state
+                                    .database
+                                    .store_cast_embedding(
+                                        &cast.message_hash,
+                                        cast.fid,
+                                        text,
+                                        &embedding,
+                                    )
+                                    .await;
                                 success += 1;
                             }
                         }

@@ -1,10 +1,11 @@
 //! API server handlers
 
+use std::sync::Arc;
+
 use crate::cli::output::*;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
-use std::sync::Arc;
 
 pub async fn handle_serve_api(
     config: &AppConfig,

@@ -1,10 +1,11 @@
 //! Information display handlers (stats, dashboard, config)
 
+use std::sync::Arc;
+
 use crate::cli::output::*;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
-use std::sync::Arc;
 
 pub async fn handle_stats_command(
     snaprag: &SnapRag,
@@ -40,7 +41,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     // Use pg_class.reltuples for large tables (instant vs minutes for COUNT)
     let large_table_stats: Vec<(String, i64)> = sqlx::query_as(
         "SELECT relname, reltuples::bigint FROM pg_class 
-         WHERE relname IN ('casts', 'user_activity_timeline')"
+         WHERE relname IN ('casts', 'user_activity_timeline')",
     )
     .fetch_all(pool)
     .await?;
@@ -58,14 +59,14 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
     // Get profiles with username (fast partial index count)
     let profiles_with_username: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM user_profiles WHERE username IS NOT NULL AND username != ''"
+        "SELECT COUNT(*) FROM user_profiles WHERE username IS NOT NULL AND username != ''",
     )
     .fetch_one(pool)
     .await?;
 
     // Get embeddings count
     let profiles_with_embeddings: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM user_profiles WHERE profile_embedding IS NOT NULL"
+        "SELECT COUNT(*) FROM user_profiles WHERE profile_embedding IS NOT NULL",
     )
     .fetch_one(pool)
     .await?;
@@ -76,28 +77,37 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
     // Latest activity (fast with index)
     let latest_timestamp: Option<i64> = sqlx::query_scalar(
-        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1"
+        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1",
     )
     .fetch_optional(pool)
     .await?;
 
     // Display results
     println!("📈 Database Statistics:");
-    println!("  Total Profiles: {} (exact)", format_number(total_profiles));
-    println!("  └─ With Username: {} ({:.1}%)", 
+    println!(
+        "  Total Profiles: {} (exact)",
+        format_number(total_profiles)
+    );
+    println!(
+        "  └─ With Username: {} ({:.1}%)",
         format_number(profiles_with_username),
         (profiles_with_username as f64 / total_profiles.max(1) as f64 * 100.0)
     );
     println!("  Casts: ~{} (estimated)", format_number(total_casts));
-    println!("  Activities: ~{} (estimated)", format_number(total_activities));
+    println!(
+        "  Activities: ~{} (estimated)",
+        format_number(total_activities)
+    );
     println!();
 
     println!("🔮 Embeddings:");
-    println!("  Profiles: {} ({:.1}%)", 
+    println!(
+        "  Profiles: {} ({:.1}%)",
         format_number(profiles_with_embeddings),
         (profiles_with_embeddings as f64 / total_profiles as f64 * 100.0)
     );
-    println!("  Casts: {} ({:.1}%)", 
+    println!(
+        "  Casts: {} ({:.1}%)",
         format_number(casts_with_embeddings),
         (casts_with_embeddings as f64 / total_casts.max(1) as f64 * 100.0)
     );
@@ -114,18 +124,18 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     let sync_info: Vec<(i32, i64, String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
         "SELECT shard_id, last_processed_height, status, updated_at 
          FROM sync_progress 
-         ORDER BY shard_id"
+         ORDER BY shard_id",
     )
     .fetch_all(pool)
     .await?;
-    
+
     if !sync_info.is_empty() {
         println!("🔄 Sync Status (Real-time from DB):");
-        
+
         let mut total_height = 0i64;
         for (shard_id, height, status, updated_at) in &sync_info {
             total_height += height;
-            
+
             // Calculate time since last update
             let now = chrono::Utc::now();
             let duration = now.signed_duration_since(*updated_at);
@@ -136,15 +146,16 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
             } else {
                 format!("{}h ago", duration.num_hours())
             };
-            
-            println!("  Shard {}: {} ({}) - {}", 
-                shard_id, 
-                format_number(*height), 
+
+            println!(
+                "  Shard {}: {} ({}) - {}",
+                shard_id,
+                format_number(*height),
                 status,
                 time_ago
             );
         }
-        
+
         // Estimate total messages (activities)
         let avg_height = total_height / sync_info.len() as i64;
         println!("  Avg Height: {}", format_number(avg_height));
@@ -152,7 +163,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     }
 
     print_info("💡 Tip: Use 'snaprag stats' for detailed statistics");
-    
+
     Ok(())
 }
 
@@ -246,7 +257,7 @@ async fn get_latest_message_time(snaprag: &SnapRag) -> Result<String> {
 
     // Use LIMIT 1 with ORDER BY DESC - uses index efficiently
     let latest_timestamp = sqlx::query_scalar::<_, Option<i64>>(
-        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1"
+        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1",
     )
     .fetch_one(snaprag.database().pool())
     .await?;
@@ -271,7 +282,7 @@ fn format_number(n: i64) -> String {
     let s = n.to_string();
     let mut result = String::new();
     let mut count = 0;
-    
+
     for c in s.chars().rev() {
         if count == 3 {
             result.push(',');
@@ -280,6 +291,6 @@ fn format_number(n: i64) -> String {
         result.push(c);
         count += 1;
     }
-    
+
     result.chars().rev().collect()
 }

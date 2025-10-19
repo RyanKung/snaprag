@@ -177,6 +177,42 @@ pub fn get_endpoints() -> Vec<EndpointInfo> {
 }"#
             .to_string()),
         },
+        EndpointInfo {
+            path: "/chat/create".to_string(),
+            method: "POST".to_string(),
+            name: "Create Chat Session".to_string(),
+            description: "Create interactive chat session with a user".to_string(),
+            tier: "Premium".to_string(),
+            requires_payment: true,
+            default_body: Some(r#"{
+  "user": "@jesse.base.eth",
+  "context_limit": 20,
+  "temperature": 0.7
+}"#
+            .to_string()),
+        },
+        EndpointInfo {
+            path: "/chat/message".to_string(),
+            method: "POST".to_string(),
+            name: "Send Chat Message".to_string(),
+            description: "Send a message in an existing chat session".to_string(),
+            tier: "Premium".to_string(),
+            requires_payment: true,
+            default_body: Some(r#"{
+  "session_id": "your-session-id-here",
+  "message": "What are your thoughts on Base?"
+}"#
+            .to_string()),
+        },
+        EndpointInfo {
+            path: "/chat/session?session_id=your-session-id".to_string(),
+            method: "GET".to_string(),
+            name: "Get Chat Session".to_string(),
+            description: "Get chat session info and conversation history".to_string(),
+            tier: "Premium".to_string(),
+            requires_payment: true,
+            default_body: None,
+        },
     ]
 }
 

@@ -141,6 +141,29 @@ pub enum Commands {
     /// Fetch user data on-demand (lazy loading)
     #[command(subcommand)]
     Fetch(FetchCommands),
+    /// Ask a question to a specific user (AI role-playing)
+    Ask {
+        /// FID or username of the user (e.g., "99" or "@jesse.base.eth")
+        user: String,
+        /// Question to ask (optional in --chat mode)
+        #[arg(required_unless_present = "chat")]
+        question: Option<String>,
+        /// Enable interactive chat mode with conversation history
+        #[arg(long)]
+        chat: bool,
+        /// Also fetch and embed casts if not already done
+        #[arg(long)]
+        fetch_casts: bool,
+        /// Maximum number of relevant casts to use as context
+        #[arg(long, default_value = "20")]
+        context_limit: usize,
+        /// LLM temperature (0.0 - 1.0)
+        #[arg(long, default_value = "0.7")]
+        temperature: f32,
+        /// Show detailed sources and reasoning
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -152,8 +175,8 @@ pub enum FetchCommands {
         /// Also fetch user's casts
         #[arg(long)]
         with_casts: bool,
-        /// Maximum number of casts to fetch
-        #[arg(long, default_value = "1000")]
+        /// Maximum number of casts to fetch (0 = no limit, fetch all)
+        #[arg(long, default_value = "0")]
         max_casts: usize,
         /// Generate embeddings for fetched casts
         #[arg(long)]

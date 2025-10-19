@@ -281,7 +281,7 @@ impl LazyLoader {
 
         let mut all_casts = Vec::new();
         let mut page_token: Option<String> = None;
-        let max_pages = 10; // Limit to prevent excessive API calls
+        let max_pages = 100; // Increased limit to fetch more casts (was 10, now 100)
         let mut page_count = 0;
 
         loop {
@@ -419,10 +419,23 @@ impl LazyLoader {
 
     /// Get or fetch user casts (smart query)
     pub async fn get_user_casts_smart(&self, fid: i64) -> Result<Vec<Cast>> {
+        self.get_user_casts_smart_with_limit(fid, None).await
+    }
+
+    /// Get or fetch user casts with optional limit (smart query)
+    pub async fn get_user_casts_smart_with_limit(
+        &self,
+        fid: i64,
+        limit: Option<usize>,
+    ) -> Result<Vec<Cast>> {
+        // Convert limit to Option<i64> for database query
+        // None means no limit (get all casts)
+        let db_limit = limit.map(|l| l as i64);
+
         // Try database first
         let existing_casts = self
             .database
-            .get_casts_by_fid(fid, Some(1000), Some(0))
+            .get_casts_by_fid(fid, db_limit, Some(0))
             .await?;
 
         if !existing_casts.is_empty() {
@@ -436,7 +449,13 @@ impl LazyLoader {
         );
 
         match self.fetch_user_casts(fid as u64).await {
-            Ok(casts) => Ok(casts),
+            Ok(mut casts) => {
+                // Apply limit if specified
+                if let Some(max) = limit {
+                    casts.truncate(max);
+                }
+                Ok(casts)
+            }
             Err(e) => {
                 warn!("Failed to lazy load casts for {}: {}", fid, e);
                 Ok(Vec::new()) // Return empty rather than error

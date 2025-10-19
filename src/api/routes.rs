@@ -1,5 +1,6 @@
 //! API route definitions
 
+use axum::routing::delete;
 use axum::routing::get;
 use axum::routing::post;
 use axum::Router;
@@ -25,6 +26,14 @@ pub fn api_routes(state: AppState) -> Router {
         .route("/search/casts", post(handlers::search_casts))
         // RAG endpoints
         .route("/rag/query", post(handlers::rag_query))
+        // Chat endpoints (interactive AI role-play)
+        .route("/chat/create", post(handlers::create_chat_session))
+        .route("/chat/message", post(handlers::send_chat_message))
+        .route("/chat/session", get(handlers::get_chat_session))
+        .route(
+            "/chat/session/:session_id",
+            delete(handlers::delete_chat_session),
+        )
         // Statistics
         .route("/stats", get(handlers::get_stats))
         .with_state(state)

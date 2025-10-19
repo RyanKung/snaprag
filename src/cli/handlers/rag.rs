@@ -1,11 +1,12 @@
 //! RAG (Retrieval-Augmented Generation) handlers
 
+use std::sync::Arc;
+
 use crate::cli::output::*;
 use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
-use std::sync::Arc;
 
 pub async fn handle_rag_query_casts(
     snaprag: &SnapRag,
@@ -243,5 +244,3 @@ pub async fn handle_rag_search(
 
     Ok(())
 }
-
-

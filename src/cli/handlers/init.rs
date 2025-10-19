@@ -1,16 +1,17 @@
 //! Database initialization and reset handlers
 
-use crate::cli::output::{print_info, print_prompt, print_success, print_warning};
+use std::io::stdin;
+use std::io::Read;
+
+use crate::cli::output::print_info;
+use crate::cli::output::print_prompt;
+use crate::cli::output::print_success;
+use crate::cli::output::print_warning;
 use crate::Result;
 use crate::SnapRag;
-use std::io::{stdin, Read};
 
 /// Handle database initialization command
-pub async fn handle_init_command(
-    snaprag: &SnapRag,
-    force: bool,
-    skip_indexes: bool,
-) -> Result<()> {
+pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: bool) -> Result<()> {
     if !force {
         print_warning("This will initialize the database schema and create indexes.");
         print_warning("This operation is safe - it uses CREATE IF NOT EXISTS.");
@@ -297,4 +298,3 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
 
     Ok(())
 }
-

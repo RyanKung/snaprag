@@ -430,6 +430,20 @@ impl Database {
         Ok(profile)
     }
 
+    /// Get user profile by username
+    pub async fn get_user_profile_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Option<UserProfile>> {
+        let profile =
+            sqlx::query_as::<_, UserProfile>("SELECT * FROM user_profiles WHERE username = $1")
+                .bind(username)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        Ok(profile)
+    }
+
     /// Update user profile field and create snapshot
     pub async fn update_user_profile(
         &self,
@@ -1738,8 +1752,11 @@ impl Database {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> Result<Vec<crate::models::Cast>> {
-        let limit = limit.unwrap_or(100);
         let offset = offset.unwrap_or(0);
+
+        // If no limit specified, fetch all casts (use a very large number)
+        // This is more efficient than dynamic SQL construction
+        let limit = limit.unwrap_or(1_000_000);
 
         let casts = sqlx::query_as::<_, crate::models::Cast>(
             "SELECT * FROM casts WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
@@ -1797,6 +1814,36 @@ impl Database {
         Ok(casts)
     }
 
+    /// Check which message hashes from a list don't have embeddings
+    /// Returns a HashSet of message hashes that need embeddings
+    pub async fn get_missing_embeddings(
+        &self,
+        message_hashes: &[Vec<u8>],
+    ) -> Result<std::collections::HashSet<Vec<u8>>> {
+        if message_hashes.is_empty() {
+            return Ok(std::collections::HashSet::new());
+        }
+
+        // Get all hashes that already have embeddings
+        let existing = sqlx::query_scalar::<_, Vec<u8>>(
+            "SELECT message_hash FROM cast_embeddings WHERE message_hash = ANY($1)",
+        )
+        .bind(message_hashes)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let existing_set: std::collections::HashSet<Vec<u8>> = existing.into_iter().collect();
+
+        // Return hashes that are NOT in the existing set
+        let missing: std::collections::HashSet<Vec<u8>> = message_hashes
+            .iter()
+            .filter(|hash| !existing_set.contains(*hash))
+            .cloned()
+            .collect();
+
+        Ok(missing)
+    }
+
     /// Store cast embedding
     pub async fn store_cast_embedding(
         &self,
@@ -1825,8 +1872,8 @@ impl Database {
         Ok(())
     }
 
-    /// Semantic search for casts with engagement metrics
-    pub async fn semantic_search_casts(
+    /// Semantic search for casts (lightweight version without engagement metrics)
+    pub async fn semantic_search_casts_simple(
         &self,
         query_embedding: Vec<f32>,
         limit: i64,
@@ -1843,9 +1890,7 @@ impl Database {
             parent_hash: Option<Vec<u8>>,
             embeds: Option<serde_json::Value>,
             mentions: Option<serde_json::Value>,
-            similarity: f32,
-            reply_count: Option<i64>,
-            reaction_count: Option<i64>,
+            similarity: f64, // PostgreSQL returns FLOAT8 (f64) from distance operator
         }
 
         let raw_results = sqlx::query_as::<_, RawResult>(
@@ -1858,15 +1903,11 @@ impl Database {
                 c.parent_hash,
                 c.embeds,
                 c.mentions,
-                1 - (ce.embedding <=> $1) as similarity,
-                (SELECT COUNT(*) FROM casts WHERE parent_hash = ce.message_hash) as reply_count,
-                (SELECT COUNT(*) FROM user_activity_timeline 
-                 WHERE message_hash = ce.message_hash 
-                 AND activity_type = 'reaction_add') as reaction_count
+                1 - (ce.embedding <=> $1::vector) as similarity
             FROM cast_embeddings ce
             INNER JOIN casts c ON ce.message_hash = c.message_hash
-            WHERE 1 - (ce.embedding <=> $1) > $2
-            ORDER BY ce.embedding <=> $1
+            WHERE 1 - (ce.embedding <=> $1::vector) > $2
+            ORDER BY ce.embedding <=> $1::vector
             LIMIT $3
             "#,
         )
@@ -1886,7 +1927,77 @@ impl Database {
                 parent_hash: r.parent_hash,
                 embeds: r.embeds,
                 mentions: r.mentions,
-                similarity: r.similarity,
+                similarity: r.similarity as f32, // Convert f64 to f32
+                reply_count: 0,                  // Not calculated in simple version
+                reaction_count: 0,               // Not calculated in simple version
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    /// Semantic search for casts with engagement metrics
+    pub async fn semantic_search_casts(
+        &self,
+        query_embedding: Vec<f32>,
+        limit: i64,
+        threshold: Option<f32>,
+    ) -> Result<Vec<crate::models::CastSearchResult>> {
+        let threshold_val = threshold.unwrap_or(0.0);
+
+        #[derive(sqlx::FromRow)]
+        struct RawResult {
+            message_hash: Vec<u8>,
+            fid: i64,
+            text: String,
+            timestamp: i64,
+            parent_hash: Option<Vec<u8>>,
+            embeds: Option<serde_json::Value>,
+            mentions: Option<serde_json::Value>,
+            similarity: f64, // PostgreSQL returns FLOAT8 (f64) from distance operator
+            reply_count: Option<i64>,
+            reaction_count: Option<i64>,
+        }
+
+        let raw_results = sqlx::query_as::<_, RawResult>(
+            r#"
+            SELECT 
+                ce.message_hash,
+                ce.fid,
+                ce.text,
+                c.timestamp,
+                c.parent_hash,
+                c.embeds,
+                c.mentions,
+                1 - (ce.embedding <=> $1::vector) as similarity,
+                (SELECT COUNT(*) FROM casts WHERE parent_hash = ce.message_hash) as reply_count,
+                (SELECT COUNT(*) FROM user_activity_timeline 
+                 WHERE message_hash = ce.message_hash 
+                 AND activity_type = 'reaction_add') as reaction_count
+            FROM cast_embeddings ce
+            INNER JOIN casts c ON ce.message_hash = c.message_hash
+            WHERE 1 - (ce.embedding <=> $1::vector) > $2
+            ORDER BY ce.embedding <=> $1::vector
+            LIMIT $3
+            "#,
+        )
+        .bind(&query_embedding)
+        .bind(threshold_val)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let results = raw_results
+            .into_iter()
+            .map(|r| crate::models::CastSearchResult {
+                message_hash: r.message_hash,
+                fid: r.fid,
+                text: r.text,
+                timestamp: r.timestamp,
+                parent_hash: r.parent_hash,
+                embeds: r.embeds,
+                mentions: r.mentions,
+                similarity: r.similarity as f32, // Convert f64 to f32
                 reply_count: r.reply_count.unwrap_or(0),
                 reaction_count: r.reaction_count.unwrap_or(0),
             })

@@ -1,10 +1,11 @@
 //! Embedding generation handlers
 
+use std::sync::Arc;
+
 use crate::cli::output::*;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
-use std::sync::Arc;
 
 pub async fn handle_cast_embeddings_backfill(
     config: &AppConfig,
@@ -360,5 +361,3 @@ pub async fn handle_embeddings_stats(config: &AppConfig) -> Result<()> {
 
     Ok(())
 }
-
-
