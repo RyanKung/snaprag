@@ -122,16 +122,10 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                 ));
             }
 
-            query.push_str(
-                " ON CONFLICT (message_hash) DO UPDATE SET \
-                fid = EXCLUDED.fid, \
-                text = EXCLUDED.text, \
-                timestamp = EXCLUDED.timestamp, \
-                parent_hash = EXCLUDED.parent_hash, \
-                root_hash = EXCLUDED.root_hash, \
-                embeds = EXCLUDED.embeds, \
-                mentions = EXCLUDED.mentions",
-            );
+            // 🚀 CRITICAL FIX: Use DO NOTHING for re-sync performance
+            // Casts are immutable - if message_hash exists, no need to update
+            // This prevents 166M+ unnecessary updates on re-sync
+            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) in
@@ -360,24 +354,20 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                 timestamps.push(timestamp);
             }
 
-            // Dynamic SQL with timestamp check - only update if newer or equal
+            // 🚀 CRITICAL FIX: Only update if timestamp is newer (skip re-sync duplicates)
+            // This prevents millions of unnecessary updates on re-sync
             let sql = format!(
                 r#"
                 UPDATE user_profiles AS up
-                SET {} = CASE 
-                        WHEN data.timestamp >= up.last_updated_timestamp THEN data.value
-                        ELSE up.{}
-                    END,
-                    last_updated_timestamp = GREATEST(data.timestamp, up.last_updated_timestamp),
-                    last_updated_at = CASE 
-                        WHEN data.timestamp >= up.last_updated_timestamp THEN $4
-                        ELSE up.last_updated_at
-                    END
+                SET {} = data.value,
+                    last_updated_timestamp = data.timestamp,
+                    last_updated_at = $4
                 FROM unnest($1::bigint[], $2::text[], $3::bigint[]) 
                     AS data(fid, value, timestamp)
                 WHERE up.fid = data.fid
+                  AND data.timestamp > up.last_updated_timestamp
                 "#,
-                field_name, field_name
+                field_name
             );
 
             sqlx::query(&sql)
