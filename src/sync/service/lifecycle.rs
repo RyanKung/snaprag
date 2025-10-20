@@ -433,7 +433,7 @@ impl LifecycleManager {
                             if let Err(e) = progress_saver_db.update_last_processed_height(shard_id, continuous_progress).await {
                                 warn!("Failed to save progress: {}", e);
                             } else {
-                                debug!("💾 Shard {} progress saved: {}", shard_id, continuous_progress);
+                                info!("💾 Shard {} progress saved: {} blocks", shard_id, continuous_progress);
                                 last_saved_progress = continuous_progress;
                             }
                         }
