@@ -207,18 +207,61 @@ impl SocialGraphAnalyzer {
 
     /// Lazy load following list from Snapchain and insert into database
     async fn lazy_load_following(&self, fid: i64) -> Result<Vec<i64>> {
-        // TODO: Implement linksByFid endpoint (requires gRPC)
-        // Snapchain HTTP API only supports linksByTargetFid (who follows you)
-        // To get who you follow (linksByFid), we need to use gRPC
-        tracing::warn!(
-            "⚠️  Unable to lazy load following list for FID {} - linksByFid requires gRPC implementation",
+        let client = self.snapchain_client.as_ref().ok_or_else(|| {
+            crate::SnapRagError::Custom("Snapchain client not available".to_string())
+        })?;
+
+        // Use gRPC to get who this FID follows
+        let response = client
+            .get_links_by_fid(fid as u64, "follow", Some(1000))
+            .await?;
+
+        tracing::info!(
+            "📩 Received {} messages from Snapchain linksByFid (gRPC)",
+            response.messages.len()
+        );
+        let mut following = Vec::new();
+
+        for message in &response.messages {
+            if let Some(data) = &message.data {
+                if let Some(link_body) = data.body.get("link_body") {
+                    let target_fid = link_body
+                        .get("target_fid")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+
+                    if target_fid > 0 {
+                        following.push(target_fid);
+
+                        // Insert into database for future use
+                        let link_type = link_body
+                            .get("type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("follow");
+
+                        let _ = sqlx::query(
+                            "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
+                             VALUES ($1, $2, $3, $4, $5)
+                             ON CONFLICT (message_hash) DO NOTHING",
+                        )
+                        .bind(fid)
+                        .bind(target_fid)
+                        .bind(link_type)
+                        .bind(data.timestamp as i64)
+                        .bind(&message.hash)
+                        .execute(self.database.pool())
+                        .await;
+                    }
+                }
+            }
+        }
+
+        tracing::info!(
+            "✅ Lazy loaded {} following for FID {}",
+            following.len(),
             fid
         );
-        tracing::info!(
-            "ℹ️  Following data will only be available after full sync. \
-             Alternatively, followers can still be loaded via linksByTargetFid."
-        );
-        Ok(Vec::new())
+        Ok(following)
     }
 
     /// Lazy load followers list from Snapchain and insert into database

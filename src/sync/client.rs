@@ -404,6 +404,84 @@ impl SnapchainClient {
         Ok(proto_response)
     }
 
+    /// Get links by FID (who this user follows) using gRPC
+    pub async fn get_links_by_fid(
+        &self,
+        fid: u64,
+        link_type: &str,
+        page_size: Option<u32>,
+    ) -> Result<LinksByTargetFidResponse> {
+        let mut grpc_client = self.grpc_client.clone();
+        
+        let mut request = crate::generated::grpc_client::LinksByFidRequest::default();
+        request.fid = fid;
+        request.link_type = Some(link_type.to_string());
+        if let Some(size) = page_size {
+            request.page_size = Some(size);
+        }
+        
+        tracing::debug!("Calling gRPC get_links_by_fid for FID {}", fid);
+        let response = grpc_client.get_links_by_fid(request).await.map_err(|e| {
+            crate::errors::SnapRagError::Custom(format!("gRPC get_links_by_fid failed: {}", e))
+        })?;
+        
+        let grpc_response = response.into_inner();
+        tracing::debug!("gRPC returned {} messages for FID {}", grpc_response.messages.len(), fid);
+        
+        // Convert gRPC response to our HTTP-style format for consistency
+        let mut http_messages = Vec::new();
+        for msg in &grpc_response.messages {
+            if let Some(data) = &msg.data {
+                let mut body = std::collections::HashMap::new();
+                
+                // Extract link_body from the proto message body oneof
+                if let Some(ref body_oneof) = &data.body {
+                    use crate::generated::grpc_client::message_data::Body;
+                    use crate::generated::grpc_client::link_body::Target;
+                    
+                    match body_oneof {
+                        Body::LinkBody(ref link_body) => {
+                            let mut link_body_json = serde_json::Map::new();
+                            
+                            // Extract target_fid from the target oneof
+                            if let Some(Target::TargetFid(target_fid)) = &link_body.target {
+                                link_body_json.insert("target_fid".to_string(), serde_json::json!(target_fid));
+                            }
+                            
+                            link_body_json.insert("type".to_string(), serde_json::json!(&link_body.r#type));
+                            body.insert("link_body".to_string(), serde_json::Value::Object(link_body_json));
+                        }
+                        _ => {}
+                    }
+                }
+                
+                let farcaster_msg = FarcasterMessage {
+                    data: Some(FarcasterMessageData {
+                        message_type: format!("{}", data.r#type),
+                        fid: data.fid,
+                        timestamp: data.timestamp as u64,
+                        network: format!("{}", data.network),
+                        body,
+                    }),
+                    hash: hex::encode(&msg.hash),
+                    hash_scheme: msg.hash_scheme.to_string(),
+                    signature: hex::encode(&msg.signature),
+                    signature_scheme: msg.signature_scheme.to_string(),
+                    signer: hex::encode(&msg.signer),
+                };
+                
+                http_messages.push(farcaster_msg);
+            }
+        }
+        
+        Ok(LinksByTargetFidResponse {
+            messages: http_messages,
+            next_page_token: grpc_response.next_page_token.as_ref().map(|t| {
+                String::from_utf8_lossy(t).to_string()
+            }),
+        })
+    }
+
     /// Get links by target FID (who follows this user)
     pub async fn get_links_by_target_fid(
         &self,
