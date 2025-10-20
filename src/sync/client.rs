@@ -404,41 +404,7 @@ impl SnapchainClient {
         Ok(proto_response)
     }
 
-    /// Get links by target FID (like your curl example)
-    /// Get links by FID (who this user follows)
-    pub async fn get_links_by_fid(
-        &self,
-        fid: u64,
-        link_type: &str,
-        page_size: Option<u32>,
-        next_page_token: Option<&str>,
-    ) -> Result<LinksByFidResponse> {
-        let mut url = format!(
-            "{}/v1/linksByFid?fid={}&link_type={}",
-            self.base_url, fid, link_type
-        );
-
-        if let Some(size) = page_size {
-            url.push_str(&format!("&pageSize={}", size));
-        }
-
-        if let Some(token) = next_page_token {
-            url.push_str(&format!("&nextPageToken={}", token));
-        }
-
-        let response = self.client.get(&url).send().await?;
-
-        if !response.status().is_success() {
-            return Err(crate::errors::SnapRagError::Custom(format!(
-                "Failed to get links by FID: HTTP {}",
-                response.status()
-            )));
-        }
-
-        let links_response: LinksByFidResponse = response.json().await?;
-        Ok(links_response)
-    }
-
+    /// Get links by target FID (who follows this user)
     pub async fn get_links_by_target_fid(
         &self,
         target_fid: u64,
@@ -766,13 +732,6 @@ pub struct DbStatsResponse {
     pub num_fid_registrations: u64,
     #[serde(rename = "approxSize")]
     pub approx_size: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LinksByFidResponse {
-    pub messages: Vec<FarcasterMessage>,
-    #[serde(rename = "nextPageToken")]
-    pub next_page_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
