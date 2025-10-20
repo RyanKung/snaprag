@@ -487,16 +487,22 @@ impl LifecycleManager {
                                 stop_block_number: Some(batch_end),
                             };
 
+                            // 📊 Measure gRPC fetch time
+                            let fetch_start = std::time::Instant::now();
                             match client.get_shard_chunks(request).await {
                                 Ok(response) => {
+                                    let fetch_elapsed = fetch_start.elapsed();
                                     let chunks = response.shard_chunks;
 
                                     if !chunks.is_empty() {
+                                        // 📊 Measure processing time
+                                        let process_start = std::time::Instant::now();
                                         match ShardProcessor::new(database.as_ref().clone())
                                             .process_chunks_batch(&chunks, shard_id)
                                             .await
                                         {
                                             Ok(_) => {
+                                                let process_elapsed = process_start.elapsed();
                                                 let messages_in_batch: u64 = chunks
                                                     .iter()
                                                     .map(|c| {
@@ -507,10 +513,22 @@ impl LifecycleManager {
                                                     })
                                                     .sum();
 
-                                                tracing::debug!(
-                                                    "Shard {} batch {}-{}: {} blocks, {} msgs",
-                                                    shard_id, batch_start, batch_end, chunks.len(), messages_in_batch
-                                                );
+                                                // 📊 Log performance breakdown
+                                                if fetch_elapsed.as_millis() > 500 || process_elapsed.as_millis() > 500 {
+                                                    info!(
+                                                        "⏱️  Shard {} batch {}-{}: fetch={}ms, process={}ms (total={}ms)",
+                                                        shard_id, batch_start, batch_end,
+                                                        fetch_elapsed.as_millis(),
+                                                        process_elapsed.as_millis(),
+                                                        fetch_elapsed.as_millis() + process_elapsed.as_millis()
+                                                    );
+                                                } else {
+                                                    tracing::debug!(
+                                                        "Shard {} batch {}-{}: {} blocks, {} msgs, fetch={}ms, process={}ms",
+                                                        shard_id, batch_start, batch_end, chunks.len(), messages_in_batch,
+                                                        fetch_elapsed.as_millis(), process_elapsed.as_millis()
+                                                    );
+                                                }
 
                                                 // ✅ Success - mark batch as completed (progress saver will handle DB update)
                                                 completed_batches_shared.lock().await.insert(batch_start);

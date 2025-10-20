@@ -41,18 +41,16 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     // Use pg_class.reltuples for large tables (instant vs minutes for COUNT)
     let large_table_stats: Vec<(String, i64)> = sqlx::query_as(
         "SELECT relname, reltuples::bigint FROM pg_class 
-         WHERE relname IN ('casts', 'user_activity_timeline')",
+         WHERE relname IN ('casts')",
     )
     .fetch_all(pool)
     .await?;
 
     let mut total_casts = 0i64;
-    let mut total_activities = 0i64;
 
     for (table, count) in large_table_stats {
         match table.as_str() {
             "casts" => total_casts = count,
-            "user_activity_timeline" => total_activities = count,
             _ => {}
         }
     }
@@ -75,9 +73,9 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
         .fetch_one(pool)
         .await?;
 
-    // Latest activity (fast with index)
+    // Latest activity from casts table
     let latest_timestamp: Option<i64> = sqlx::query_scalar(
-        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1",
+        "SELECT timestamp FROM casts ORDER BY timestamp DESC LIMIT 1",
     )
     .fetch_optional(pool)
     .await?;
@@ -94,10 +92,6 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
         (profiles_with_username as f64 / total_profiles.max(1) as f64 * 100.0)
     );
     println!("  Casts: ~{} (estimated)", format_number(total_casts));
-    println!(
-        "  Activities: ~{} (estimated)",
-        format_number(total_activities)
-    );
     println!();
 
     println!("🔮 Embeddings:");
@@ -399,7 +393,7 @@ async fn get_latest_message_time(snaprag: &SnapRag) -> Result<String> {
 
     // Use LIMIT 1 with ORDER BY DESC - uses index efficiently
     let latest_timestamp = sqlx::query_scalar::<_, Option<i64>>(
-        "SELECT timestamp FROM user_activity_timeline ORDER BY timestamp DESC LIMIT 1",
+        "SELECT timestamp FROM casts ORDER BY timestamp DESC LIMIT 1",
     )
     .fetch_one(snaprag.database().pool())
     .await?;

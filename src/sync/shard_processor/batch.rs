@@ -21,6 +21,11 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
 
     // Start a transaction for the entire batch
     let mut tx = database.pool().begin().await?;
+    
+    // 🔧 Set statement timeout to prevent long-running transactions from blocking
+    sqlx::query("SET LOCAL statement_timeout = '30s'")
+        .execute(&mut *tx)
+        .await?;
 
     // Batch insert FIDs (split into chunks to avoid parameter limit)
     if !batched.fids_to_ensure.is_empty() {
@@ -30,7 +35,9 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~21666 rows per chunk
 
-        let fids: Vec<i64> = batched.fids_to_ensure.iter().copied().collect();
+        // 🔧 Sort FIDs to ensure consistent lock acquisition order (reduce deadlocks)
+        let mut fids: Vec<i64> = batched.fids_to_ensure.iter().copied().collect();
+        fids.sort_unstable();
 
         // Split FIDs into chunks
         for chunk in fids.chunks(CHUNK_SIZE) {
@@ -353,10 +360,13 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         let now = chrono::Utc::now();
 
         // 🚀 Use unnest() for batch updates - much faster!
-        for (field_name, updates) in updates_by_field {
+        for (field_name, mut updates) in updates_by_field {
             if updates.is_empty() {
                 continue;
             }
+
+            // 🔧 Sort by FID to ensure consistent lock order (reduce deadlocks)
+            updates.sort_by_key(|(fid, _, _)| *fid);
 
             let mut fids = Vec::with_capacity(updates.len());
             let mut values = Vec::with_capacity(updates.len());
