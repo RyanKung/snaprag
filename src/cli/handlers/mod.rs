@@ -13,6 +13,7 @@
 //! - ask: AI role-playing as a specific user
 
 pub mod ask;
+pub mod ask_handler;
 pub mod cast;
 pub mod data;
 pub mod embeddings;
@@ -25,6 +26,7 @@ pub mod sync;
 
 // Re-export all public handlers
 pub use ask::*;
+pub use ask_handler::*;
 pub use cast::*;
 pub use data::*;
 pub use embeddings::*;
