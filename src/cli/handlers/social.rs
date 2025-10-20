@@ -19,7 +19,7 @@ pub async fn handle_social_analysis(
     // Initialize services
     let database = Arc::new(Database::from_config(config).await?);
     let snapchain_client = Arc::new(SnapchainClient::from_config(config).await?);
-    let lazy_loader = LazyLoader::new(database.clone(), snapchain_client);
+    let lazy_loader = LazyLoader::new(database.clone(), snapchain_client.clone());
 
     // Parse user identifier
     let fid = parse_user_identifier(&user_identifier, &database).await?;
@@ -43,8 +43,8 @@ pub async fn handle_social_analysis(
     ));
     println!();
 
-    // Analyze social profile
-    let analyzer = SocialGraphAnalyzer::new(database.clone());
+    // Analyze social profile with lazy loading capability
+    let analyzer = SocialGraphAnalyzer::with_snapchain(database.clone(), snapchain_client.clone());
     let social_profile = analyzer.analyze_user(fid as i64).await?;
 
     // Display results

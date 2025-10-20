@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Fetch links from Snapchain
         match client.get_links_by_fid(*fid as u64, Some(1000)).await {
             Ok(messages) => {
-                for message in &messages {
+                for message in messages.iter() {
                     if let Some(data) = &message.data {
                         if let Some(body) = &data.body {
                             if let Some(link_body) = body.get("link_body") {

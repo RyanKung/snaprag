@@ -84,12 +84,27 @@ pub struct WordFrequency {
 /// Social graph analyzer
 pub struct SocialGraphAnalyzer {
     database: Arc<Database>,
+    snapchain_client: Option<Arc<crate::sync::client::SnapchainClient>>,
 }
 
 impl SocialGraphAnalyzer {
     /// Create a new social graph analyzer
     pub fn new(database: Arc<Database>) -> Self {
-        Self { database }
+        Self {
+            database,
+            snapchain_client: None,
+        }
+    }
+
+    /// Create with Snapchain client for lazy loading
+    pub fn with_snapchain(
+        database: Arc<Database>,
+        client: Arc<crate::sync::client::SnapchainClient>,
+    ) -> Self {
+        Self {
+            database,
+            snapchain_client: Some(client),
+        }
     }
 
     /// Analyze user's social profile
@@ -146,8 +161,9 @@ impl SocialGraphAnalyzer {
         })
     }
 
-    /// Get list of users this FID follows
+    /// Get list of users this FID follows (with lazy loading from Snapchain)
     async fn get_following(&self, fid: i64) -> Result<Vec<i64>> {
+        // Try database first
         let links = sqlx::query_scalar::<_, i64>(
             "SELECT target_fid FROM links WHERE fid = $1 AND link_type = 'follow'",
         )
@@ -155,11 +171,21 @@ impl SocialGraphAnalyzer {
         .fetch_all(self.database.pool())
         .await?;
 
+        // If empty and we have Snapchain client, lazy load
+        if links.is_empty() && self.snapchain_client.is_some() {
+            tracing::info!(
+                "⚡ Following list empty for FID {}, lazy loading from Snapchain...",
+                fid
+            );
+            return self.lazy_load_following(fid).await;
+        }
+
         Ok(links)
     }
 
-    /// Get list of users who follow this FID
+    /// Get list of users who follow this FID (with lazy loading from Snapchain)
     async fn get_followers(&self, fid: i64) -> Result<Vec<i64>> {
+        // Try database first
         let followers = sqlx::query_scalar::<_, i64>(
             "SELECT fid FROM links WHERE target_fid = $1 AND link_type = 'follow'",
         )
@@ -167,6 +193,117 @@ impl SocialGraphAnalyzer {
         .fetch_all(self.database.pool())
         .await?;
 
+        // If empty and we have Snapchain client, lazy load
+        if followers.is_empty() && self.snapchain_client.is_some() {
+            tracing::info!(
+                "⚡ Followers list empty for FID {}, lazy loading from Snapchain...",
+                fid
+            );
+            return self.lazy_load_followers(fid).await;
+        }
+
+        Ok(followers)
+    }
+
+    /// Lazy load following list from Snapchain and insert into database
+    async fn lazy_load_following(&self, fid: i64) -> Result<Vec<i64>> {
+        let client = self.snapchain_client.as_ref().ok_or_else(|| {
+            crate::SnapRagError::Custom("Snapchain client not available".to_string())
+        })?;
+
+        // Get who this FID follows
+        let response = client
+            .get_links_by_fid(fid as u64, "follow", Some(1000), None)
+            .await?;
+        let mut following = Vec::new();
+
+        for message in &response.messages {
+            if let Some(data) = &message.data {
+                if let Some(link_body) = data.body.get("link_body") {
+                    let target_fid = link_body
+                        .get("target_fid")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+
+                    if target_fid > 0 {
+                        following.push(target_fid);
+
+                        // Insert into database for future use
+                        let link_type = link_body
+                            .get("type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("follow");
+
+                        let _ = sqlx::query(
+                            "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
+                             VALUES ($1, $2, $3, $4, $5)
+                             ON CONFLICT (message_hash) DO NOTHING"
+                        )
+                        .bind(fid)
+                        .bind(target_fid)
+                        .bind(link_type)
+                        .bind(data.timestamp as i64)
+                        .bind(&message.hash)
+                        .execute(self.database.pool())
+                        .await;
+                    }
+                }
+            }
+        }
+
+        tracing::info!(
+            "✅ Lazy loaded {} following for FID {}",
+            following.len(),
+            fid
+        );
+        Ok(following)
+    }
+
+    /// Lazy load followers list from Snapchain and insert into database
+    async fn lazy_load_followers(&self, fid: i64) -> Result<Vec<i64>> {
+        let client = self.snapchain_client.as_ref().ok_or_else(|| {
+            crate::SnapRagError::Custom("Snapchain client not available".to_string())
+        })?;
+
+        // Use existing API
+        let response = client
+            .get_links_by_target_fid(fid as u64, "follow", Some(1000), None)
+            .await?;
+        let mut followers = Vec::new();
+
+        for message in &response.messages {
+            if let Some(data) = &message.data {
+                let follower_fid = data.fid as i64;
+                followers.push(follower_fid);
+
+                // Insert into database for future use
+                if let Some(link_body) = data.body.get("link_body") {
+                    let link_type = link_body
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("follow");
+
+                    let _ = sqlx::query(
+                        "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
+                         VALUES ($1, $2, $3, $4, $5)
+                         ON CONFLICT (message_hash) DO NOTHING",
+                    )
+                    .bind(follower_fid)
+                    .bind(fid)
+                    .bind(link_type)
+                    .bind(data.timestamp as i64)
+                    .bind(&message.hash)
+                    .execute(self.database.pool())
+                    .await;
+                }
+            }
+        }
+
+        tracing::info!(
+            "✅ Lazy loaded {} followers for FID {}",
+            followers.len(),
+            fid
+        );
         Ok(followers)
     }
 
