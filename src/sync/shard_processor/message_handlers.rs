@@ -77,7 +77,41 @@ pub(super) async fn collect_message_data(
             ));
         }
         3 => {
-            // ReactionAdd - collect activity
+            // ReactionAdd - collect reaction data
+            if let Some(body) = &data.body {
+                if let Some(reaction_body) = body.get("reaction_body") {
+                    let reaction_type = reaction_body
+                        .get("type")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(1) as i16; // 1=like, 2=recast
+
+                    if let Some(target) = reaction_body.get("target_cast_id") {
+                        let target_fid = target.get("fid").and_then(|v| v.as_i64());
+
+                        if let Some(target_hash_str) = target.get("hash").and_then(|v| v.as_str()) {
+                            if let Ok(target_hash) = hex::decode(target_hash_str) {
+                                batched.reactions.push((
+                                    fid,
+                                    target_hash,
+                                    target_fid,
+                                    reaction_type,
+                                    timestamp,
+                                    message_hash.to_vec(),
+                                    shard_block_info.clone(),
+                                ));
+
+                                tracing::debug!(
+                                    "Collected reaction: FID {} -> cast (type: {})",
+                                    fid,
+                                    reaction_type
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Also collect activity
             batched.activities.push(create_activity(
                 fid,
                 "reaction_add".to_string(),
@@ -165,7 +199,52 @@ pub(super) async fn collect_message_data(
             ));
         }
         7 => {
-            // VerificationAddEthAddress - collect activity
+            // VerificationAddEthAddress - collect verification data
+            if let Some(body) = &data.body {
+                if let Some(verification_body) = body.get("verification_add_eth_address_body") {
+                    if let Some(address_str) =
+                        verification_body.get("address").and_then(|v| v.as_str())
+                    {
+                        if let Ok(address) = hex::decode(address_str) {
+                            let claim_signature = verification_body
+                                .get("claim_signature")
+                                .and_then(|v| v.as_str())
+                                .and_then(|s| hex::decode(s).ok());
+
+                            let block_hash = verification_body
+                                .get("block_hash")
+                                .and_then(|v| v.as_str())
+                                .and_then(|h| hex::decode(h).ok());
+
+                            let verification_type = verification_body
+                                .get("verification_type")
+                                .and_then(|v| v.as_i64())
+                                .map(|v| v as i16);
+
+                            let chain_id = verification_body
+                                .get("chain_id")
+                                .and_then(|v| v.as_i64())
+                                .map(|v| v as i32);
+
+                            batched.verifications.push((
+                                fid,
+                                address,
+                                claim_signature,
+                                block_hash,
+                                verification_type,
+                                chain_id,
+                                timestamp,
+                                message_hash.to_vec(),
+                                shard_block_info.clone(),
+                            ));
+
+                            tracing::debug!("Collected verification: FID {} verified address", fid);
+                        }
+                    }
+                }
+            }
+
+            // Also collect activity
             batched.activities.push(create_activity(
                 fid,
                 "verification_add".to_string(),

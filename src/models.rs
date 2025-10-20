@@ -275,6 +275,40 @@ pub struct UserActivity {
     pub transaction_fid: Option<i64>,
 }
 
+/// Reaction record (likes and recasts)
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Reaction {
+    pub id: Uuid,
+    pub fid: i64,
+    pub target_cast_hash: Vec<u8>,
+    pub target_fid: Option<i64>,
+    pub reaction_type: i16, // 1=like, 2=recast
+    pub timestamp: i64,
+    pub message_hash: Vec<u8>,
+    pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
+}
+
+/// Verification record (address verifications)
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Verification {
+    pub id: Uuid,
+    pub fid: i64,
+    pub address: Vec<u8>,
+    pub claim_signature: Option<Vec<u8>>,
+    pub block_hash: Option<Vec<u8>>,
+    pub verification_type: Option<i16>,
+    pub chain_id: Option<i32>,
+    pub timestamp: i64,
+    pub message_hash: Vec<u8>,
+    pub created_at: DateTime<Utc>,
+    pub shard_id: Option<i32>,
+    pub block_height: Option<i64>,
+    pub transaction_fid: Option<i64>,
+}
+
 /// Shard and block information for tracking data provenance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardBlockInfo {

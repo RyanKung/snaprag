@@ -21,6 +21,28 @@ pub struct BatchedData {
         Vec<u8>,
         crate::models::ShardBlockInfo,
     )>,
+    // Reactions: (fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_block_info)
+    pub reactions: Vec<(
+        i64,
+        Vec<u8>,
+        Option<i64>,
+        i16,
+        i64,
+        Vec<u8>,
+        crate::models::ShardBlockInfo,
+    )>,
+    // Verifications: (fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_block_info)
+    pub verifications: Vec<(
+        i64,
+        Vec<u8>,
+        Option<Vec<u8>>,
+        Option<Vec<u8>>,
+        Option<i16>,
+        Option<i32>,
+        i64,
+        Vec<u8>,
+        crate::models::ShardBlockInfo,
+    )>,
     // Activities: (fid, activity_type, activity_data, timestamp, message_hash, shard_id, block_height)
     pub activities: Vec<(
         i64,
@@ -41,6 +63,8 @@ impl BatchedData {
         Self {
             casts: Vec::new(),
             links: Vec::new(),
+            reactions: Vec::new(),
+            verifications: Vec::new(),
             activities: Vec::new(),
             fids_to_ensure: HashSet::new(),
             profile_updates: Vec::new(),

@@ -10,10 +10,12 @@ use crate::Result;
 pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
-        "Flushing batch: {} FIDs, {} casts, {} links, {} activities, {} profile updates",
+        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} activities, {} profile updates",
         batched.fids_to_ensure.len(),
         batched.casts.len(),
         batched.links.len(),
+        batched.reactions.len(),
+        batched.verifications.len(),
         batched.activities.len(),
         batched.profile_updates.len()
     );
@@ -189,6 +191,137 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                     .bind(message_hash)
                     .bind(shard_block_info.shard_id as i32)
                     .bind(shard_block_info.block_height as i64);
+            }
+
+            q.execute(&mut *tx).await?;
+        }
+    }
+
+    // Batch insert reactions (split into chunks to avoid parameter limit)
+    if !batched.reactions.is_empty() {
+        tracing::trace!("Batch inserting {} reactions", batched.reactions.len());
+
+        const PARAMS_PER_ROW: usize = 9; // fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid
+        const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
+
+        for chunk in batched.reactions.chunks(CHUNK_SIZE) {
+            let mut query = String::from(
+                "INSERT INTO reactions (fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES "
+            );
+
+            let value_clauses: Vec<String> = (0..chunk.len())
+                .map(|i| {
+                    let base = i * PARAMS_PER_ROW;
+                    format!(
+                        "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                        base + 1,
+                        base + 2,
+                        base + 3,
+                        base + 4,
+                        base + 5,
+                        base + 6,
+                        base + 7,
+                        base + 8,
+                        base + 9
+                    )
+                })
+                .collect();
+
+            query.push_str(&value_clauses.join(", "));
+            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+
+            let mut q = sqlx::query(&query);
+            for (
+                fid,
+                target_cast_hash,
+                target_fid,
+                reaction_type,
+                timestamp,
+                message_hash,
+                shard_block_info,
+            ) in chunk
+            {
+                q = q
+                    .bind(fid)
+                    .bind(target_cast_hash)
+                    .bind(target_fid)
+                    .bind(reaction_type)
+                    .bind(timestamp)
+                    .bind(message_hash)
+                    .bind(shard_block_info.shard_id as i32)
+                    .bind(shard_block_info.block_height as i64)
+                    .bind(shard_block_info.transaction_fid as i64);
+            }
+
+            q.execute(&mut *tx).await?;
+        }
+    }
+
+    // Batch insert verifications (split into chunks to avoid parameter limit)
+    if !batched.verifications.is_empty() {
+        tracing::trace!(
+            "Batch inserting {} verifications",
+            batched.verifications.len()
+        );
+
+        const PARAMS_PER_ROW: usize = 11; // fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_id, block_height, transaction_fid
+        const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
+
+        for chunk in batched.verifications.chunks(CHUNK_SIZE) {
+            let mut query = String::from(
+                "INSERT INTO verifications (fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES "
+            );
+
+            let value_clauses: Vec<String> = (0..chunk.len())
+                .map(|i| {
+                    let base = i * PARAMS_PER_ROW;
+                    format!(
+                        "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                        base + 1,
+                        base + 2,
+                        base + 3,
+                        base + 4,
+                        base + 5,
+                        base + 6,
+                        base + 7,
+                        base + 8,
+                        base + 9,
+                        base + 10,
+                        base + 11
+                    )
+                })
+                .collect();
+
+            query.push_str(&value_clauses.join(", "));
+            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+
+            let mut q = sqlx::query(&query);
+            for (
+                fid,
+                address,
+                claim_signature,
+                block_hash,
+                verification_type,
+                chain_id,
+                timestamp,
+                message_hash,
+                shard_block_info,
+            ) in chunk
+            {
+                q = q
+                    .bind(fid)
+                    .bind(address)
+                    .bind(claim_signature)
+                    .bind(block_hash)
+                    .bind(verification_type)
+                    .bind(chain_id)
+                    .bind(timestamp)
+                    .bind(message_hash)
+                    .bind(shard_block_info.shard_id as i32)
+                    .bind(shard_block_info.block_height as i64)
+                    .bind(shard_block_info.transaction_fid as i64);
             }
 
             q.execute(&mut *tx).await?;
