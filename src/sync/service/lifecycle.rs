@@ -470,11 +470,13 @@ impl LifecycleManager {
                 }
 
                 // Wait for all tasks to complete
-                info!("Shard {}: waiting for {} tasks to complete...", shard_id, task_handles.len());
+                let total_tasks = task_handles.len();
+                info!("Shard {}: waiting for {} tasks to complete...", shard_id, total_tasks);
 
                 let mut total_blocks = 0u64;
                 let mut total_messages = 0u64;
                 let mut completed_tasks = 0usize;
+                let mut failed_tasks = 0usize;
 
                 for (batch_start, task) in task_handles {
                     match task.await {
@@ -484,21 +486,32 @@ impl LifecycleManager {
                             completed_tasks += 1;
 
                             if completed_tasks % 100 == 0 {
-                                let progress_pct = (completed_tasks as f64 / total_blocks as f64 * 100.0).min(100.0);
+                                let progress_pct = (completed_tasks as f64 / total_tasks as f64 * 100.0).min(100.0);
                                 info!(
-                                    "Shard {}: {}/{} tasks ({:.1}%), {} blocks, {} msgs",
-                                    shard_id, completed_tasks, total_blocks, progress_pct, total_blocks, total_messages
+                                    "Shard {}: {}/{} tasks ({:.1}%), {} blocks, {} msgs total",
+                                    shard_id, completed_tasks, total_tasks, progress_pct, total_blocks, total_messages
                                 );
                             }
                         }
                         Ok(Err(e)) => {
+                            failed_tasks += 1;
+                            completed_tasks += 1;
                             error!("Shard {} batch {} failed: {}", shard_id, batch_start, e);
                             // Continue processing other batches (gaps are OK due to idempotency)
                         }
                         Err(e) => {
+                            failed_tasks += 1;
+                            completed_tasks += 1;
                             error!("Shard {} batch {} panicked: {}", shard_id, batch_start, e);
                         }
                     }
+                }
+
+                if failed_tasks > 0 {
+                    warn!(
+                        "Shard {}: {} tasks failed - run 'snaprag sync start' to fill gaps",
+                        shard_id, failed_tasks
+                    );
                 }
 
                 info!(
