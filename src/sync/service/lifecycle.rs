@@ -418,50 +418,90 @@ impl LifecycleManager {
                     let client = client.clone();
                     let database = database.clone();
 
-                    // Spawn task for this batch
+                    // Spawn task for this batch with retry logic
                     let task = tokio::spawn(async move {
                         let _permit = permit; // Hold permit until task completes
 
-                        let request = crate::sync::client::proto::ShardChunksRequest {
-                            shard_id,
-                            start_block_number: batch_start,
-                            stop_block_number: Some(batch_end),
-                        };
+                        const MAX_RETRIES: u32 = 3;
+                        let mut attempt = 0;
 
-                        match client.get_shard_chunks(request).await {
-                            Ok(response) => {
-                                let chunks = response.shard_chunks;
+                        loop {
+                            attempt += 1;
 
-                                if !chunks.is_empty() {
-                                    let processor = ShardProcessor::new(database.as_ref().clone());
-                                    processor.process_chunks_batch(&chunks, shard_id).await?;
+                            let request = crate::sync::client::proto::ShardChunksRequest {
+                                shard_id,
+                                start_block_number: batch_start,
+                                stop_block_number: Some(batch_end),
+                            };
 
-                                    let messages_in_batch: u64 = chunks
-                                        .iter()
-                                        .map(|c| {
-                                            c.transactions
-                                                .iter()
-                                                .map(|tx| tx.user_messages.len() as u64)
-                                                .sum::<u64>()
-                                        })
-                                        .sum();
+                            match client.get_shard_chunks(request).await {
+                                Ok(response) => {
+                                    let chunks = response.shard_chunks;
 
-                                    tracing::debug!(
-                                        "Shard {} batch {}-{}: {} blocks, {} msgs",
-                                        shard_id, batch_start, batch_end, chunks.len(), messages_in_batch
-                                    );
+                                    if !chunks.is_empty() {
+                                        match ShardProcessor::new(database.as_ref().clone())
+                                            .process_chunks_batch(&chunks, shard_id)
+                                            .await
+                                        {
+                                            Ok(_) => {
+                                                let messages_in_batch: u64 = chunks
+                                                    .iter()
+                                                    .map(|c| {
+                                                        c.transactions
+                                                            .iter()
+                                                            .map(|tx| tx.user_messages.len() as u64)
+                                                            .sum::<u64>()
+                                                    })
+                                                    .sum();
 
-                                    Ok::<(u64, u64), crate::SnapRagError>((chunks.len() as u64, messages_in_batch))
-                                } else {
-                                    Ok((0, 0))
+                                                tracing::debug!(
+                                                    "Shard {} batch {}-{}: {} blocks, {} msgs",
+                                                    shard_id, batch_start, batch_end, chunks.len(), messages_in_batch
+                                                );
+
+                                                return Ok::<(u64, u64), crate::SnapRagError>((
+                                                    chunks.len() as u64,
+                                                    messages_in_batch,
+                                                ));
+                                            }
+                                            Err(e) if attempt < MAX_RETRIES => {
+                                                warn!(
+                                                    "Batch {}-{} processing failed (attempt {}/{}): {}, retrying...",
+                                                    batch_start, batch_end, attempt, MAX_RETRIES, e
+                                                );
+                                                tokio::time::sleep(tokio::time::Duration::from_secs(attempt as u64)).await;
+                                                continue; // Retry
+                                            }
+                                            Err(e) => {
+                                                error!(
+                                                    "Batch {}-{} failed after {} attempts: {}",
+                                                    batch_start, batch_end, MAX_RETRIES, e
+                                                );
+                                                return Err(e);
+                                            }
+                                        }
+                                    } else {
+                                        return Ok((0, 0)); // Empty batch
+                                    }
                                 }
-                            }
-                            Err(e) if e.to_string().contains("no more chunks") => {
-                                Ok((0, 0)) // Skip empty batches
-                            }
-                            Err(e) => {
-                                error!("Batch {}-{} error: {}", batch_start, batch_end, e);
-                                Err(e)
+                                Err(e) if e.to_string().contains("no more chunks") => {
+                                    return Ok((0, 0)); // Skip empty batches
+                                }
+                                Err(e) if attempt < MAX_RETRIES => {
+                                    warn!(
+                                        "Batch {}-{} fetch failed (attempt {}/{}): {}, retrying...",
+                                        batch_start, batch_end, attempt, MAX_RETRIES, e
+                                    );
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(attempt as u64)).await;
+                                    continue; // Retry
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "Batch {}-{} fetch failed after {} attempts: {}",
+                                        batch_start, batch_end, MAX_RETRIES, e
+                                    );
+                                    return Err(e);
+                                }
                             }
                         }
                     });
