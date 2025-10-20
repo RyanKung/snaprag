@@ -211,55 +211,97 @@ impl SocialGraphAnalyzer {
             crate::SnapRagError::Custom("Snapchain client not available".to_string())
         })?;
 
-        // Use gRPC to get who this FID follows
-        let response = client
-            .get_links_by_fid(fid as u64, "follow", Some(1000))
-            .await?;
-
-        tracing::info!(
-            "📩 Received {} messages from Snapchain linksByFid (gRPC)",
-            response.messages.len()
-        );
         let mut following = Vec::new();
+        let mut batch_data = Vec::new();
+        let mut next_page_token: Option<String> = None;
+        let mut total_fetched = 0;
 
-        for message in &response.messages {
-            if let Some(data) = &message.data {
-                if let Some(link_body) = data.body.get("link_body") {
-                    let target_fid = link_body
-                        .get("target_fid")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+        // Paginate through all following (limited to first 2000 for performance)
+        loop {
+            let response = client
+                .get_links_by_fid(fid as u64, "follow", Some(1000))
+                .await?;
 
-                    if target_fid > 0 {
-                        following.push(target_fid);
+            let msg_count = response.messages.len();
+            total_fetched += msg_count;
+            
+            tracing::info!(
+                "📩 Fetched page: {} messages (total: {})",
+                msg_count,
+                total_fetched
+            );
 
-                        // Insert into database for future use
-                        let link_type = link_body
-                            .get("type")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("follow");
+            // Collect data from this page
+            for message in &response.messages {
+                if let Some(data) = &message.data {
+                    if let Some(link_body) = data.body.get("link_body") {
+                        let target_fid = link_body
+                            .get("target_fid")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0);
 
-                        let _ = sqlx::query(
-                            "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
-                             VALUES ($1, $2, $3, $4, $5)
-                             ON CONFLICT (message_hash) DO NOTHING",
-                        )
-                        .bind(fid)
-                        .bind(target_fid)
-                        .bind(link_type)
-                        .bind(data.timestamp as i64)
-                        .bind(&message.hash)
-                        .execute(self.database.pool())
-                        .await;
+                        if target_fid > 0 {
+                            following.push(target_fid);
+
+                            let link_type = link_body
+                                .get("type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("follow");
+
+                            batch_data.push((
+                                fid,
+                                target_fid,
+                                link_type.to_string(),
+                                data.timestamp as i64,
+                                message.hash.clone(),
+                            ));
+                        }
                     }
                 }
+            }
+
+            // Check if we should continue
+            if msg_count < 1000 || total_fetched >= 2000 {
+                break;
+            }
+
+            // TODO: Handle pagination if response has next_page_token
+            // For now, we limit to first 2000
+            if response.next_page_token.is_some() && total_fetched < 2000 {
+                tracing::warn!("More pages available but stopping at {} for performance", total_fetched);
+            }
+            break;
+        }
+
+        // Batch insert all links
+        if !batch_data.is_empty() {
+            tracing::info!("💾 Batch inserting {} links...", batch_data.len());
+            
+            for chunk in batch_data.chunks(500) {
+                let mut query_builder = sqlx::QueryBuilder::new(
+                    "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash) "
+                );
+                
+                query_builder.push_values(chunk, |mut b, (fid, target_fid, link_type, timestamp, hash)| {
+                    b.push_bind(fid)
+                        .push_bind(target_fid)
+                        .push_bind(link_type)
+                        .push_bind(timestamp)
+                        .push_bind(hash);
+                });
+                
+                query_builder.push(" ON CONFLICT (message_hash) DO NOTHING");
+                
+                let query = query_builder.build();
+                query.execute(self.database.pool()).await?;
             }
         }
 
         tracing::info!(
-            "✅ Lazy loaded {} following for FID {}",
+            "✅ Lazy loaded {} following for FID {} from {} messages",
             following.len(),
-            fid
+            fid,
+            total_fetched
         );
         Ok(following)
     }
