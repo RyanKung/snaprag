@@ -133,36 +133,34 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
         println!("🔄 Sync Status (Real-time from DB):");
 
         // Get Snapchain max heights for progress calculation
-        let snapchain_client = match crate::sync::client::SnapchainClient::from_config(&snaprag.config).await {
-            Ok(client) => {
-                tracing::debug!("Snapchain client created successfully");
-                Some(client)
-            }
-            Err(e) => {
-                tracing::warn!("Could not create Snapchain client: {}", e);
-                None
-            }
-        };
-
-        let shard_max_heights: std::collections::HashMap<u32, u64> = if let Some(ref client) = snapchain_client {
-            match client.get_info().await {
-                Ok(info) => {
-                    tracing::debug!("Got Snapchain info: {} shards", info.shard_infos.len());
-                    let heights: std::collections::HashMap<u32, u64> = info.shard_infos.iter()
-                        .map(|s| {
-                            tracing::debug!("Shard {}: maxHeight = {}", s.shard_id, s.max_height);
-                            (s.shard_id, s.max_height)
-                        })
-                        .collect();
-                    heights
+        let shard_max_heights: std::collections::HashMap<u32, u64> = {
+            // Try to connect to Snapchain for max heights
+            match crate::sync::client::SnapchainClient::new(
+                &snaprag.config.sync.snapchain_http_endpoint,
+                &snaprag.config.sync.snapchain_grpc_endpoint,
+            ).await {
+                Ok(client) => {
+                    match client.get_info().await {
+                        Ok(info) => {
+                            tracing::debug!("Got Snapchain info: {} shard_infos", info.shard_infos.len());
+                            info.shard_infos.iter()
+                                .map(|s| {
+                                    tracing::debug!("Shard {}: maxHeight = {}", s.shard_id, s.max_height);
+                                    (s.shard_id, s.max_height)
+                                })
+                                .collect()
+                        }
+                        Err(e) => {
+                            tracing::debug!("Could not get Snapchain info: {}", e);
+                            std::collections::HashMap::new()
+                        }
+                    }
                 }
                 Err(e) => {
-                    tracing::warn!("Could not get Snapchain info: {}", e);
+                    tracing::debug!("Could not create Snapchain client: {}", e);
                     std::collections::HashMap::new()
                 }
             }
-        } else {
-            std::collections::HashMap::new()
         };
 
         let mut total_height = 0i64;
