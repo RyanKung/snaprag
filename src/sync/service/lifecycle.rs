@@ -332,13 +332,16 @@ impl LifecycleManager {
         Ok(())
     }
 
-    /// Start sync with parallel workers per shard
+    /// Start sync with parallel workers per shard (using semaphore-controlled task spawning)
     pub async fn start_with_range_and_workers(
         &self,
         from_block: u64,
         to_block: u64,
         workers_per_shard: u32,
     ) -> Result<()> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use tokio::sync::Semaphore;
+
         info!(
             "Starting parallel sync: {} shards × {} workers = {} total workers",
             self.config.shard_ids.len(),
@@ -356,9 +359,9 @@ impl LifecycleManager {
             Err(_) => std::collections::HashMap::new(),
         };
 
-        let mut all_handles = vec![];
+        let mut all_shard_handles = vec![];
 
-        // For each shard, spawn multiple workers
+        // For each shard, create a coordinator that manages workers
         for &shard_id in &self.config.shard_ids {
             // Determine the actual range for this shard
             let shard_to_block = if to_block == u64::MAX {
@@ -380,138 +383,159 @@ impl LifecycleManager {
             };
 
             let total_blocks = shard_to_block.saturating_sub(shard_from_block);
-            let blocks_per_worker = total_blocks / workers_per_shard as u64;
 
             info!(
-                "🔄 Shard {}: {} blocks split into {} workers (~{} blocks each)",
-                shard_id, total_blocks, workers_per_shard, blocks_per_worker
+                "🔄 Shard {}: spawning tasks with max {} concurrent workers ({} total blocks)",
+                shard_id, workers_per_shard, total_blocks
             );
 
-            // Spawn workers for this shard
-            for worker_id in 0..workers_per_shard {
-                let worker_from = shard_from_block + (worker_id as u64 * blocks_per_worker);
-                let worker_to = if worker_id == workers_per_shard - 1 {
-                    shard_to_block // Last worker takes the remainder
-                } else {
-                    worker_from + blocks_per_worker - 1
-                };
+            let client = self.client.clone();
+            let database = self.database.clone();
+            let config = self.config.clone();
 
-                if worker_from > shard_to_block {
-                    continue; // Skip if already beyond range
-                }
+            // Spawn shard coordinator
+            let handle = tokio::spawn(async move {
+                // 🎯 Semaphore: Limit concurrent tasks to workers_per_shard
+                let semaphore = Arc::new(Semaphore::new(workers_per_shard as usize));
+                let current_block = Arc::new(AtomicU64::new(shard_from_block));
+                let mut task_handles = vec![];
 
-                info!(
-                    "  → Worker {}.{}: blocks {} to {}",
-                    shard_id, worker_id, worker_from, worker_to
-                );
+                // Spawn tasks dynamically until we reach the end
+                loop {
+                    let batch_start = current_block.fetch_add(config.batch_size as u64, Ordering::SeqCst);
+                    
+                    if batch_start >= shard_to_block {
+                        break; // No more batches to process
+                    }
 
-                // Clone resources for this worker
-                let client = self.client.clone();
-                let database = self.database.clone();
-                let config = self.config.clone();
+                    let batch_end = (batch_start + config.batch_size as u64 - 1).min(shard_to_block);
+                    
+                    // Acquire semaphore permit (will wait if at max workers)
+                    let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
+                        crate::SnapRagError::Custom(format!("Semaphore error: {}", e))
+                    })?;
 
-                let handle = tokio::spawn(async move {
-                    let mut current_block = worker_from;
-                    let mut total_messages = 0u64;
-                    let mut total_blocks = 0u64;
+                    let client = client.clone();
+                    let database = database.clone();
 
-                    while current_block <= worker_to {
-                        let remaining = worker_to.saturating_sub(current_block).saturating_add(1);
-                        let batch = config.batch_size.min(remaining as u32);
+                    // Spawn task for this batch
+                    let task = tokio::spawn(async move {
+                        let _permit = permit; // Hold permit until task completes
 
                         let request = crate::sync::client::proto::ShardChunksRequest {
                             shard_id,
-                            start_block_number: current_block,
-                            stop_block_number: Some(current_block + batch as u64 - 1),
+                            start_block_number: batch_start,
+                            stop_block_number: Some(batch_end),
                         };
 
                         match client.get_shard_chunks(request).await {
                             Ok(response) => {
                                 let chunks = response.shard_chunks;
 
-                                if chunks.is_empty() {
-                                    break;
-                                }
+                                if !chunks.is_empty() {
+                                    let processor = ShardProcessor::new(database.as_ref().clone());
+                                    processor.process_chunks_batch(&chunks, shard_id).await?;
 
-                                let processor = ShardProcessor::new(database.as_ref().clone());
-                                processor.process_chunks_batch(&chunks, shard_id).await?;
+                                    let messages_in_batch: u64 = chunks
+                                        .iter()
+                                        .map(|c| {
+                                            c.transactions
+                                                .iter()
+                                                .map(|tx| tx.user_messages.len() as u64)
+                                                .sum::<u64>()
+                                        })
+                                        .sum();
 
-                                let messages_in_batch: u64 = chunks
-                                    .iter()
-                                    .map(|c| {
-                                        c.transactions
-                                            .iter()
-                                            .map(|tx| tx.user_messages.len() as u64)
-                                            .sum::<u64>()
-                                    })
-                                    .sum();
-
-                                total_blocks += chunks.len() as u64;
-                                total_messages += messages_in_batch;
-
-                                let max_block = chunks
-                                    .iter()
-                                    .filter_map(|c| c.header.as_ref())
-                                    .filter_map(|h| h.height.as_ref())
-                                    .map(|height| height.block_number)
-                                    .max()
-                                    .unwrap_or(current_block);
-
-                                current_block = max_block.saturating_add(1);
-
-                                if total_blocks % 1000 == 0 {
-                                    info!(
-                                        "Worker {}.{}: {} blocks, {} msgs (at block {})",
-                                        shard_id, worker_id, total_blocks, total_messages, current_block
+                                    tracing::debug!(
+                                        "Shard {} batch {}-{}: {} blocks, {} msgs",
+                                        shard_id, batch_start, batch_end, chunks.len(), messages_in_batch
                                     );
-                                }
 
-                                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                                    Ok::<(u64, u64), crate::SnapRagError>((chunks.len() as u64, messages_in_batch))
+                                } else {
+                                    Ok((0, 0))
+                                }
                             }
                             Err(e) if e.to_string().contains("no more chunks") => {
-                                break;
+                                Ok((0, 0)) // Skip empty batches
                             }
                             Err(e) => {
-                                error!("Worker {}.{} error at block {}: {}", shard_id, worker_id, current_block, e);
-                                return Err(e);
+                                error!("Batch {}-{} error: {}", batch_start, batch_end, e);
+                                Err(e)
                             }
                         }
+                    });
+
+                    task_handles.push((batch_start, task));
+                }
+
+                // Wait for all tasks to complete
+                info!("Shard {}: waiting for {} tasks to complete...", shard_id, task_handles.len());
+
+                let mut total_blocks = 0u64;
+                let mut total_messages = 0u64;
+                let mut completed_tasks = 0usize;
+
+                for (batch_start, task) in task_handles {
+                    match task.await {
+                        Ok(Ok((blocks, messages))) => {
+                            total_blocks += blocks;
+                            total_messages += messages;
+                            completed_tasks += 1;
+
+                            if completed_tasks % 100 == 0 {
+                                let progress_pct = (completed_tasks as f64 / total_blocks as f64 * 100.0).min(100.0);
+                                info!(
+                                    "Shard {}: {}/{} tasks ({:.1}%), {} blocks, {} msgs",
+                                    shard_id, completed_tasks, total_blocks, progress_pct, total_blocks, total_messages
+                                );
+                            }
+                        }
+                        Ok(Err(e)) => {
+                            error!("Shard {} batch {} failed: {}", shard_id, batch_start, e);
+                            // Continue processing other batches (gaps are OK due to idempotency)
+                        }
+                        Err(e) => {
+                            error!("Shard {} batch {} panicked: {}", shard_id, batch_start, e);
+                        }
                     }
+                }
 
-                    info!(
-                        "✅ Worker {}.{} completed: {} blocks, {} messages",
-                        shard_id, worker_id, total_blocks, total_messages
-                    );
-                    Ok::<(), crate::SnapRagError>(())
-                });
+                info!(
+                    "✅ Shard {} completed: {} blocks, {} messages (note: last_processed_height not updated in workers mode)",
+                    shard_id, total_blocks, total_messages
+                );
 
-                all_handles.push((shard_id, worker_id, handle));
-            }
+                Ok::<(), crate::SnapRagError>(())
+            });
+
+            all_shard_handles.push((shard_id, handle));
         }
 
-        // Wait for all workers across all shards
-        info!("⏳ Waiting for {} workers to complete...", all_handles.len());
+        // Wait for all shards to complete
+        info!("⏳ Waiting for {} shards to complete...", all_shard_handles.len());
 
-        for (shard_id, worker_id, handle) in all_handles {
+        for (shard_id, handle) in all_shard_handles {
             match handle.await {
                 Ok(Ok(())) => {
-                    info!("✅ Worker {}.{} finished successfully", shard_id, worker_id);
+                    info!("✅ Shard {} finished successfully", shard_id);
                 }
                 Ok(Err(e)) => {
-                    error!("❌ Worker {}.{} failed: {}", shard_id, worker_id, e);
+                    error!("❌ Shard {} failed: {}", shard_id, e);
                     return Err(e);
                 }
                 Err(e) => {
-                    error!("❌ Worker {}.{} panicked: {}", shard_id, worker_id, e);
+                    error!("❌ Shard {} panicked: {}", shard_id, e);
                     return Err(crate::SnapRagError::Custom(format!(
-                        "Worker {}.{} panicked: {}",
-                        shard_id, worker_id, e
+                        "Shard {} panicked: {}",
+                        shard_id, e
                     )));
                 }
             }
         }
 
-        info!("🎉 All workers completed successfully!");
+        info!("🎉 All shards completed successfully!");
+        info!("⚠️  Note: Run 'snaprag sync start' again (without --workers) to fill any gaps from failed batches");
         Ok(())
     }
 }

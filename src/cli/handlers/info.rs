@@ -134,18 +134,32 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
         // Get Snapchain max heights for progress calculation
         let snapchain_client = match crate::sync::client::SnapchainClient::from_config(&snaprag.config).await {
-            Ok(client) => Some(client),
-            Err(_) => None,
+            Ok(client) => {
+                tracing::debug!("Snapchain client created successfully");
+                Some(client)
+            }
+            Err(e) => {
+                tracing::warn!("Could not create Snapchain client: {}", e);
+                None
+            }
         };
 
-        let shard_max_heights: std::collections::HashMap<u32, u64> = if let Some(client) = snapchain_client {
+        let shard_max_heights: std::collections::HashMap<u32, u64> = if let Some(ref client) = snapchain_client {
             match client.get_info().await {
                 Ok(info) => {
-                    info.shard_infos.iter()
-                        .map(|s| (s.shard_id, s.max_height))
-                        .collect()
+                    tracing::debug!("Got Snapchain info: {} shards", info.shard_infos.len());
+                    let heights: std::collections::HashMap<u32, u64> = info.shard_infos.iter()
+                        .map(|s| {
+                            tracing::debug!("Shard {}: maxHeight = {}", s.shard_id, s.max_height);
+                            (s.shard_id, s.max_height)
+                        })
+                        .collect();
+                    heights
                 }
-                Err(_) => std::collections::HashMap::new(),
+                Err(e) => {
+                    tracing::warn!("Could not get Snapchain info: {}", e);
+                    std::collections::HashMap::new()
+                }
             }
         } else {
             std::collections::HashMap::new()
