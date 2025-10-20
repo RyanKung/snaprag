@@ -49,7 +49,7 @@ impl SyncService {
         let config = SyncConfig {
             snapchain_http_endpoint: app_config.sync.snapchain_http_endpoint.clone(),
             snapchain_grpc_endpoint: app_config.sync.snapchain_grpc_endpoint.clone(),
-            shard_ids: vec![0, 1, 2, 3], // Default shard IDs
+            shard_ids: app_config.sync.shard_ids.clone(), // Read from config.toml
             start_block_height: None,
             batch_size: app_config.sync.batch_size,
             enable_realtime_sync: app_config.sync.enable_realtime_sync,
