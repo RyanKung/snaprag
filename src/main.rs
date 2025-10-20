@@ -230,6 +230,9 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
+        Commands::Social { user, verbose } => {
+            snaprag::cli::handle_social_analysis(&config, user, verbose).await?;
+        }
         Commands::Fetch(fetch_command) => match fetch_command {
             FetchCommands::User {
                 fid,

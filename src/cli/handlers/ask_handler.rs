@@ -21,6 +21,7 @@ use crate::cli::output::*;
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::llm::LlmService;
+use crate::social_graph::SocialGraphAnalyzer;
 use crate::sync::client::SnapchainClient;
 use crate::sync::lazy_loader::LazyLoader;
 use crate::AppConfig;

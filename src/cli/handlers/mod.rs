@@ -22,6 +22,7 @@ pub mod info;
 pub mod init;
 pub mod rag;
 pub mod serve;
+pub mod social;
 pub mod sync;
 
 // Re-export all public handlers
@@ -35,4 +36,5 @@ pub use info::*;
 pub use init::*;
 pub use rag::*;
 pub use serve::*;
+pub use social::*;
 pub use sync::*;

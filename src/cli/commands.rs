@@ -164,6 +164,14 @@ pub enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Analyze user's social graph and network
+    Social {
+        /// FID or username of the user (e.g., "99" or "@jesse.base.eth")
+        user: String,
+        /// Show detailed analysis
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]

@@ -16,6 +16,20 @@ pub async fn generate_ai_response(
     history: Option<&Vec<(String, String)>>,
     temperature: f32,
 ) -> Result<String> {
+    generate_ai_response_with_social(llm, profile, casts, question, history, temperature, None)
+        .await
+}
+
+/// Generate AI response with optional social graph context
+pub async fn generate_ai_response_with_social(
+    llm: &LlmService,
+    profile: &crate::models::UserProfile,
+    casts: &[crate::models::CastSearchResult],
+    question: &str,
+    history: Option<&Vec<(String, String)>>,
+    temperature: f32,
+    social_profile: Option<&crate::social_graph::SocialProfile>,
+) -> Result<String> {
     let fid = profile.fid;
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
     let username = profile.username.as_deref();
@@ -36,6 +50,11 @@ pub async fn generate_ai_response(
 
     if let Some(bio) = &profile.bio {
         context.push_str(&format!("Your bio: {}\n\n", bio));
+    }
+
+    // Add social graph context if available
+    if let Some(social) = social_profile {
+        context.push_str(&format_social_profile_for_llm(social));
     }
 
     // Add writing style analysis and examples
@@ -146,4 +165,115 @@ pub async fn generate_ai_response(
     spinner.stop();
 
     Ok(response)
+}
+
+/// Format social profile for LLM context
+fn format_social_profile_for_llm(profile: &crate::social_graph::SocialProfile) -> String {
+    let mut output = String::new();
+
+    output.push_str("═══════════════════════════════════════════════════════\n");
+    output.push_str("👥 YOUR SOCIAL NETWORK\n");
+    output.push_str("═══════════════════════════════════════════════════════\n\n");
+
+    // Basic stats
+    output.push_str(&format!(
+        "Following: {} | Followers: {} | Influence: {:.1}x\n\n",
+        profile.following_count, profile.followers_count, profile.influence_score
+    ));
+
+    // Social circles
+    output.push_str("Your Network:\n");
+    if profile.social_circles.tech_builders > 30.0 {
+        output.push_str(&format!(
+            "  🔧 Tech/Builders: {:.0}% - You're deep in tech circles\n",
+            profile.social_circles.tech_builders
+        ));
+    } else if profile.social_circles.tech_builders > 10.0 {
+        output.push_str(&format!(
+            "  🔧 Tech/Builders: {:.0}%\n",
+            profile.social_circles.tech_builders
+        ));
+    }
+
+    if profile.social_circles.web3_natives > 30.0 {
+        output.push_str(&format!(
+            "  ⛓️ Web3/Crypto: {:.0}% - Heavy web3 network\n",
+            profile.social_circles.web3_natives
+        ));
+    } else if profile.social_circles.web3_natives > 10.0 {
+        output.push_str(&format!(
+            "  ⛓️ Web3/Crypto: {:.0}%\n",
+            profile.social_circles.web3_natives
+        ));
+    }
+
+    if profile.social_circles.content_creators > 20.0 {
+        output.push_str(&format!(
+            "  🎨 Creators: {:.0}%\n",
+            profile.social_circles.content_creators
+        ));
+    }
+
+    output.push_str("\n");
+
+    // Most mentioned users
+    if !profile.most_mentioned_users.is_empty() {
+        output.push_str("People You Often Mention:\n");
+        for (idx, user) in profile.most_mentioned_users.iter().take(3).enumerate() {
+            let name = user
+                .username
+                .as_ref()
+                .map(|u| format!("@{}", u))
+                .or_else(|| user.display_name.clone())
+                .unwrap_or_else(|| format!("FID {}", user.fid));
+
+            output.push_str(&format!("  {}. {} ({}x)\n", idx + 1, name, user.count));
+        }
+        output.push_str("\n");
+    }
+
+    // Interaction style
+    output.push_str(&format!(
+        "Your Role: {} | Reply rate: {:.0}% | Mention rate: {:.0}%\n",
+        profile.interaction_style.community_role,
+        profile.interaction_style.reply_frequency * 100.0,
+        profile.interaction_style.mention_frequency * 100.0
+    ));
+
+    if profile.interaction_style.network_connector {
+        output.push_str("🌐 You're a network connector - you introduce people\n");
+    }
+
+    output.push_str("\n");
+
+    // Add context instructions
+    output.push_str("🎯 Social Context:\n");
+
+    if profile.influence_score > 2.0 {
+        output.push_str("  → You're influential - speak with confidence\n");
+    }
+
+    if profile.social_circles.tech_builders > 40.0 {
+        output.push_str("  → Deep in tech circles - use builder language naturally\n");
+    }
+
+    if profile.social_circles.web3_natives > 40.0 {
+        output.push_str("  → Web3 native - crypto culture is second nature to you\n");
+    }
+
+    if !profile.most_mentioned_users.is_empty() {
+        output.push_str("  → Feel free to reference your network: ");
+        let names: Vec<String> = profile
+            .most_mentioned_users
+            .iter()
+            .take(3)
+            .filter_map(|u| u.username.as_ref().map(|n| format!("@{}", n)))
+            .collect();
+        output.push_str(&names.join(", "));
+        output.push_str("\n");
+    }
+
+    output.push_str("\n═══════════════════════════════════════════════════════\n\n");
+
+    output
 }

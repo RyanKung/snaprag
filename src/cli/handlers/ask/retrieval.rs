@@ -181,12 +181,9 @@ pub fn analyze_writing_style(casts: &[crate::models::CastSearchResult]) -> Strin
                 .filter(|ch| {
                     // Enhanced emoji detection (Unicode ranges)
                     matches!(*ch as u32,
-                        0x1F300..=0x1F9FF | // Emoticons, symbols, pictographs
+                        0x1F300..=0x1F9FF | // Emoticons, symbols, pictographs (includes 1F600-1F64F, 1F680-1F6FF, 1F900-1F9FF)
                         0x2600..=0x26FF |   // Miscellaneous symbols
-                        0x2700..=0x27BF |   // Dingbats
-                        0x1F600..=0x1F64F | // Emoticons
-                        0x1F680..=0x1F6FF | // Transport and map
-                        0x1F900..=0x1F9FF   // Supplemental symbols
+                        0x2700..=0x27BF     // Dingbats
                     )
                 })
                 .count()

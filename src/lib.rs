@@ -45,6 +45,7 @@ pub mod llm;
 pub mod logging;
 pub mod models;
 pub mod rag;
+pub mod social_graph;
 pub mod sync;
 
 /// Farcaster epoch constant (January 1, 2021 UTC in milliseconds)
