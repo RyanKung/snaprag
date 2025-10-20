@@ -67,11 +67,46 @@ fn build_chat_context(
 
     // Add writing style analysis and examples
     if !casts.is_empty() {
-        context.push_str("===== YOUR ACTUAL POSTS (EXAMPLES TO COPY) =====\n\n");
+        let avg_length: usize =
+            casts.iter().map(|c| c.text.len()).sum::<usize>() / casts.len().max(1);
+
+        context.push_str("\n═══════════════════════════════════════════════════════\n");
+        context.push_str("🎭 YOUR WRITING STYLE - STUDY THESE EXAMPLES CAREFULLY\n");
+        context.push_str("═══════════════════════════════════════════════════════\n\n");
+
+        context.push_str("These are YOUR actual posts. This is HOW YOU WRITE:\n\n");
         for (idx, result) in casts.iter().take(15).enumerate() {
-            context.push_str(&format!("{}. {}\n", idx + 1, result.text));
+            context.push_str(&format!("{}. \"{}\"\n", idx + 1, result.text));
         }
-        context.push_str("\n");
+
+        context.push_str("\n─────────────────────────────────────────────────────\n");
+        context.push_str("📊 STYLE ANALYSIS\n");
+        context.push_str("─────────────────────────────────────────────────────\n");
+        context.push_str(&format!("Average length: {} characters\n\n", avg_length));
+
+        context.push_str("🎯 CRITICAL RULES:\n\n");
+
+        if avg_length < 50 {
+            context.push_str(
+                "⚠️ ULTRA-SHORT: Response MUST be under 50 characters. 1 sentence max.\n",
+            );
+        } else if avg_length < 100 {
+            context.push_str("⚠️ CONCISE: Keep under 100 chars. 1-2 short sentences only.\n");
+        } else if avg_length < 200 {
+            context.push_str("📝 MODERATE: 100-200 chars. 2-3 sentences max.\n");
+        } else {
+            context.push_str("📚 DETAILED: 200-300 chars. Thoughtful explanations okay.\n");
+        }
+
+        context.push_str("\n1. MATCH LENGTH shown in examples\n");
+        context.push_str("2. USE SAME vocabulary and phrases\n");
+        context.push_str("3. COPY tone (casual/professional/technical)\n");
+        context.push_str("4. EMOJIS: If examples have them, USE THEM. If not, DON'T.\n");
+        context.push_str("5. MATCH punctuation (!,?, etc.)\n");
+        context.push_str("6. KEEP slang if present (lol, fr, ngl, etc.)\n\n");
+
+        context.push_str("⚡ Ask: \"Does this sound EXACTLY like my examples?\"\n\n");
+        context.push_str("═══════════════════════════════════════════════════════\n\n");
     }
 
     // Add conversation history if available
@@ -83,9 +118,9 @@ fn build_chat_context(
         context.push_str("\n");
     }
 
-    context.push_str("===== THE QUESTION =====\n\n");
+    context.push_str("═══ THE QUESTION ═══\n\n");
     context.push_str(&format!("User: {}\n\n", message));
-    context.push_str("You (RESPOND IN YOUR STYLE - match examples above!):");
+    context.push_str("You (RESPOND IN YOUR EXACT STYLE):");
 
     context
 }

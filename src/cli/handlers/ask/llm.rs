@@ -44,38 +44,65 @@ pub async fn generate_ai_response(
         let avg_length: usize =
             casts.iter().map(|c| c.text.len()).sum::<usize>() / casts.len().max(1);
 
-        context.push_str("===== YOUR ACTUAL POSTS (EXAMPLES TO COPY) =====\n\n");
+        context.push_str("\n═══════════════════════════════════════════════════════\n");
+        context.push_str("🎭 YOUR WRITING STYLE - STUDY THESE EXAMPLES CAREFULLY\n");
+        context.push_str("═══════════════════════════════════════════════════════\n\n");
+
+        context.push_str("These are YOUR actual posts. This is HOW YOU WRITE:\n\n");
         for (idx, result) in casts.iter().take(15).enumerate() {
-            context.push_str(&format!("{}. {}\n", idx + 1, result.text));
-        }
-        context.push_str("\n");
-        context.push_str(&format!(
-            "CRITICAL - Your average post length: ~{} characters\n",
-            avg_length
-        ));
-        context.push_str(&format!("Style analysis: {}\n\n", writing_style));
-        context.push_str("===== HOW TO ANSWER =====\n");
-        context.push_str("STUDY the examples above. Notice:\n");
-        context.push_str("- How SHORT or LONG are they?\n");
-        context.push_str("- What WORDS do you use?\n");
-        context.push_str("- How DIRECT or EXPLANATORY are you?\n");
-        context.push_str("- Do you use emojis? How many?\n");
-        context.push_str("- What's your ENERGY level?\n\n");
-
-        if avg_length < 80 {
-            context.push_str("⚠️ Your posts are VERY SHORT (under 80 chars). Keep your answer similarly brief!\n");
-            context.push_str(
-                "Don't write paragraphs if you typically write 1-2 sentences or less.\n\n",
-            );
-        } else if avg_length < 150 {
-            context.push_str("Your posts are concise. Keep answers to 2-3 sentences max.\n\n");
+            context.push_str(&format!("{}. \"{}\"\n", idx + 1, result.text));
         }
 
-        context.push_str(
-            "MIMIC THE EXACT STYLE. If your posts are 5-10 words, your answer should be too.\n",
-        );
-        context.push_str("If you use emojis, add them. If you're casual, stay casual.\n");
-        context.push_str("MATCH THE LENGTH AND ENERGY of the examples above.\n\n");
+        context.push_str("\n─────────────────────────────────────────────────────\n");
+        context.push_str("📊 STYLE ANALYSIS\n");
+        context.push_str("─────────────────────────────────────────────────────\n\n");
+        context.push_str(&format!("Average length: {} characters\n\n", avg_length));
+        context.push_str(&format!("{}\n\n", writing_style));
+
+        context.push_str("─────────────────────────────────────────────────────\n");
+        context.push_str("🎯 CRITICAL RULES - YOU MUST FOLLOW THESE:\n");
+        context.push_str("─────────────────────────────────────────────────────\n\n");
+
+        if avg_length < 50 {
+            context.push_str("⚠️ ULTRA-SHORT MODE ACTIVATED ⚠️\n");
+            context.push_str("Your posts are EXTREMELY brief (under 50 chars).\n");
+            context.push_str("➤ Your response MUST be under 50 characters\n");
+            context.push_str("➤ Use 1 short sentence or just a few words\n");
+            context.push_str("➤ NO lengthy explanations - be ULTRA concise\n\n");
+        } else if avg_length < 100 {
+            context.push_str("⚠️ CONCISE MODE ⚠️\n");
+            context.push_str("Your posts are very short (50-100 chars).\n");
+            context.push_str("➤ Keep your response under 100 characters\n");
+            context.push_str("➤ Maximum 1-2 short sentences\n");
+            context.push_str("➤ Get straight to the point\n\n");
+        } else if avg_length < 200 {
+            context.push_str("📝 MODERATE MODE\n");
+            context.push_str("Your posts are moderately sized (100-200 chars).\n");
+            context.push_str("➤ Keep response around 100-200 characters\n");
+            context.push_str("➤ 2-3 sentences maximum\n");
+            context.push_str("➤ Stay focused and clear\n\n");
+        } else {
+            context.push_str("📚 DETAILED MODE\n");
+            context.push_str("You write detailed explanations (200+ chars).\n");
+            context.push_str("➤ Feel free to write 200-300 characters\n");
+            context.push_str("➤ Multiple sentences are okay\n");
+            context.push_str("➤ Provide thoughtful explanations\n\n");
+        }
+
+        context.push_str("🔥 MANDATORY STYLE RULES:\n\n");
+        context.push_str("1. LENGTH: Match the length shown in examples above\n");
+        context.push_str("2. WORDS: Use the same vocabulary and phrases you see\n");
+        context.push_str("3. TONE: Match the energy level (casual/professional/technical)\n");
+        context.push_str("4. EMOJIS: If examples have emojis, USE THEM. If not, DON'T.\n");
+        context.push_str("5. PUNCTUATION: Match exclamation marks, questions, etc.\n");
+        context.push_str("6. SLANG: If you use slang (lol, fr, ngl), keep using it\n");
+        context.push_str("7. TECHNICAL: Match the technical depth shown in examples\n\n");
+
+        context.push_str("⚡ BEFORE YOU RESPOND:\n");
+        context.push_str("Ask yourself: \"Does this sound EXACTLY like the examples above?\"\n");
+        context.push_str("If not, REWRITE to match the style more closely.\n\n");
+
+        context.push_str("═══════════════════════════════════════════════════════\n\n");
     }
 
     // Add conversation history if available

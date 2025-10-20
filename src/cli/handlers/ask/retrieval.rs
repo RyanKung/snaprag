@@ -170,16 +170,24 @@ pub fn analyze_writing_style(casts: &[crate::models::CastSearchResult]) -> Strin
     }
 
     let mut style_notes = Vec::new();
+    let mut detailed_analysis = Vec::new();
 
-    // Analyze emoji usage
+    // 1. Analyze emoji usage with more detail
     let total_emojis: usize = casts
         .iter()
         .map(|c| {
             c.text
                 .chars()
                 .filter(|ch| {
-                    // Simple emoji detection (Unicode ranges)
-                    matches!(*ch as u32, 0x1F300..=0x1F9FF | 0x2600..=0x26FF | 0x2700..=0x27BF)
+                    // Enhanced emoji detection (Unicode ranges)
+                    matches!(*ch as u32,
+                        0x1F300..=0x1F9FF | // Emoticons, symbols, pictographs
+                        0x2600..=0x26FF |   // Miscellaneous symbols
+                        0x2700..=0x27BF |   // Dingbats
+                        0x1F600..=0x1F64F | // Emoticons
+                        0x1F680..=0x1F6FF | // Transport and map
+                        0x1F900..=0x1F9FF   // Supplemental symbols
+                    )
                 })
                 .count()
         })
@@ -187,86 +195,308 @@ pub fn analyze_writing_style(casts: &[crate::models::CastSearchResult]) -> Strin
 
     let emoji_per_post = total_emojis as f32 / casts.len() as f32;
     if emoji_per_post > 2.0 {
-        style_notes.push("frequently uses emojis (2-3+ per post)");
+        style_notes.push("HEAVY emoji user (2-3+ per post) 🎨");
+        detailed_analysis.push("USE lots of emojis like the examples show");
     } else if emoji_per_post > 0.5 {
-        style_notes.push("uses emojis moderately");
+        style_notes.push("moderate emoji usage");
+        detailed_analysis.push("Use emojis moderately, about 1 per response");
     } else if emoji_per_post > 0.0 {
-        style_notes.push("occasionally uses emojis");
+        style_notes.push("minimal emojis");
+        detailed_analysis.push("Use emojis sparingly or not at all");
     } else {
-        style_notes.push("text-focused, no emojis");
+        style_notes.push("NO emojis - pure text");
+        detailed_analysis.push("NEVER use emojis - stay text-only");
     }
 
-    // Analyze sentence length - focus on longer posts
-    let substantive_casts: Vec<_> = casts.iter().filter(|c| c.text.len() > 50).collect();
+    // 2. Analyze sentence length and structure
+    let avg_length: usize = casts.iter().map(|c| c.text.len()).sum::<usize>() / casts.len().max(1);
 
-    if !substantive_casts.is_empty() {
-        let avg_length: usize = substantive_casts
-            .iter()
-            .map(|c| c.text.len())
-            .sum::<usize>()
-            / substantive_casts.len();
-
-        if avg_length > 200 {
-            style_notes.push("writes detailed explanations");
-        } else if avg_length > 100 {
-            style_notes.push("moderately detailed");
-        } else {
-            style_notes.push("concise but informative");
-        }
+    if avg_length < 50 {
+        style_notes.push("ULTRA SHORT responses (< 50 chars)");
+        detailed_analysis.push("Keep it EXTREMELY brief - just a few words or one sentence");
+    } else if avg_length < 100 {
+        style_notes.push("very concise (50-100 chars)");
+        detailed_analysis.push("Keep responses short - 1-2 sentences max");
+    } else if avg_length < 200 {
+        style_notes.push("moderate length (100-200 chars)");
+        detailed_analysis.push("Write 2-3 sentences, stay focused");
+    } else {
+        style_notes.push("detailed explanations (200+ chars)");
+        detailed_analysis.push("Write detailed, thoughtful responses");
     }
 
-    // Check for informal markers
+    // 3. Analyze punctuation and energy
+    let exclamation_count = casts.iter().filter(|c| c.text.contains('!')).count();
+    let question_count = casts.iter().filter(|c| c.text.contains('?')).count();
+
+    if exclamation_count > casts.len() / 2 {
+        style_notes.push("HIGH ENERGY! Lots of exclamation marks!");
+        detailed_analysis.push("Match the HIGH ENERGY - use exclamation marks!");
+    } else if exclamation_count > casts.len() / 4 {
+        style_notes.push("enthusiastic tone");
+        detailed_analysis.push("Show some enthusiasm with occasional exclamation marks");
+    }
+
+    if question_count > casts.len() / 3 {
+        style_notes.push("often asks questions");
+        detailed_analysis.push("Feel free to ask questions back");
+    }
+
+    // 4. Check for informal/slang markers with more examples
+    let informal_markers = [
+        "lol", "lmao", "omg", "tbh", "ngl", "fr", "gonna", "wanna", "yea", "yeah", "nah", "kinda",
+        "sorta", "gotta", "idk", "imo", "btw", "rn", "af", "asf", "lowkey", "highkey",
+    ];
+
     let informal_count = casts
         .iter()
         .filter(|c| {
             let lower = c.text.to_lowercase();
-            lower.contains("lol")
-                || lower.contains("lmao")
-                || lower.contains("omg")
-                || lower.contains("tbh")
-                || lower.contains("ngl")
-                || lower.contains("fr")
-                || lower.contains("gonna")
-                || lower.contains("wanna")
+            informal_markers.iter().any(|marker| lower.contains(marker))
         })
         .count();
 
     if informal_count > casts.len() / 2 {
-        style_notes.push("very casual and informal");
+        style_notes.push("VERY casual/slang heavy");
+        detailed_analysis.push("Use slang and casual language - lol, fr, ngl, etc.");
     } else if informal_count > casts.len() / 4 {
         style_notes.push("relaxed and conversational");
+        detailed_analysis.push("Keep it conversational and relaxed");
     } else {
         style_notes.push("professional and articulate");
+        detailed_analysis.push("Stay professional and well-articulated");
     }
 
-    // Check for technical language
+    // 5. Check for technical language
+    let tech_markers = [
+        "build",
+        "dev",
+        "code",
+        "api",
+        "tech",
+        "protocol",
+        "onchain",
+        "contract",
+        "blockchain",
+        "crypto",
+        "web3",
+        "deploy",
+        "ship",
+        "feature",
+        "bug",
+        "frontend",
+        "backend",
+    ];
+
     let tech_count = casts
         .iter()
         .filter(|c| {
             let lower = c.text.to_lowercase();
-            lower.contains("build")
-                || lower.contains("dev")
-                || lower.contains("code")
-                || lower.contains("api")
-                || lower.contains("tech")
-                || lower.contains("protocol")
-                || lower.contains("onchain")
-                || lower.contains("contract")
+            tech_markers.iter().any(|marker| lower.contains(marker))
         })
         .count();
 
     if tech_count > casts.len() / 2 {
-        style_notes.push("highly technical and builder-focused");
+        style_notes.push("HIGHLY technical/builder-focused");
+        detailed_analysis.push("Use technical jargon and builder language");
     } else if tech_count > casts.len() / 4 {
         style_notes.push("tech-aware");
+        detailed_analysis.push("Mix in some technical terms when relevant");
     }
 
-    // Check for enthusiasm/energy
-    let exclamation_count = casts.iter().filter(|c| c.text.contains('!')).count();
-
-    if exclamation_count > casts.len() / 2 {
-        style_notes.push("enthusiastic and energetic");
+    // 6. Analyze sentence structure patterns
+    let short_sentences = casts.iter().filter(|c| c.text.len() < 50).count();
+    if short_sentences as f32 / casts.len() as f32 > 0.7 {
+        style_notes.push("prefers SHORT punchy sentences");
+        detailed_analysis.push("Keep sentences SHORT and punchy - no long explanations");
     }
 
-    style_notes.join(", ")
+    // 7. Check for common words/phrases (fingerprint)
+    let mut common_starters = Vec::new();
+    for cast in casts.iter().take(10) {
+        let words: Vec<&str> = cast.text.split_whitespace().collect();
+        if !words.is_empty() {
+            common_starters.push(words[0].to_lowercase());
+        }
+    }
+
+    // 8. Analyze link sharing patterns
+    let link_analysis = analyze_link_sharing(casts);
+
+    // Return combined analysis
+    format!(
+        "STYLE PROFILE: {}\n\nLINK SHARING: {}\n\nKEY INSTRUCTIONS:\n{}",
+        style_notes.join(" | "),
+        link_analysis,
+        detailed_analysis.join("\n")
+    )
+}
+
+/// Analyze user's link sharing patterns
+fn analyze_link_sharing(casts: &[crate::models::CastSearchResult]) -> String {
+    use std::collections::HashMap;
+
+    let mut total_links = 0;
+    let mut casts_with_links = 0;
+    let mut domain_counts: HashMap<String, usize> = HashMap::new();
+
+    for cast in casts {
+        if let Some(embeds) = &cast.embeds {
+            if let Some(embeds_array) = embeds.as_array() {
+                let mut has_link = false;
+                for embed in embeds_array {
+                    // Check for URL embed
+                    if let Some(url_value) = embed.get("url") {
+                        if let Some(url) = url_value.as_str() {
+                            total_links += 1;
+                            has_link = true;
+
+                            // Extract and count domain
+                            if let Some(domain) = extract_domain(url) {
+                                *domain_counts.entry(domain).or_insert(0) += 1;
+                            }
+                        }
+                    }
+                }
+                if has_link {
+                    casts_with_links += 1;
+                }
+            }
+        }
+    }
+
+    // No links found
+    if total_links == 0 {
+        return "NO links - pure text posts only. Don't mention or reference links in responses."
+            .to_string();
+    }
+
+    // Calculate link frequency
+    let link_frequency = casts_with_links as f32 / casts.len() as f32;
+
+    let mut result = if link_frequency > 0.5 {
+        format!(
+            "⛓️ FREQUENT link sharer ({} links in {} posts)",
+            total_links, casts_with_links
+        )
+    } else if link_frequency > 0.2 {
+        format!(
+            "🔗 Occasional link sharer ({} links in {} posts)",
+            total_links, casts_with_links
+        )
+    } else {
+        format!(
+            "Rarely shares links ({} in {} posts)",
+            total_links, casts_with_links
+        )
+    };
+
+    // Add top domains and categorize them
+    let mut sorted_domains: Vec<_> = domain_counts.iter().collect();
+    sorted_domains.sort_by(|a, b| b.1.cmp(a.1));
+
+    if !sorted_domains.is_empty() {
+        result.push_str("\n   Top domains: ");
+        let top_domains: Vec<String> = sorted_domains
+            .iter()
+            .take(3)
+            .map(|(domain, count)| {
+                let category = categorize_domain(domain);
+                format!("{} ({}x, {})", domain, count, category)
+            })
+            .collect();
+        result.push_str(&top_domains.join(", "));
+
+        // Add usage instruction based on domains
+        let has_tech_links = sorted_domains
+            .iter()
+            .any(|(d, _)| matches!(categorize_domain(d), "code" | "docs"));
+        let has_social_links = sorted_domains
+            .iter()
+            .any(|(d, _)| categorize_domain(d) == "social");
+        let has_content_links = sorted_domains
+            .iter()
+            .any(|(d, _)| matches!(categorize_domain(d), "article" | "video"));
+
+        result.push_str("\n   → ");
+        if has_tech_links {
+            result.push_str("Tech-savvy, shares code/docs. ");
+        }
+        if has_social_links {
+            result.push_str("Social sharer, quotes others. ");
+        }
+        if has_content_links {
+            result.push_str("Content curator, shares articles/videos. ");
+        }
+
+        if link_frequency > 0.3 {
+            result.push_str("\n   → You can reference \"like that thing you shared\" in responses");
+        }
+    }
+
+    result
+}
+
+/// Extract domain from URL
+fn extract_domain(url: &str) -> Option<String> {
+    // Remove protocol
+    let without_protocol = url.split("://").nth(1).or(Some(url))?;
+
+    // Get domain (before first /)
+    let domain = without_protocol.split('/').next()?;
+
+    // Remove www. prefix
+    let clean_domain = domain.strip_prefix("www.").unwrap_or(domain);
+
+    Some(clean_domain.to_lowercase())
+}
+
+/// Categorize domain into content type
+fn categorize_domain(domain: &str) -> &'static str {
+    let lower = domain.to_lowercase();
+
+    // Code/Development
+    if lower.contains("github") || lower.contains("gitlab") || lower.contains("bitbucket") {
+        return "code";
+    }
+
+    // Documentation
+    if lower.contains("docs.") || lower.contains("documentation") {
+        return "docs";
+    }
+
+    // Social platforms
+    if lower.contains("twitter")
+        || lower.contains("x.com")
+        || lower.contains("warpcast")
+        || lower.contains("farcaster")
+    {
+        return "social";
+    }
+
+    // Content platforms
+    if lower.contains("medium")
+        || lower.contains("substack")
+        || lower.contains("mirror.xyz")
+        || lower.contains("paragraph.xyz")
+    {
+        return "article";
+    }
+
+    // Video
+    if lower.contains("youtube") || lower.contains("vimeo") || lower.contains("twitch") {
+        return "video";
+    }
+
+    // Web3 specific
+    if lower.contains("etherscan")
+        || lower.contains("opensea")
+        || lower.contains("zora")
+        || lower.contains("lens")
+    {
+        return "web3";
+    }
+
+    // Default
+    "link"
 }
