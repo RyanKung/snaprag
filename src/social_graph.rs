@@ -171,10 +171,47 @@ impl SocialGraphAnalyzer {
         .fetch_all(self.database.pool())
         .await?;
 
-        // If empty and we have Snapchain client, lazy load
-        if links.is_empty() && self.snapchain_client.is_some() {
+        // Check if we need to lazy load
+        let should_lazy_load = if links.is_empty() {
+            // No data at all - definitely need to load
+            true
+        } else if self.snapchain_client.is_some() {
+            // Has some data - check if it looks incomplete
+            // If count is exactly 1000 or 2000, it might be truncated from a previous run
+            let count = links.len();
+            let looks_truncated = count == 1000 || count == 2000;
+            
+            if looks_truncated {
+                tracing::debug!(
+                    "🔍 Found exactly {} following for FID {} - checking if complete...",
+                    count,
+                    fid
+                );
+                
+                // Check if there's a marker indicating this is complete
+                let is_marked_complete = sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM links 
+                        WHERE fid = $1 
+                        AND link_type = 'follow_complete_marker'
+                    )"
+                )
+                .bind(fid)
+                .fetch_one(self.database.pool())
+                .await
+                .unwrap_or(false);
+                
+                !is_marked_complete
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if should_lazy_load && self.snapchain_client.is_some() {
             tracing::info!(
-                "⚡ Following list empty for FID {}, lazy loading from Snapchain...",
+                "⚡ Following list incomplete/empty for FID {}, lazy loading from Snapchain...",
                 fid
             );
             return self.lazy_load_following(fid).await;
@@ -215,18 +252,26 @@ impl SocialGraphAnalyzer {
         let mut batch_data = Vec::new();
         let mut next_page_token: Option<String> = None;
         let mut total_fetched = 0;
+        let mut page_num = 0;
 
-        // Paginate through all following (limited to first 2000 for performance)
+        // Paginate through ALL following links
         loop {
+            page_num += 1;
             let response = client
-                .get_links_by_fid(fid as u64, "follow", Some(1000))
+                .get_links_by_fid(
+                    fid as u64,
+                    "follow",
+                    Some(1000),
+                    next_page_token.as_deref(),
+                )
                 .await?;
 
             let msg_count = response.messages.len();
             total_fetched += msg_count;
             
             tracing::info!(
-                "📩 Fetched page: {} messages (total: {})",
+                "📩 Page {}: {} messages (total: {})",
+                page_num,
                 msg_count,
                 total_fetched
             );
@@ -248,29 +293,42 @@ impl SocialGraphAnalyzer {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("follow");
 
+                            // Decode hex hash to bytes
+                            let hash_bytes = if message.hash.starts_with("0x") {
+                                hex::decode(&message.hash[2..]).unwrap_or_else(|_| message.hash.as_bytes().to_vec())
+                            } else {
+                                hex::decode(&message.hash).unwrap_or_else(|_| message.hash.as_bytes().to_vec())
+                            };
+
                             batch_data.push((
                                 fid,
                                 target_fid,
                                 link_type.to_string(),
                                 data.timestamp as i64,
-                                message.hash.clone(),
+                                hash_bytes,
                             ));
                         }
                     }
                 }
             }
 
-            // Check if we should continue
-            if msg_count < 1000 || total_fetched >= 2000 {
+            // Check if we have more pages
+            if msg_count < 1000 {
+                // Got less than requested, means we're done
+                tracing::info!("✓ Reached last page (received {} < 1000)", msg_count);
                 break;
             }
 
-            // TODO: Handle pagination if response has next_page_token
-            // For now, we limit to first 2000
-            if response.next_page_token.is_some() && total_fetched < 2000 {
-                tracing::warn!("More pages available but stopping at {} for performance", total_fetched);
+            // Check if there's a next page token
+            if let Some(token) = response.next_page_token {
+                next_page_token = Some(token);
+                tracing::debug!("→ More pages available, fetching next page...");
+                // Continue to next iteration with the new token
+            } else {
+                // No next page token, we're done
+                tracing::info!("✓ No more pages (no next_page_token)");
+                break;
             }
-            break;
         }
 
         // Batch insert all links

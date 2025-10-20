@@ -410,6 +410,7 @@ impl SnapchainClient {
         fid: u64,
         link_type: &str,
         page_size: Option<u32>,
+        next_page_token: Option<&str>,
     ) -> Result<LinksByTargetFidResponse> {
         let mut grpc_client = self.grpc_client.clone();
         
@@ -418,6 +419,9 @@ impl SnapchainClient {
         request.link_type = Some(link_type.to_string());
         if let Some(size) = page_size {
             request.page_size = Some(size);
+        }
+        if let Some(token) = next_page_token {
+            request.page_token = Some(token.as_bytes().to_vec());
         }
         
         tracing::debug!("Calling gRPC get_links_by_fid for FID {}", fid);
