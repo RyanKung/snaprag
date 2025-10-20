@@ -179,62 +179,150 @@ impl LifecycleManager {
             state_manager.update_status("RangeSync")?;
         }
 
-        // For simplicity, sync each shard sequentially
+        // 🚀 Parallel shard sync: Process all configured shards simultaneously
+        info!(
+            "Starting parallel sync of {} shards...",
+            self.config.shard_ids.len()
+        );
+
+        let mut handles = vec![];
+
         for &shard_id in &self.config.shard_ids {
-            info!(
-                "📥 Syncing shard {} (blocks {}-{})",
-                shard_id, from_block, to_block
-            );
+            info!("🔄 Spawning sync task for shard {}", shard_id);
 
-            let mut current_block = from_block;
-            let mut total_messages = 0u64;
-            let mut total_blocks = 0u64;
+            // Clone necessary resources for each shard task
+            let client = self.client.clone();
+            let database = self.database.clone();
+            let state_manager = self.state_manager.clone();
+            let config = self.config.clone();
+            let lock_manager = self.lock_manager.clone();
 
-            while current_block <= to_block {
-                let remaining = to_block.saturating_sub(current_block).saturating_add(1);
-                let batch = self.config.batch_size.min(remaining as u32);
+            // Spawn parallel task for this shard
+            let handle = tokio::spawn(async move {
+                // Check if we should resume from last saved progress
+                let last_saved_height = database.get_last_processed_height(shard_id).await.unwrap_or(0);
 
-                match self
-                    .poll_batch_internal(shard_id, current_block, batch)
-                    .await
-                {
-                    Ok(stats) => {
-                        total_blocks += stats.blocks_processed();
-                        total_messages += stats.messages_processed();
+                // Resume from last saved height if it's greater than requested from_block
+                let resume_from = if from_block == 0 && last_saved_height > 0 {
+                    info!(
+                        "📍 Resuming shard {} from last saved height {} (instead of {})",
+                        shard_id, last_saved_height, from_block
+                    );
+                    last_saved_height
+                } else if last_saved_height > from_block && last_saved_height < to_block {
+                    info!(
+                        "📍 Progress found for shard {}: resuming from block {} (was at {})",
+                        shard_id, last_saved_height, from_block
+                    );
+                    last_saved_height
+                } else {
+                    from_block
+                };
 
-                        let processed_block = stats.last_block_number().unwrap_or(current_block);
-                        current_block = processed_block.saturating_add(1);
+                info!(
+                    "📥 Starting sync for shard {} from block {} to {}",
+                    shard_id, resume_from, to_block
+                );
 
-                        lock.update_progress(Some(shard_id), Some(current_block));
-                        self.lock_manager.update_lock(lock.clone())?;
+                let mut current_block = resume_from;
+                let mut total_messages = 0u64;
+                let mut total_blocks = 0u64;
 
-                        info!(
-                            "Shard {}: processed {} blocks, {} messages (current: {})",
-                            shard_id, total_blocks, total_messages, current_block
-                        );
+                while current_block <= to_block {
+                    let remaining = to_block.saturating_sub(current_block).saturating_add(1);
+                    let batch = config.batch_size.min(remaining as u32);
 
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    }
-                    Err(e) if e.to_string().contains("no more chunks") => {
-                        info!("Shard {}: reached end at block {}", shard_id, current_block);
-                        break;
-                    }
-                    Err(e) => {
-                        error!(
-                            "Shard {} sync error at block {}: {}",
-                            shard_id, current_block, e
-                        );
-                        return Err(e);
+                    // Create request and fetch chunks
+                    let request = crate::sync::client::proto::ShardChunksRequest {
+                        shard_id,
+                        start_block_number: current_block,
+                        stop_block_number: Some(current_block + batch as u64 - 1),
+                    };
+
+                    match client.get_shard_chunks(request).await {
+                        Ok(response) => {
+                            let chunks = response.shard_chunks;
+                            
+                            if chunks.is_empty() {
+                                info!("Shard {}: no more chunks at block {}", shard_id, current_block);
+                                break;
+                            }
+
+                            let processor = ShardProcessor::new(database.as_ref().clone());
+                            processor.process_chunks_batch(&chunks, shard_id).await?;
+
+                            // Update stats
+                            let messages_in_batch: u64 = chunks.iter()
+                                .map(|c| c.transactions.iter().map(|tx| tx.user_messages.len() as u64).sum::<u64>())
+                                .sum();
+                            
+                            total_blocks += chunks.len() as u64;
+                            total_messages += messages_in_batch;
+
+                            // Find max block number processed
+                            let max_block = chunks.iter()
+                                .filter_map(|c| c.header.as_ref())
+                                .filter_map(|h| h.height.as_ref())
+                                .map(|height| height.block_number)
+                                .max()
+                                .unwrap_or(current_block);
+
+                            current_block = max_block.saturating_add(1);
+
+                            // Save progress to database
+                            database.update_last_processed_height(shard_id, current_block).await?;
+
+                            info!(
+                                "Shard {}: processed {} blocks, {} messages (current: {})",
+                                shard_id, total_blocks, total_messages, current_block
+                            );
+
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        }
+                        Err(e) if e.to_string().contains("no more chunks") => {
+                            info!("Shard {}: reached end at block {}", shard_id, current_block);
+                            break;
+                        }
+                        Err(e) => {
+                            error!("Shard {} sync error at block {}: {}", shard_id, current_block, e);
+                            return Err(e);
+                        }
                     }
                 }
-            }
 
-            info!(
-                "✅ Shard {} completed: {} blocks, {} messages",
-                shard_id, total_blocks, total_messages
-            );
+                info!("✅ Shard {} completed: {} blocks, {} messages", shard_id, total_blocks, total_messages);
+                Ok::<(), crate::SnapRagError>(())
+            });
+
+            handles.push((shard_id, handle));
         }
 
+        // Wait for all shards to complete
+        info!(
+            "⏳ Waiting for {} shard sync tasks to complete...",
+            handles.len()
+        );
+
+        for (shard_id, handle) in handles {
+            match handle.await {
+                Ok(Ok(())) => {
+                    info!("✅ Shard {} sync completed", shard_id);
+                }
+                Ok(Err(e)) => {
+                    error!("❌ Shard {} sync failed: {}", shard_id, e);
+                    return Err(e);
+                }
+                Err(e) => {
+                    error!("❌ Shard {} task panicked: {}", shard_id, e);
+                    return Err(crate::SnapRagError::Custom(format!(
+                        "Shard {} sync task panicked: {}",
+                        shard_id, e
+                    )));
+                }
+            }
+        }
+
+        info!("🎉 Parallel sync completed across {} shards", self.config.shard_ids.len());
         Ok(())
     }
 
@@ -242,63 +330,5 @@ impl LifecycleManager {
         info!("Real-time sync not yet implemented in refactored service");
         warn!("Use 'snaprag sync start --from-block <last_block>' for now");
         Ok(())
-    }
-
-    // Helper method for batch polling
-    async fn poll_batch_internal(
-        &self,
-        shard_id: u32,
-        from_block: u64,
-        batch_size: u32,
-    ) -> Result<ChunkProcessStats> {
-        use crate::sync::client::proto::ShardChunksRequest;
-
-        let request = ShardChunksRequest {
-            shard_id,
-            start_block_number: from_block,
-            stop_block_number: Some(from_block + batch_size as u64 - 1),
-        };
-
-        let response = self.database.clone();
-        let chunks = self.client.clone();
-
-        // This should use coordinator, but for now use direct implementation
-        let shard_chunks_response = chunks.get_shard_chunks(request).await?;
-        let chunks_to_process = shard_chunks_response.shard_chunks;
-
-        if chunks_to_process.is_empty() {
-            return Err(crate::SnapRagError::Custom("no more chunks".to_string()));
-        }
-
-        let processor = ShardProcessor::new(response.as_ref().clone());
-        let mut stats = ChunkProcessStats::default();
-
-        processor
-            .process_chunks_batch(&chunks_to_process, shard_id)
-            .await?;
-
-        for chunk in chunks_to_process {
-            let block_number = Self::extract_block_number(&chunk);
-            let message_count = Self::count_chunk_messages(&chunk);
-            stats.record_chunk(block_number, message_count);
-        }
-
-        Ok(stats)
-    }
-
-    fn extract_block_number(chunk: &crate::sync::client::proto::ShardChunk) -> Option<u64> {
-        chunk
-            .header
-            .as_ref()
-            .and_then(|header| header.height.as_ref())
-            .map(|height| height.block_number)
-    }
-
-    fn count_chunk_messages(chunk: &crate::sync::client::proto::ShardChunk) -> u64 {
-        chunk
-            .transactions
-            .iter()
-            .map(|tx| tx.user_messages.len() as u64)
-            .sum()
     }
 }
