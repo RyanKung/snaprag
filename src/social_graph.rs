@@ -32,6 +32,9 @@ pub struct SocialProfile {
 
     // Interaction patterns
     pub interaction_style: InteractionStyle,
+
+    // Word cloud - vocabulary analysis
+    pub word_cloud: WordCloud,
 }
 
 /// User mention with context
@@ -60,6 +63,22 @@ pub struct InteractionStyle {
     pub mention_frequency: f32,  // How often user mentions others
     pub network_connector: bool, // Actively introduces people
     pub community_role: String,  // "leader", "contributor", "observer"
+}
+
+/// Word cloud data - most frequently used words/phrases
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WordCloud {
+    pub top_words: Vec<WordFrequency>,
+    pub top_phrases: Vec<WordFrequency>,
+    pub signature_words: Vec<String>, // Unique characteristic words
+}
+
+/// Word frequency entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WordFrequency {
+    pub word: String,
+    pub count: usize,
+    pub percentage: f32,
 }
 
 /// Social graph analyzer
@@ -110,6 +129,9 @@ impl SocialGraphAnalyzer {
         let top_followed = self.get_top_users(&following, 5).await?;
         let top_followers = self.get_top_users(&followers, 5).await?;
 
+        // Generate word cloud from user's casts
+        let word_cloud = self.generate_word_cloud(fid).await?;
+
         Ok(SocialProfile {
             fid,
             following_count: following.len(),
@@ -120,6 +142,7 @@ impl SocialGraphAnalyzer {
             most_mentioned_users: mentioned_users,
             social_circles,
             interaction_style,
+            word_cloud,
         })
     }
 
@@ -428,6 +451,61 @@ impl SocialGraphAnalyzer {
         })
     }
 
+    /// Generate word cloud from user's casts
+    async fn generate_word_cloud(&self, fid: i64) -> Result<WordCloud> {
+        // Get recent casts
+        let casts = self
+            .database
+            .get_casts_by_fid(fid, Some(100), Some(0))
+            .await?;
+
+        if casts.is_empty() {
+            return Ok(WordCloud {
+                top_words: Vec::new(),
+                top_phrases: Vec::new(),
+                signature_words: Vec::new(),
+            });
+        }
+
+        // Combine all text
+        let all_text: String = casts
+            .iter()
+            .filter_map(|c| c.text.as_ref())
+            .cloned()
+            .collect::<Vec<String>>()
+            .join(" ");
+
+        // Count word frequencies
+        let word_freq = count_word_frequencies(&all_text);
+        let total_words: usize = word_freq.values().sum();
+
+        // Get top words (excluding stop words)
+        let mut sorted_words: Vec<_> = word_freq.into_iter().collect();
+        sorted_words.sort_by(|a, b| b.1.cmp(&a.1));
+
+        let top_words: Vec<WordFrequency> = sorted_words
+            .iter()
+            .take(20)
+            .map(|(word, count)| WordFrequency {
+                word: word.clone(),
+                count: *count,
+                percentage: (*count as f32 / total_words as f32) * 100.0,
+            })
+            .collect();
+
+        // Extract common 2-word phrases
+        let phrases = extract_common_phrases(&all_text, 15);
+
+        // Identify signature words (words user uses more than average)
+        let signature_words = identify_signature_words(&sorted_words, 10);
+
+        Ok(WordCloud {
+            top_words,
+            top_phrases: phrases,
+            signature_words,
+        })
+    }
+
     /// Format social profile as a human-readable string for LLM context
     pub fn format_for_llm(&self, profile: &SocialProfile) -> String {
         let mut output = String::new();
@@ -559,4 +637,114 @@ fn count_keywords(text: &str, keywords: &[&str]) -> usize {
         .iter()
         .filter(|keyword| text.contains(*keyword))
         .count()
+}
+
+/// Count word frequencies (excluding stop words and common words)
+fn count_word_frequencies(text: &str) -> HashMap<String, usize> {
+    let stop_words = get_stop_words();
+    let mut word_counts: HashMap<String, usize> = HashMap::new();
+
+    // Tokenize and count
+    for word in text.split_whitespace() {
+        let cleaned = word
+            .trim_matches(|c: char| !c.is_alphanumeric())
+            .to_lowercase();
+
+        // Skip if empty, too short, or stop word
+        if cleaned.len() < 3 || stop_words.contains(&cleaned.as_str()) {
+            continue;
+        }
+
+        // Skip URLs
+        if cleaned.starts_with("http") || cleaned.contains("://") {
+            continue;
+        }
+
+        // Skip mentions and hashtags
+        if cleaned.starts_with('@') || cleaned.starts_with('#') {
+            continue;
+        }
+
+        *word_counts.entry(cleaned).or_insert(0) += 1;
+    }
+
+    word_counts
+}
+
+/// Extract common 2-word phrases
+fn extract_common_phrases(text: &str, limit: usize) -> Vec<WordFrequency> {
+    let stop_words = get_stop_words();
+    let mut phrase_counts: HashMap<String, usize> = HashMap::new();
+
+    let words: Vec<String> = text
+        .split_whitespace()
+        .map(|w| {
+            w.trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase()
+        })
+        .filter(|w| w.len() >= 3 && !stop_words.contains(&w.as_str()))
+        .collect();
+
+    // Count 2-word phrases
+    for window in words.windows(2) {
+        if window.len() == 2 {
+            let phrase = format!("{} {}", window[0], window[1]);
+            *phrase_counts.entry(phrase).or_insert(0) += 1;
+        }
+    }
+
+    // Sort and get top phrases (must appear at least 2 times)
+    let mut sorted_phrases: Vec<_> = phrase_counts
+        .into_iter()
+        .filter(|(_, count)| *count >= 2)
+        .collect();
+    sorted_phrases.sort_by(|a, b| b.1.cmp(&a.1));
+
+    let total: usize = sorted_phrases.iter().map(|(_, count)| count).sum();
+
+    sorted_phrases
+        .into_iter()
+        .take(limit)
+        .map(|(phrase, count)| WordFrequency {
+            word: phrase,
+            count,
+            percentage: if total > 0 {
+                (count as f32 / total as f32) * 100.0
+            } else {
+                0.0
+            },
+        })
+        .collect()
+}
+
+/// Identify signature words - words this user uses notably
+fn identify_signature_words(sorted_words: &[(String, usize)], limit: usize) -> Vec<String> {
+    sorted_words
+        .iter()
+        .filter(|(word, count)| {
+            // Filter for meaningful words used frequently (5+ times)
+            *count >= 5 && word.len() >= 4
+        })
+        .take(limit)
+        .map(|(word, _)| word.clone())
+        .collect()
+}
+
+/// Get common English stop words
+fn get_stop_words() -> Vec<&'static str> {
+    vec![
+        "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on",
+        "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we",
+        "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their",
+        "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when",
+        "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into",
+        "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now",
+        "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two",
+        "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any",
+        "these", "give", "day", "most", "us", // Common casual/filler words
+        "really", "very", "much", "more", "still", "here", "going", "been", "has", "had", "was",
+        "were", "are", "being", "did", "done", "doing", "too", "got", "getting",
+        // Social media specific
+        "lol", "haha", "yes", "yeah", "yep", "nope", "nah", "omg", "tbh", "imo", "idk",
+    ]
 }

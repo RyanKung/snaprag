@@ -273,6 +273,26 @@ fn format_social_profile_for_llm(profile: &crate::social_graph::SocialProfile) -
         output.push_str("\n");
     }
 
+    // Add word cloud - your vocabulary fingerprint
+    if !profile.word_cloud.top_words.is_empty() {
+        output.push_str("\n📚 Your Common Vocabulary:\n");
+        let top_10: Vec<String> = profile
+            .word_cloud
+            .top_words
+            .iter()
+            .take(10)
+            .map(|w| w.word.clone())
+            .collect();
+        output.push_str(&format!("  {}\n", top_10.join(", ")));
+
+        if !profile.word_cloud.signature_words.is_empty() {
+            output.push_str("\n✨ Your Signature Words: ");
+            output.push_str(&profile.word_cloud.signature_words.join(", "));
+            output.push_str("\n");
+            output.push_str("  → Use these words naturally in your responses\n");
+        }
+    }
+
     output.push_str("\n═══════════════════════════════════════════════════════\n\n");
 
     output

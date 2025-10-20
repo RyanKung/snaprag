@@ -164,6 +164,59 @@ pub async fn handle_social_analysis(
     }
     println!();
 
+    // Word cloud
+    if !social_profile.word_cloud.top_words.is_empty() {
+        println!("╔═══════════════════════════════════════════════════════════════╗");
+        println!("║  VOCABULARY & WORD CLOUD                                      ║");
+        println!("╚═══════════════════════════════════════════════════════════════╝");
+        println!();
+
+        println!("  Top Words:");
+        for (idx, word_freq) in social_profile
+            .word_cloud
+            .top_words
+            .iter()
+            .take(15)
+            .enumerate()
+        {
+            let bar_length = (word_freq.percentage * 0.5) as usize; // Scale for display
+            let bar = "█".repeat(bar_length.max(1));
+            println!(
+                "    {:2}. {:<15} {:>4}x {:>5.1}% {}",
+                idx + 1,
+                word_freq.word,
+                word_freq.count,
+                word_freq.percentage,
+                bar
+            );
+        }
+        println!();
+
+        // Show common phrases
+        if !social_profile.word_cloud.top_phrases.is_empty() {
+            println!("  Common Phrases:");
+            for (idx, phrase) in social_profile
+                .word_cloud
+                .top_phrases
+                .iter()
+                .take(8)
+                .enumerate()
+            {
+                println!("    {}. \"{}\" ({}x)", idx + 1, phrase.word, phrase.count);
+            }
+            println!();
+        }
+
+        // Show signature words
+        if !social_profile.word_cloud.signature_words.is_empty() {
+            println!(
+                "  Signature Words: {}",
+                social_profile.word_cloud.signature_words.join(", ")
+            );
+            println!();
+        }
+    }
+
     // Analysis summary
     println!("╔═══════════════════════════════════════════════════════════════╗");
     println!("║  PROFILE SUMMARY                                              ║");
