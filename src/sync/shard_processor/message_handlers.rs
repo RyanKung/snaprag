@@ -105,7 +105,39 @@ pub(super) async fn collect_message_data(
             ));
         }
         5 => {
-            // LinkAdd - collect activity
+            // LinkAdd - collect link data
+            if let Some(body) = &data.body {
+                if let Some(link_body) = body.get("link_body") {
+                    let link_type = link_body
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("follow");
+                    let target_fid = link_body
+                        .get("target_fid")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+
+                    if target_fid > 0 {
+                        batched.links.push((
+                            fid,
+                            target_fid,
+                            link_type.to_string(),
+                            timestamp,
+                            message_hash.to_vec(),
+                            shard_block_info.clone(),
+                        ));
+
+                        tracing::debug!(
+                            "Collected link: FID {} -> {} ({})",
+                            fid,
+                            target_fid,
+                            link_type
+                        );
+                    }
+                }
+            }
+
+            // Also collect activity
             batched.activities.push(create_activity(
                 fid,
                 "link_add".to_string(),
@@ -119,7 +151,7 @@ pub(super) async fn collect_message_data(
             ));
         }
         6 => {
-            // LinkRemove - collect activity
+            // LinkRemove - collect activity (we don't remove from links table, just log)
             batched.activities.push(create_activity(
                 fid,
                 "link_remove".to_string(),

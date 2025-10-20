@@ -10,9 +10,10 @@ use crate::Result;
 pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
-        "Flushing batch: {} FIDs, {} casts, {} activities, {} profile updates",
+        "Flushing batch: {} FIDs, {} casts, {} links, {} activities, {} profile updates",
         batched.fids_to_ensure.len(),
         batched.casts.len(),
+        batched.links.len(),
         batched.activities.len(),
         batched.profile_updates.len()
     );
@@ -140,6 +141,54 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                     .bind(root_hash)
                     .bind(embeds)
                     .bind(mentions);
+            }
+
+            q.execute(&mut *tx).await?;
+        }
+    }
+
+    // Batch insert links (split into chunks to avoid parameter limit)
+    if !batched.links.is_empty() {
+        tracing::trace!("Batch inserting {} links", batched.links.len());
+
+        const PARAMS_PER_ROW: usize = 7; // fid, target_fid, link_type, timestamp, message_hash, shard_id, block_height
+        const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
+
+        for chunk in batched.links.chunks(CHUNK_SIZE) {
+            let mut query = String::from(
+                "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash, shard_id, block_height) VALUES "
+            );
+
+            let value_clauses: Vec<String> = (0..chunk.len())
+                .map(|i| {
+                    let base = i * PARAMS_PER_ROW;
+                    format!(
+                        "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                        base + 1,
+                        base + 2,
+                        base + 3,
+                        base + 4,
+                        base + 5,
+                        base + 6,
+                        base + 7
+                    )
+                })
+                .collect();
+
+            query.push_str(&value_clauses.join(", "));
+            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+
+            let mut q = sqlx::query(&query);
+            for (fid, target_fid, link_type, timestamp, message_hash, shard_block_info) in chunk {
+                q = q
+                    .bind(fid)
+                    .bind(target_fid)
+                    .bind(link_type)
+                    .bind(timestamp)
+                    .bind(message_hash)
+                    .bind(shard_block_info.shard_id as i32)
+                    .bind(shard_block_info.block_height as i64);
             }
 
             q.execute(&mut *tx).await?;
