@@ -180,27 +180,27 @@ impl SocialGraphAnalyzer {
             // If count is exactly 1000 or 2000, it might be truncated from a previous run
             let count = links.len();
             let looks_truncated = count == 1000 || count == 2000;
-            
+
             if looks_truncated {
                 tracing::debug!(
                     "🔍 Found exactly {} following for FID {} - checking if complete...",
                     count,
                     fid
                 );
-                
+
                 // Check if there's a marker indicating this is complete
                 let is_marked_complete = sqlx::query_scalar::<_, bool>(
                     "SELECT EXISTS(
                         SELECT 1 FROM links 
                         WHERE fid = $1 
                         AND link_type = 'follow_complete_marker'
-                    )"
+                    )",
                 )
                 .bind(fid)
                 .fetch_one(self.database.pool())
                 .await
                 .unwrap_or(false);
-                
+
                 !is_marked_complete
             } else {
                 false
@@ -237,11 +237,11 @@ impl SocialGraphAnalyzer {
         } else if self.snapchain_client.is_some() {
             // Has some data - check if it looks incomplete
             let count = followers.len();
-            
+
             // If count is suspiciously low (< 100) for a well-known user, might be incomplete
             // Or if exactly 1000/2000, might be truncated
             let looks_incomplete = count < 100 || count == 1000 || count == 2000;
-            
+
             if looks_incomplete {
                 tracing::info!(
                     "🔍 Found {} followers for FID {} - seems incomplete, will lazy load",
@@ -275,7 +275,7 @@ impl SocialGraphAnalyzer {
 
         // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
         let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
-            "SELECT message_hash FROM links WHERE fid = $1 AND link_type = 'follow'"
+            "SELECT message_hash FROM links WHERE fid = $1 AND link_type = 'follow'",
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -301,17 +301,12 @@ impl SocialGraphAnalyzer {
         loop {
             page_num += 1;
             let response = client
-                .get_links_by_fid(
-                    fid as u64,
-                    "follow",
-                    Some(1000),
-                    next_page_token.as_deref(),
-                )
+                .get_links_by_fid(fid as u64, "follow", Some(1000), next_page_token.as_deref())
                 .await?;
 
             let msg_count = response.messages.len();
             total_fetched += msg_count;
-            
+
             tracing::info!(
                 "📩 Page {}: {} messages (total: {})",
                 page_num,
@@ -333,9 +328,11 @@ impl SocialGraphAnalyzer {
 
                             // Decode hex hash to bytes
                             let hash_bytes = if message.hash.starts_with("0x") {
-                                hex::decode(&message.hash[2..]).unwrap_or_else(|_| message.hash.as_bytes().to_vec())
+                                hex::decode(&message.hash[2..])
+                                    .unwrap_or_else(|_| message.hash.as_bytes().to_vec())
                             } else {
-                                hex::decode(&message.hash).unwrap_or_else(|_| message.hash.as_bytes().to_vec())
+                                hex::decode(&message.hash)
+                                    .unwrap_or_else(|_| message.hash.as_bytes().to_vec())
                             };
 
                             // ⚡ 智能跳过：如果数据库已有此 hash，跳过
@@ -388,22 +385,25 @@ impl SocialGraphAnalyzer {
                 batch_data.len(),
                 skipped
             );
-            
+
             for chunk in batch_data.chunks(500) {
                 let mut query_builder = sqlx::QueryBuilder::new(
-                    "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash) "
+                    "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash) ",
                 );
-                
-                query_builder.push_values(chunk, |mut b, (fid, target_fid, link_type, timestamp, hash)| {
-                    b.push_bind(fid)
-                        .push_bind(target_fid)
-                        .push_bind(link_type)
-                        .push_bind(timestamp)
-                        .push_bind(hash);
-                });
-                
+
+                query_builder.push_values(
+                    chunk,
+                    |mut b, (fid, target_fid, link_type, timestamp, hash)| {
+                        b.push_bind(fid)
+                            .push_bind(target_fid)
+                            .push_bind(link_type)
+                            .push_bind(timestamp)
+                            .push_bind(hash);
+                    },
+                );
+
                 query_builder.push(" ON CONFLICT (message_hash) DO NOTHING");
-                
+
                 let query = query_builder.build();
                 query.execute(self.database.pool()).await?;
             }
@@ -430,7 +430,7 @@ impl SocialGraphAnalyzer {
 
         // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
         let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
-            "SELECT message_hash FROM links WHERE target_fid = $1 AND link_type = 'follow'"
+            "SELECT message_hash FROM links WHERE target_fid = $1 AND link_type = 'follow'",
         )
         .bind(fid)
         .fetch_all(self.database.pool())

@@ -74,6 +74,7 @@ impl SyncService {
         // Initialize sub-components
         let lifecycle_manager = LifecycleManager::new(
             config.clone(),
+            client.clone(),
             database.clone(),
             state.clone(),
             state_manager.clone(),
