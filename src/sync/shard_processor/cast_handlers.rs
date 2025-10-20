@@ -1,5 +1,6 @@
 use super::types::BatchedData;
-use super::utils::create_activity;
+// Removed: activities tracking disabled
+// use super::utils::create_activity;
 use crate::models::ShardBlockInfo;
 use crate::sync::client::proto::MessageData;
 use crate::Result;
@@ -63,18 +64,7 @@ pub(super) async fn collect_cast_add(
         mentions,
     ));
 
-    // Collect activity for batch insert
-    batched.activities.push(create_activity(
-        fid,
-        "cast_add".to_string(),
-        Some(serde_json::json!({
-            "message_type": "cast_add",
-            "timestamp": timestamp
-        })),
-        timestamp,
-        Some(message_hash.to_vec()),
-        shard_block_info,
-    ));
+    // ❌ Removed: activities tracking disabled (user_activity_timeline dropped)
 
     Ok(())
 }

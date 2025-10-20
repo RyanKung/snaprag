@@ -1,6 +1,7 @@
 use super::cast_handlers::collect_cast_add;
 use super::types::BatchedData;
-use super::utils::create_activity;
+// Removed: activities tracking disabled
+// use super::utils::create_activity;
 use crate::models::ShardBlockInfo;
 use crate::sync::client::proto::Message as FarcasterMessage;
 use crate::sync::client::proto::Transaction;
@@ -63,18 +64,7 @@ pub(super) async fn collect_message_data(
             collect_cast_add(data, &message_hash, shard_block_info, batched).await?;
         }
         2 => {
-            // CastRemove - collect activity
-            batched.activities.push(create_activity(
-                fid,
-                "cast_remove".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "cast_remove",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
+            // CastRemove - no action needed (soft delete handled in casts table)
         }
         3 => {
             // ReactionAdd - collect reaction data
@@ -112,31 +102,9 @@ pub(super) async fn collect_message_data(
             }
 
             // Also collect activity
-            batched.activities.push(create_activity(
-                fid,
-                "reaction_add".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "reaction_add",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
         }
         4 => {
             // ReactionRemove - collect activity
-            batched.activities.push(create_activity(
-                fid,
-                "reaction_remove".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "reaction_remove",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
         }
         5 => {
             // LinkAdd - collect link data
@@ -172,31 +140,9 @@ pub(super) async fn collect_message_data(
             }
 
             // Also collect activity
-            batched.activities.push(create_activity(
-                fid,
-                "link_add".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "link_add",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
         }
         6 => {
             // LinkRemove - collect activity (we don't remove from links table, just log)
-            batched.activities.push(create_activity(
-                fid,
-                "link_remove".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "link_remove",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
         }
         7 => {
             // VerificationAddEthAddress - collect verification data
@@ -245,45 +191,12 @@ pub(super) async fn collect_message_data(
             }
 
             // Also collect activity
-            batched.activities.push(create_activity(
-                fid,
-                "verification_add".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "verification_add",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
         }
         8 => {
             // VerificationRemove - collect activity
-            batched.activities.push(create_activity(
-                fid,
-                "verification_remove".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "verification_remove",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
         }
         11 => {
             // UserDataAdd - collect activity and profile updates
-            batched.activities.push(create_activity(
-                fid,
-                "user_data_add".to_string(),
-                Some(serde_json::json!({
-                    "message_type": "user_data_add",
-                    "timestamp": timestamp
-                })),
-                timestamp,
-                Some(message_hash.to_vec()),
-                shard_block_info,
-            ));
 
             // Parse and collect profile field updates
             if let Some(body) = &data.body {

@@ -10,13 +10,12 @@ use crate::Result;
 pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
-        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} activities, {} profile updates",
+        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates",
         batched.fids_to_ensure.len(),
         batched.casts.len(),
         batched.links.len(),
         batched.reactions.len(),
         batched.verifications.len(),
-        batched.activities.len(),
         batched.profile_updates.len()
     );
 
@@ -328,63 +327,9 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         }
     }
 
-    // Batch insert activities (split into chunks to avoid parameter limit)
-    if !batched.activities.is_empty() {
-        tracing::trace!("Batch inserting {} activities", batched.activities.len());
-
-        const PARAMS_PER_ROW: usize = 7;
-        const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
-        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~9285 rows per chunk
-
-        // Split activities into chunks
-        for chunk in batched.activities.chunks(CHUNK_SIZE) {
-            // Build dynamic query with shard_id and block_height
-            let mut query = String::from(
-                "INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash, shard_id, block_height) VALUES "
-            );
-
-            let value_clauses: Vec<String> = (0..chunk.len())
-                .map(|i| {
-                    let base = i * PARAMS_PER_ROW;
-                    format!(
-                        "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                        base + 1,
-                        base + 2,
-                        base + 3,
-                        base + 4,
-                        base + 5,
-                        base + 6,
-                        base + 7
-                    )
-                })
-                .collect();
-
-            query.push_str(&value_clauses.join(", "));
-
-            let mut q = sqlx::query(&query);
-            for (
-                fid,
-                activity_type,
-                activity_data,
-                timestamp,
-                message_hash,
-                shard_id,
-                block_height,
-            ) in chunk
-            {
-                q = q
-                    .bind(fid)
-                    .bind(activity_type)
-                    .bind(activity_data)
-                    .bind(timestamp)
-                    .bind(message_hash)
-                    .bind(shard_id)
-                    .bind(block_height);
-            }
-
-            q.execute(&mut *tx).await?;
-        }
-    }
+    // ❌ Removed: user_activity_timeline table dropped
+    // Activities tracking was removed for performance (356GB, WAL bottleneck)
+    // All necessary data is already in specialized tables (casts, links, reactions, etc.)
 
     // 🚀 OPTIMIZATION: Simplified profile updates using multiple simple UPDATEs
     // Instead of complex CASE statements, use multiple targeted updates
