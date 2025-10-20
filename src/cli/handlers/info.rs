@@ -142,7 +142,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                 Ok(client) => {
                     match client.get_info().await {
                         Ok(info) => {
-                            tracing::debug!("Got Snapchain info: {} shard_infos", info.shard_infos.len());
+                            tracing::info!("✅ Connected to Snapchain: {} shards", info.shard_infos.len());
                             info.shard_infos.iter()
                                 .map(|s| {
                                     tracing::debug!("Shard {}: maxHeight = {}", s.shard_id, s.max_height);
@@ -151,13 +151,13 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                                 .collect()
                         }
                         Err(e) => {
-                            tracing::debug!("Could not get Snapchain info: {}", e);
+                            tracing::warn!("⚠️  Could not get Snapchain info: {}", e);
                             std::collections::HashMap::new()
                         }
                     }
                 }
                 Err(e) => {
-                    tracing::debug!("Could not create Snapchain client: {}", e);
+                    tracing::warn!("⚠️  Could not create Snapchain client: {}", e);
                     std::collections::HashMap::new()
                 }
             }
