@@ -576,7 +576,7 @@ impl LifecycleManager {
                 let mut total_blocks = 0u64;
                 let mut total_messages = 0u64;
                 let mut completed_tasks = 0usize;
-                let mut failed_tasks = 0usize;
+                let failed_tasks = 0usize;
 
                 let mut task_handles_iter = task_handles.into_iter();
                 while let Some((batch_start, task)) = task_handles_iter.next() {
