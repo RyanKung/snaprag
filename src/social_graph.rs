@@ -230,10 +230,35 @@ impl SocialGraphAnalyzer {
         .fetch_all(self.database.pool())
         .await?;
 
-        // If empty and we have Snapchain client, lazy load
-        if followers.is_empty() && self.snapchain_client.is_some() {
+        // Check if we need to lazy load
+        let should_lazy_load = if followers.is_empty() {
+            // No data at all - definitely need to load
+            true
+        } else if self.snapchain_client.is_some() {
+            // Has some data - check if it looks incomplete
+            let count = followers.len();
+            
+            // If count is suspiciously low (< 100) for a well-known user, might be incomplete
+            // Or if exactly 1000/2000, might be truncated
+            let looks_incomplete = count < 100 || count == 1000 || count == 2000;
+            
+            if looks_incomplete {
+                tracing::info!(
+                    "🔍 Found {} followers for FID {} - seems incomplete, will lazy load",
+                    count,
+                    fid
+                );
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if should_lazy_load && self.snapchain_client.is_some() {
             tracing::info!(
-                "⚡ Followers list empty for FID {}, lazy loading from Snapchain...",
+                "⚡ Followers list incomplete/empty for FID {}, lazy loading from Snapchain...",
                 fid
             );
             return self.lazy_load_followers(fid).await;
@@ -248,10 +273,28 @@ impl SocialGraphAnalyzer {
             crate::SnapRagError::Custom("Snapchain client not available".to_string())
         })?;
 
+        // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
+        let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
+            "SELECT message_hash FROM links WHERE fid = $1 AND link_type = 'follow'"
+        )
+        .bind(fid)
+        .fetch_all(self.database.pool())
+        .await?
+        .into_iter()
+        .collect();
+
+        tracing::info!(
+            "📊 Found {} existing following links in database for FID {}",
+            existing_hashes.len(),
+            fid
+        );
+
         let mut following = Vec::new();
         let mut batch_data = Vec::new();
         let mut next_page_token: Option<String> = None;
         let mut total_fetched = 0;
+        let mut skipped = 0;
+        let mut new_data = 0;
         let mut page_num = 0;
 
         // Paginate through ALL following links
@@ -288,17 +331,24 @@ impl SocialGraphAnalyzer {
                         if target_fid > 0 {
                             following.push(target_fid);
 
-                            let link_type = link_body
-                                .get("type")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("follow");
-
                             // Decode hex hash to bytes
                             let hash_bytes = if message.hash.starts_with("0x") {
                                 hex::decode(&message.hash[2..]).unwrap_or_else(|_| message.hash.as_bytes().to_vec())
                             } else {
                                 hex::decode(&message.hash).unwrap_or_else(|_| message.hash.as_bytes().to_vec())
                             };
+
+                            // ⚡ 智能跳过：如果数据库已有此 hash，跳过
+                            if existing_hashes.contains(&hash_bytes) {
+                                skipped += 1;
+                                continue;
+                            }
+
+                            new_data += 1;
+                            let link_type = link_body
+                                .get("type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("follow");
 
                             batch_data.push((
                                 fid,
@@ -331,9 +381,13 @@ impl SocialGraphAnalyzer {
             }
         }
 
-        // Batch insert all links
+        // Batch insert only NEW links
         if !batch_data.is_empty() {
-            tracing::info!("💾 Batch inserting {} links...", batch_data.len());
+            tracing::info!(
+                "💾 Batch inserting {} NEW links (skipped {} existing)...",
+                batch_data.len(),
+                skipped
+            );
             
             for chunk in batch_data.chunks(500) {
                 let mut query_builder = sqlx::QueryBuilder::new(
@@ -353,13 +407,17 @@ impl SocialGraphAnalyzer {
                 let query = query_builder.build();
                 query.execute(self.database.pool()).await?;
             }
+        } else {
+            tracing::info!("✨ All data already exists - no insertion needed!");
         }
 
         tracing::info!(
-            "✅ Lazy loaded {} following for FID {} from {} messages",
+            "✅ Lazy loaded {} following for FID {} (fetched: {}, new: {}, skipped: {})",
             following.len(),
             fid,
-            total_fetched
+            total_fetched,
+            new_data,
+            skipped
         );
         Ok(following)
     }
@@ -370,46 +428,147 @@ impl SocialGraphAnalyzer {
             crate::SnapRagError::Custom("Snapchain client not available".to_string())
         })?;
 
-        // Use existing API
-        let response = client
-            .get_links_by_target_fid(fid as u64, "follow", Some(1000), None)
-            .await?;
-        
-        tracing::info!("📩 Received {} messages from Snapchain linksByTargetFid", response.messages.len());
+        // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
+        let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
+            "SELECT message_hash FROM links WHERE target_fid = $1 AND link_type = 'follow'"
+        )
+        .bind(fid)
+        .fetch_all(self.database.pool())
+        .await?
+        .into_iter()
+        .collect();
+
+        tracing::info!(
+            "📊 Found {} existing followers in database for FID {}",
+            existing_hashes.len(),
+            fid
+        );
+
         let mut followers = Vec::new();
+        let mut batch_data = Vec::new();
+        let mut next_page_token: Option<String> = None;
+        let mut total_fetched = 0;
+        let mut skipped = 0;
+        let mut new_data = 0;
+        let mut page_num = 0;
 
-        for message in &response.messages {
-            if let Some(data) = &message.data {
-                let follower_fid = data.fid as i64;
-                followers.push(follower_fid);
+        // Paginate through ALL followers
+        loop {
+            page_num += 1;
+            let response = client
+                .get_links_by_target_fid(
+                    fid as u64,
+                    "follow",
+                    Some(1000),
+                    next_page_token.as_deref(),
+                )
+                .await?;
 
-                // Insert into database for future use
-                if let Some(link_body) = data.body.get("link_body") {
-                    let link_type = link_body
-                        .get("type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("follow");
+            let msg_count = response.messages.len();
+            total_fetched += msg_count;
 
-                    let _ = sqlx::query(
-                        "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
-                         VALUES ($1, $2, $3, $4, $5)
-                         ON CONFLICT (message_hash) DO NOTHING",
-                    )
-                    .bind(follower_fid)
-                    .bind(fid)
-                    .bind(link_type)
-                    .bind(data.timestamp as i64)
-                    .bind(&message.hash)
-                    .execute(self.database.pool())
-                    .await;
+            tracing::info!(
+                "📩 Page {}: {} messages (total: {})",
+                page_num,
+                msg_count,
+                total_fetched
+            );
+
+            // Collect data from this page
+            for message in &response.messages {
+                if let Some(data) = &message.data {
+                    let follower_fid = data.fid as i64;
+                    followers.push(follower_fid);
+
+                    if let Some(link_body) = data.body.get("link_body") {
+                        let link_type = link_body
+                            .get("type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("follow");
+
+                        // Decode hex hash to bytes
+                        let hash_bytes = if message.hash.starts_with("0x") {
+                            hex::decode(&message.hash[2..])
+                                .unwrap_or_else(|_| message.hash.as_bytes().to_vec())
+                        } else {
+                            hex::decode(&message.hash)
+                                .unwrap_or_else(|_| message.hash.as_bytes().to_vec())
+                        };
+
+                        // ⚡ 智能跳过：如果数据库已有此 hash，跳过
+                        if existing_hashes.contains(&hash_bytes) {
+                            skipped += 1;
+                            continue;
+                        }
+
+                        new_data += 1;
+                        batch_data.push((
+                            follower_fid,
+                            fid,
+                            link_type.to_string(),
+                            data.timestamp as i64,
+                            hash_bytes,
+                        ));
+                    }
                 }
+            }
+
+            // Check if we have more pages
+            if msg_count < 1000 {
+                tracing::info!("✓ Reached last page (received {} < 1000)", msg_count);
+                break;
+            }
+
+            // Check if there's a next page token
+            if let Some(token) = response.next_page_token {
+                next_page_token = Some(token);
+                tracing::debug!("→ More pages available, fetching next page...");
+            } else {
+                tracing::info!("✓ No more pages (no next_page_token)");
+                break;
             }
         }
 
+        // Batch insert only NEW links
+        if !batch_data.is_empty() {
+            tracing::info!(
+                "💾 Batch inserting {} NEW links (skipped {} existing)...",
+                batch_data.len(),
+                skipped
+            );
+
+            for chunk in batch_data.chunks(500) {
+                let mut query_builder = sqlx::QueryBuilder::new(
+                    "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash) ",
+                );
+
+                query_builder.push_values(
+                    chunk,
+                    |mut b, (follower_fid, target_fid, link_type, timestamp, hash)| {
+                        b.push_bind(follower_fid)
+                            .push_bind(target_fid)
+                            .push_bind(link_type)
+                            .push_bind(timestamp)
+                            .push_bind(hash);
+                    },
+                );
+
+                query_builder.push(" ON CONFLICT (message_hash) DO NOTHING");
+
+                let query = query_builder.build();
+                query.execute(self.database.pool()).await?;
+            }
+        } else {
+            tracing::info!("✨ All data already exists - no insertion needed!");
+        }
+
         tracing::info!(
-            "✅ Lazy loaded {} followers for FID {}",
+            "✅ Lazy loaded {} followers for FID {} (fetched: {}, new: {}, skipped: {})",
             followers.len(),
-            fid
+            fid,
+            total_fetched,
+            new_data,
+            skipped
         );
         Ok(followers)
     }
