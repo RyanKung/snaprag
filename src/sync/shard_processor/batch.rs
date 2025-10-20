@@ -42,18 +42,19 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         // Split FIDs into chunks
         for chunk in fids.chunks(CHUNK_SIZE) {
             // Build dynamic query for batch insert
-            let mut query = String::from(
-                "INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at) VALUES ",
-            );
+            // 🚀 Pre-allocate capacity to reduce allocations
+            let estimated_size = 100 + chunk.len() * 20; // Rough estimate
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at) VALUES ");
 
-            let value_clauses: Vec<String> = (0..chunk.len())
-                .map(|i| {
-                    let base = i * PARAMS_PER_ROW;
-                    format!("(${}, ${}, ${})", base + 1, base + 2, base + 3)
-                })
-                .collect();
-
-            query.push_str(&value_clauses.join(", "));
+            // 🚀 Use direct string building instead of collecting Vec<String>
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!("(${}, ${}, ${})", base + 1, base + 2, base + 3));
+            }
             query.push_str(" ON CONFLICT (fid) DO NOTHING");
 
             let mut q = sqlx::query(&query);
@@ -103,28 +104,24 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         // Split casts into chunks
         for chunk in deduped_casts.chunks(CHUNK_SIZE) {
             // Build dynamic query
-            let mut query = String::from(
-                "INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) VALUES "
-            );
+            // 🚀 Pre-allocate capacity
+            let estimated_size = 150 + chunk.len() * 50;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) VALUES ");
 
-            let value_clauses: Vec<String> = (0..chunk.len())
-                .map(|i| {
-                    let base = i * PARAMS_PER_ROW;
-                    format!(
-                        "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                        base + 1,
-                        base + 2,
-                        base + 3,
-                        base + 4,
-                        base + 5,
-                        base + 6,
-                        base + 7,
-                        base + 8
-                    )
-                })
-                .collect();
+            // 🚀 Direct string building
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4,
+                    base + 5, base + 6, base + 7, base + 8
+                ));
+            }
 
-            query.push_str(&value_clauses.join(", "));
             query.push_str(
                 " ON CONFLICT (message_hash) DO UPDATE SET \
                 fid = EXCLUDED.fid, \
@@ -164,27 +161,24 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
         for chunk in batched.links.chunks(CHUNK_SIZE) {
-            let mut query = String::from(
-                "INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash, shard_id, block_height) VALUES "
-            );
+            // 🚀 Pre-allocate
+            let estimated_size = 150 + chunk.len() * 45;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash, shard_id, block_height) VALUES ");
 
-            let value_clauses: Vec<String> = (0..chunk.len())
-                .map(|i| {
-                    let base = i * PARAMS_PER_ROW;
-                    format!(
-                        "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                        base + 1,
-                        base + 2,
-                        base + 3,
-                        base + 4,
-                        base + 5,
-                        base + 6,
-                        base + 7
-                    )
-                })
-                .collect();
+            // 🚀 Direct building
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4,
+                    base + 5, base + 6, base + 7
+                ));
+            }
 
-            query.push_str(&value_clauses.join(", "));
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
@@ -212,29 +206,24 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
         for chunk in batched.reactions.chunks(CHUNK_SIZE) {
-            let mut query = String::from(
-                "INSERT INTO reactions (fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES "
-            );
+            // 🚀 Pre-allocate
+            let estimated_size = 200 + chunk.len() * 60;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO reactions (fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
 
-            let value_clauses: Vec<String> = (0..chunk.len())
-                .map(|i| {
-                    let base = i * PARAMS_PER_ROW;
-                    format!(
-                        "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                        base + 1,
-                        base + 2,
-                        base + 3,
-                        base + 4,
-                        base + 5,
-                        base + 6,
-                        base + 7,
-                        base + 8,
-                        base + 9
-                    )
-                })
-                .collect();
+            // 🚀 Direct building
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5,
+                    base + 6, base + 7, base + 8, base + 9
+                ));
+            }
 
-            query.push_str(&value_clauses.join(", "));
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
@@ -276,31 +265,24 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
         for chunk in batched.verifications.chunks(CHUNK_SIZE) {
-            let mut query = String::from(
-                "INSERT INTO verifications (fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES "
-            );
+            // 🚀 Pre-allocate
+            let estimated_size = 250 + chunk.len() * 70;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO verifications (fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
 
-            let value_clauses: Vec<String> = (0..chunk.len())
-                .map(|i| {
-                    let base = i * PARAMS_PER_ROW;
-                    format!(
-                        "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                        base + 1,
-                        base + 2,
-                        base + 3,
-                        base + 4,
-                        base + 5,
-                        base + 6,
-                        base + 7,
-                        base + 8,
-                        base + 9,
-                        base + 10,
-                        base + 11
-                    )
-                })
-                .collect();
+            // 🚀 Direct building
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5, base + 6,
+                    base + 7, base + 8, base + 9, base + 10, base + 11
+                ));
+            }
 
-            query.push_str(&value_clauses.join(", "));
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
