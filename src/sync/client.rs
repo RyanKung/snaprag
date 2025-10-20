@@ -272,7 +272,16 @@ impl SnapchainClient {
             }),
             peer_id: grpc_response.peer_id,
             num_shards: grpc_response.num_shards,
-            shard_infos: vec![], // gRPC response doesn't include shard_infos
+            shard_infos: grpc_response.shard_infos
+                .into_iter()
+                .map(|s| proto::ShardInfo {
+                    shard_id: s.shard_id,
+                    max_height: s.max_height,
+                    num_messages: s.num_messages,
+                    num_fid_registrations: s.num_fid_registrations,
+                    approx_size: s.approx_size,
+                })
+                .collect(),
         })
     }
 

@@ -218,38 +218,84 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                 overall_progress
             );
 
-            // Calculate ETA based on recent progress
+            // Calculate ETA based on actual sync speed from database
             if overall_progress < 99.9 && sync_info.iter().any(|(_, _, status, _)| status == "syncing") {
-                // Estimate blocks per second based on last update time
-                let most_recent_update = sync_info.iter()
-                    .map(|(_, _, _, updated_at)| updated_at)
-                    .max()
-                    .cloned();
+                // Get historical progress to calculate actual speed
+                // Query progress from 5 minutes ago
+                let five_min_ago = chrono::Utc::now() - chrono::Duration::minutes(5);
+                
+                let historical_progress: std::result::Result<Vec<(i32, i64)>, sqlx::Error> = sqlx::query_as(
+                    "SELECT shard_id, last_processed_height 
+                     FROM sync_progress 
+                     WHERE updated_at < $1"
+                )
+                .bind(five_min_ago)
+                .fetch_all(snaprag.database.pool())
+                .await;
 
-                if let Some(last_update) = most_recent_update {
-                    let time_since_update = chrono::Utc::now().signed_duration_since(last_update);
-                    
-                    // Only calculate ETA if recently active (< 2 minutes ago)
-                    if time_since_update.num_seconds() < 120 {
-                        let remaining_blocks = avg_max_height as i64 - avg_height;
+                let remaining_blocks = avg_max_height as i64 - avg_height;
+                
+                // Try to calculate based on actual speed
+                let eta_str = if let Ok(hist) = historical_progress {
+                    if !hist.is_empty() {
+                        let hist_avg: i64 = hist.iter().map(|(_, h)| h).sum::<i64>() / hist.len() as i64;
+                        let blocks_in_5min = avg_height - hist_avg;
                         
-                        // Rough estimate: assume ~500 blocks/minute (adjustable)
-                        let estimated_blocks_per_min = 500;
-                        let estimated_minutes = remaining_blocks / estimated_blocks_per_min;
-                        
-                        if estimated_minutes > 0 {
-                            let eta = if estimated_minutes < 60 {
-                                format!("~{} minutes", estimated_minutes)
-                            } else if estimated_minutes < 1440 {
-                                format!("~{:.1} hours", estimated_minutes as f64 / 60.0)
-                            } else {
-                                format!("~{:.1} days", estimated_minutes as f64 / 1440.0)
-                            };
+                        if blocks_in_5min > 0 {
+                            // Calculate blocks per minute from actual data
+                            let blocks_per_min = blocks_in_5min as f64 / 5.0;
+                            let estimated_minutes = remaining_blocks as f64 / blocks_per_min;
                             
-                            println!("  ETA: {} (estimated)", eta);
+                            let speed_info = format!(" @ {:.0} blocks/min", blocks_per_min);
+                            
+                            if estimated_minutes < 60.0 {
+                                format!("~{:.0} minutes{}", estimated_minutes, speed_info)
+                            } else if estimated_minutes < 1440.0 {
+                                format!("~{:.1} hours{}", estimated_minutes / 60.0, speed_info)
+                            } else {
+                                format!("~{:.1} days{}", estimated_minutes / 1440.0, speed_info)
+                            }
+                        } else {
+                            // Fallback to fixed estimate if no progress detected
+                            let estimated_blocks_per_min = 500.0;
+                            let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
+                            
+                            if estimated_minutes < 60.0 {
+                                format!("~{:.0} minutes (estimated)", estimated_minutes)
+                            } else if estimated_minutes < 1440.0 {
+                                format!("~{:.1} hours (estimated)", estimated_minutes / 60.0)
+                            } else {
+                                format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
+                            }
+                        }
+                    } else {
+                        // No historical data, use fixed estimate
+                        let estimated_blocks_per_min = 500.0;
+                        let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
+                        
+                        if estimated_minutes < 60.0 {
+                            format!("~{:.0} minutes (estimated)", estimated_minutes)
+                        } else if estimated_minutes < 1440.0 {
+                            format!("~{:.1} hours (estimated)", estimated_minutes / 60.0)
+                        } else {
+                            format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
                         }
                     }
-                }
+                } else {
+                    // Query failed, use fixed estimate
+                    let estimated_blocks_per_min = 500.0;
+                    let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
+                    
+                    if estimated_minutes < 60.0 {
+                        format!("~{:.0} minutes (estimated)", estimated_minutes)
+                    } else if estimated_minutes < 1440.0 {
+                        format!("~{:.1} hours (estimated)", estimated_minutes / 60.0)
+                    } else {
+                        format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
+                    }
+                };
+                
+                println!("  ETA: {}", eta_str);
             }
         } else {
             println!("  Avg Height: {}", format_number(avg_height));
