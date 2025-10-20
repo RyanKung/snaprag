@@ -332,18 +332,19 @@ impl LifecycleManager {
         Ok(())
     }
 
-    /// Start sync with parallel workers per shard (using semaphore-controlled task spawning)
+    /// Start sync with parallel workers per shard (fail-fast strategy)
+    /// If any worker fails, all workers stop and progress is saved
     pub async fn start_with_range_and_workers(
         &self,
         from_block: u64,
         to_block: u64,
         workers_per_shard: u32,
     ) -> Result<()> {
-        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
         use tokio::sync::Semaphore;
 
         info!(
-            "Starting parallel sync: {} shards × {} workers = {} total workers",
+            "Starting parallel sync: {} shards × {} workers = {} total workers (fail-fast mode)",
             self.config.shard_ids.len(),
             workers_per_shard,
             self.config.shard_ids.len() * workers_per_shard as usize
@@ -398,10 +399,19 @@ impl LifecycleManager {
                 // 🎯 Semaphore: Limit concurrent tasks to workers_per_shard
                 let semaphore = Arc::new(Semaphore::new(workers_per_shard as usize));
                 let current_block = Arc::new(AtomicU64::new(shard_from_block));
+                let should_stop = Arc::new(AtomicBool::new(false));
+                // Track completed batches to find minimum continuous progress
+                let completed_batches = Arc::new(tokio::sync::Mutex::new(std::collections::BTreeSet::new()));
                 let mut task_handles = vec![];
 
-                // Spawn tasks dynamically until we reach the end
+                // Spawn tasks dynamically until we reach the end or stop signal
                 loop {
+                    // Check if we should stop (another worker failed)
+                    if should_stop.load(Ordering::SeqCst) {
+                        warn!("Shard {}: stopping task spawning due to failure in another worker", shard_id);
+                        break;
+                    }
+
                     let batch_start = current_block.fetch_add(config.batch_size as u64, Ordering::SeqCst);
                     
                     if batch_start >= shard_to_block {
@@ -417,6 +427,8 @@ impl LifecycleManager {
 
                     let client = client.clone();
                     let database = database.clone();
+                    let should_stop_shared = should_stop.clone();
+                    let completed_batches_shared = completed_batches.clone();
 
                     // Spawn task for this batch with retry logic
                     let task = tokio::spawn(async move {
@@ -427,6 +439,11 @@ impl LifecycleManager {
 
                         loop {
                             attempt += 1;
+                            
+                            // Check stop signal before each attempt
+                            if should_stop_shared.load(Ordering::SeqCst) {
+                                return Ok::<(u64, u64), crate::SnapRagError>((0, 0));
+                            }
 
                             let request = crate::sync::client::proto::ShardChunksRequest {
                                 shard_id,
@@ -459,6 +476,25 @@ impl LifecycleManager {
                                                     shard_id, batch_start, batch_end, chunks.len(), messages_in_batch
                                                 );
 
+                                                // ✅ Success - mark batch as completed
+                                                completed_batches_shared.lock().await.insert(batch_start);
+                                                
+                                                // Calculate minimum continuous progress
+                                                let batches = completed_batches_shared.lock().await;
+                                                let mut continuous_progress = shard_from_block;
+                                                let batch_size_u64 = config.batch_size as u64;
+                                                
+                                                // Find the highest continuous block
+                                                while batches.contains(&continuous_progress) {
+                                                    continuous_progress += batch_size_u64;
+                                                }
+                                                drop(batches);
+                                                
+                                                // Save continuous progress
+                                                if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
+                                                    warn!("Failed to save progress: {}", save_err);
+                                                }
+
                                                 return Ok::<(u64, u64), crate::SnapRagError>((
                                                     chunks.len() as u64,
                                                     messages_in_batch,
@@ -474,9 +510,11 @@ impl LifecycleManager {
                                             }
                                             Err(e) => {
                                                 error!(
-                                                    "Batch {}-{} failed after {} attempts: {}",
+                                                    "🔴 Batch {}-{} failed after {} attempts: {}",
                                                     batch_start, batch_end, MAX_RETRIES, e
                                                 );
+                                                // Signal all workers to stop
+                                                should_stop_shared.store(true, Ordering::SeqCst);
                                                 return Err(e);
                                             }
                                         }
@@ -497,9 +535,11 @@ impl LifecycleManager {
                                 }
                                 Err(e) => {
                                     error!(
-                                        "Batch {}-{} fetch failed after {} attempts: {}",
+                                        "🔴 Batch {}-{} fetch failed after {} attempts: {}",
                                         batch_start, batch_end, MAX_RETRIES, e
                                     );
+                                    // Signal all workers to stop
+                                    should_stop_shared.store(true, Ordering::SeqCst);
                                     return Err(e);
                                 }
                             }
@@ -536,26 +576,47 @@ impl LifecycleManager {
                         Ok(Err(e)) => {
                             failed_tasks += 1;
                             completed_tasks += 1;
-                            error!("Shard {} batch {} failed: {}", shard_id, batch_start, e);
-                            // Continue processing other batches (gaps are OK due to idempotency)
+                            error!("🔴 Shard {} batch {} failed: {}", shard_id, batch_start, e);
+                            
+                            // Save progress at the point of failure
+                            let current_progress = current_block.load(Ordering::SeqCst);
+                            if let Err(save_err) = database.update_last_processed_height(shard_id, current_progress).await {
+                                error!("Failed to save progress: {}", save_err);
+                            } else {
+                                info!("💾 Saved progress at block {} before stopping", current_progress);
+                            }
+                            
+                            // Fail fast - stop entire shard sync
+                            return Err(e);
                         }
                         Err(e) => {
                             failed_tasks += 1;
                             completed_tasks += 1;
-                            error!("Shard {} batch {} panicked: {}", shard_id, batch_start, e);
+                            error!("🔴 Shard {} batch {} panicked: {}", shard_id, batch_start, e);
+                            
+                            // Save progress
+                            let current_progress = current_block.load(Ordering::SeqCst);
+                            if let Err(save_err) = database.update_last_processed_height(shard_id, current_progress).await {
+                                error!("Failed to save progress: {}", save_err);
+                            } else {
+                                info!("💾 Saved progress at block {} before stopping", current_progress);
+                            }
+                            
+                            return Err(crate::SnapRagError::Custom(format!("Task panicked: {}", e)));
                         }
                     }
                 }
 
                 if failed_tasks > 0 {
+                    // This shouldn't happen due to fail-fast, but just in case
                     warn!(
-                        "Shard {}: {} tasks failed - run 'snaprag sync start' to fill gaps",
+                        "Shard {}: {} tasks failed (unexpected - should have stopped early)",
                         shard_id, failed_tasks
                     );
                 }
 
                 info!(
-                    "✅ Shard {} completed: {} blocks, {} messages (note: last_processed_height not updated in workers mode)",
+                    "✅ Shard {} completed: {} blocks, {} messages",
                     shard_id, total_blocks, total_messages
                 );
 
