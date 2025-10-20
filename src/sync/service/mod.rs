@@ -134,6 +134,18 @@ impl SyncService {
             .await
     }
 
+    /// Start sync with parallel workers per shard
+    pub async fn start_with_range_and_workers(
+        &self,
+        from_block: u64,
+        to_block: u64,
+        workers_per_shard: u32,
+    ) -> Result<()> {
+        self.lifecycle_manager
+            .start_with_range_and_workers(from_block, to_block, workers_per_shard)
+            .await
+    }
+
     /// Stop the sync service
     pub async fn stop(&self, force: bool) -> Result<()> {
         self.lifecycle_manager.stop(force).await

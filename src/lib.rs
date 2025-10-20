@@ -242,6 +242,21 @@ impl SnapRag {
         Ok(())
     }
 
+    /// Start sync with custom workers per shard
+    pub async fn start_sync_with_range_and_workers(
+        &mut self,
+        from_block: u64,
+        to_block: u64,
+        workers_per_shard: u32,
+    ) -> Result<()> {
+        let sync_service = Arc::new(SyncService::new(&self.config, self.database.clone()).await?);
+        sync_service
+            .start_with_range_and_workers(from_block, to_block, workers_per_shard)
+            .await?;
+        self.sync_service = Some(sync_service);
+        Ok(())
+    }
+
     /// Stop synchronization
     pub async fn stop_sync(&self, force: bool) -> Result<()> {
         use crate::sync::lock_file::SyncLockManager;

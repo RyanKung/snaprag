@@ -239,6 +239,10 @@ pub enum SyncCommands {
         /// Shard IDs to sync (comma-separated, e.g., "1,2")
         #[arg(long)]
         shard: Option<String>,
+        /// Number of parallel workers per shard (default: 1)
+        /// Example: --workers 5 with 2 shards = 10 total workers
+        #[arg(long)]
+        workers: Option<u32>,
         /// Batch size for fetching blocks (default: from config)
         #[arg(long)]
         batch: Option<u32>,

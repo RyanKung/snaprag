@@ -132,7 +132,29 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     if !sync_info.is_empty() {
         println!("🔄 Sync Status (Real-time from DB):");
 
+        // Get Snapchain max heights for progress calculation
+        let snapchain_client = match crate::sync::client::SnapchainClient::from_config(&snaprag.config).await {
+            Ok(client) => Some(client),
+            Err(_) => None,
+        };
+
+        let shard_max_heights: std::collections::HashMap<u32, u64> = if let Some(client) = snapchain_client {
+            match client.get_info().await {
+                Ok(info) => {
+                    info.shard_infos.iter()
+                        .map(|s| (s.shard_id, s.max_height))
+                        .collect()
+                }
+                Err(_) => std::collections::HashMap::new(),
+            }
+        } else {
+            std::collections::HashMap::new()
+        };
+
         let mut total_height = 0i64;
+        let mut total_max_height = 0u64;
+        let mut has_max_heights = false;
+
         for (shard_id, height, status, updated_at) in &sync_info {
             total_height += height;
 
@@ -147,18 +169,80 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                 format!("{}h ago", duration.num_hours())
             };
 
+            // Get max height for this shard and calculate progress
+            let progress_info = if let Some(&max_height) = shard_max_heights.get(&(*shard_id as u32)) {
+                has_max_heights = true;
+                total_max_height += max_height;
+                let progress_pct = if max_height > 0 {
+                    (*height as f64 / max_height as f64 * 100.0).min(100.0)
+                } else {
+                    0.0
+                };
+                format!(" [{:.1}%]", progress_pct)
+            } else {
+                String::new()
+            };
+
             println!(
-                "  Shard {}: {} ({}) - {}",
+                "  Shard {}: {} ({}) - {}{}",
                 shard_id,
                 format_number(*height),
                 status,
-                time_ago
+                time_ago,
+                progress_info
             );
         }
 
-        // Estimate total messages (activities)
+        // Calculate overall progress and ETA
         let avg_height = total_height / sync_info.len() as i64;
-        println!("  Avg Height: {}", format_number(avg_height));
+        
+        if has_max_heights && total_max_height > 0 {
+            let avg_max_height = total_max_height / sync_info.len() as u64;
+            let overall_progress = (avg_height as f64 / avg_max_height as f64 * 100.0).min(100.0);
+            
+            println!("  Avg Height: {} / {} ({:.1}%)", 
+                format_number(avg_height),
+                format_number(avg_max_height as i64),
+                overall_progress
+            );
+
+            // Calculate ETA based on recent progress
+            if overall_progress < 99.9 && sync_info.iter().any(|(_, _, status, _)| status == "syncing") {
+                // Estimate blocks per second based on last update time
+                let most_recent_update = sync_info.iter()
+                    .map(|(_, _, _, updated_at)| updated_at)
+                    .max()
+                    .cloned();
+
+                if let Some(last_update) = most_recent_update {
+                    let time_since_update = chrono::Utc::now().signed_duration_since(last_update);
+                    
+                    // Only calculate ETA if recently active (< 2 minutes ago)
+                    if time_since_update.num_seconds() < 120 {
+                        let remaining_blocks = avg_max_height as i64 - avg_height;
+                        
+                        // Rough estimate: assume ~500 blocks/minute (adjustable)
+                        let estimated_blocks_per_min = 500;
+                        let estimated_minutes = remaining_blocks / estimated_blocks_per_min;
+                        
+                        if estimated_minutes > 0 {
+                            let eta = if estimated_minutes < 60 {
+                                format!("~{} minutes", estimated_minutes)
+                            } else if estimated_minutes < 1440 {
+                                format!("~{:.1} hours", estimated_minutes as f64 / 60.0)
+                            } else {
+                                format!("~{:.1} days", estimated_minutes as f64 / 1440.0)
+                            };
+                            
+                            println!("  ETA: {} (estimated)", eta);
+                        }
+                    }
+                }
+            }
+        } else {
+            println!("  Avg Height: {}", format_number(avg_height));
+        }
+        
         println!();
     }
 

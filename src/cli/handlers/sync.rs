@@ -31,6 +31,7 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
             from,
             to,
             shard,
+            workers,
             batch,
             interval,
         } => {
@@ -52,9 +53,11 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
                 snaprag.override_sync_config(shard_ids.clone(), batch, interval)?;
             }
 
+            let workers_per_shard = workers.unwrap_or(1);
+
             if let Some(to_val) = to {
                 print_info(&format!(
-                    "Starting synchronization from block {} to block {}{}{}...",
+                    "Starting synchronization from block {} to block {}{}{} (workers: {}x per shard)...",
                     from_block,
                     to_val,
                     if let Some(b) = batch {
@@ -66,11 +69,12 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
                         format!(" (shards: {:?})", shard_ids)
                     } else {
                         String::new()
-                    }
+                    },
+                    workers_per_shard
                 ));
             } else {
                 print_info(&format!(
-                    "Starting synchronization from block {} to latest{}{}...",
+                    "Starting synchronization from block {} to latest{}{} (workers: {}x per shard)...",
                     from_block,
                     if let Some(b) = batch {
                         format!(" (batch: {})", b)
@@ -81,11 +85,12 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
                         format!(" (shards: {:?})", shard_ids)
                     } else {
                         String::new()
-                    }
+                    },
+                    workers_per_shard
                 ));
             }
 
-            snaprag.start_sync_with_range(from_block, to_block).await?;
+            snaprag.start_sync_with_range_and_workers(from_block, to_block, workers_per_shard).await?;
         }
         SyncCommands::Test { shard, block } => {
             print_info(&format!(

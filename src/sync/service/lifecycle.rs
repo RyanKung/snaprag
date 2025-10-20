@@ -331,4 +331,187 @@ impl LifecycleManager {
         warn!("Use 'snaprag sync start --from-block <last_block>' for now");
         Ok(())
     }
+
+    /// Start sync with parallel workers per shard
+    pub async fn start_with_range_and_workers(
+        &self,
+        from_block: u64,
+        to_block: u64,
+        workers_per_shard: u32,
+    ) -> Result<()> {
+        info!(
+            "Starting parallel sync: {} shards × {} workers = {} total workers",
+            self.config.shard_ids.len(),
+            workers_per_shard,
+            self.config.shard_ids.len() * workers_per_shard as usize
+        );
+
+        // Get Snapchain info to determine actual max heights per shard
+        let shard_max_heights: std::collections::HashMap<u32, u64> = match self.client.get_info().await {
+            Ok(info) => {
+                info.shard_infos.iter()
+                    .map(|s| (s.shard_id, s.max_height))
+                    .collect()
+            }
+            Err(_) => std::collections::HashMap::new(),
+        };
+
+        let mut all_handles = vec![];
+
+        // For each shard, spawn multiple workers
+        for &shard_id in &self.config.shard_ids {
+            // Determine the actual range for this shard
+            let shard_to_block = if to_block == u64::MAX {
+                shard_max_heights.get(&shard_id).copied().unwrap_or(to_block)
+            } else {
+                to_block
+            };
+
+            // Check if we should resume from last saved progress
+            let last_saved_height = self.database.get_last_processed_height(shard_id).await.unwrap_or(0);
+            let shard_from_block = if from_block == 0 && last_saved_height > 0 {
+                info!(
+                    "📍 Shard {} resuming from last saved height {}",
+                    shard_id, last_saved_height
+                );
+                last_saved_height
+            } else {
+                from_block
+            };
+
+            let total_blocks = shard_to_block.saturating_sub(shard_from_block);
+            let blocks_per_worker = total_blocks / workers_per_shard as u64;
+
+            info!(
+                "🔄 Shard {}: {} blocks split into {} workers (~{} blocks each)",
+                shard_id, total_blocks, workers_per_shard, blocks_per_worker
+            );
+
+            // Spawn workers for this shard
+            for worker_id in 0..workers_per_shard {
+                let worker_from = shard_from_block + (worker_id as u64 * blocks_per_worker);
+                let worker_to = if worker_id == workers_per_shard - 1 {
+                    shard_to_block // Last worker takes the remainder
+                } else {
+                    worker_from + blocks_per_worker - 1
+                };
+
+                if worker_from > shard_to_block {
+                    continue; // Skip if already beyond range
+                }
+
+                info!(
+                    "  → Worker {}.{}: blocks {} to {}",
+                    shard_id, worker_id, worker_from, worker_to
+                );
+
+                // Clone resources for this worker
+                let client = self.client.clone();
+                let database = self.database.clone();
+                let config = self.config.clone();
+
+                let handle = tokio::spawn(async move {
+                    let mut current_block = worker_from;
+                    let mut total_messages = 0u64;
+                    let mut total_blocks = 0u64;
+
+                    while current_block <= worker_to {
+                        let remaining = worker_to.saturating_sub(current_block).saturating_add(1);
+                        let batch = config.batch_size.min(remaining as u32);
+
+                        let request = crate::sync::client::proto::ShardChunksRequest {
+                            shard_id,
+                            start_block_number: current_block,
+                            stop_block_number: Some(current_block + batch as u64 - 1),
+                        };
+
+                        match client.get_shard_chunks(request).await {
+                            Ok(response) => {
+                                let chunks = response.shard_chunks;
+
+                                if chunks.is_empty() {
+                                    break;
+                                }
+
+                                let processor = ShardProcessor::new(database.as_ref().clone());
+                                processor.process_chunks_batch(&chunks, shard_id).await?;
+
+                                let messages_in_batch: u64 = chunks
+                                    .iter()
+                                    .map(|c| {
+                                        c.transactions
+                                            .iter()
+                                            .map(|tx| tx.user_messages.len() as u64)
+                                            .sum::<u64>()
+                                    })
+                                    .sum();
+
+                                total_blocks += chunks.len() as u64;
+                                total_messages += messages_in_batch;
+
+                                let max_block = chunks
+                                    .iter()
+                                    .filter_map(|c| c.header.as_ref())
+                                    .filter_map(|h| h.height.as_ref())
+                                    .map(|height| height.block_number)
+                                    .max()
+                                    .unwrap_or(current_block);
+
+                                current_block = max_block.saturating_add(1);
+
+                                if total_blocks % 1000 == 0 {
+                                    info!(
+                                        "Worker {}.{}: {} blocks, {} msgs (at block {})",
+                                        shard_id, worker_id, total_blocks, total_messages, current_block
+                                    );
+                                }
+
+                                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                            }
+                            Err(e) if e.to_string().contains("no more chunks") => {
+                                break;
+                            }
+                            Err(e) => {
+                                error!("Worker {}.{} error at block {}: {}", shard_id, worker_id, current_block, e);
+                                return Err(e);
+                            }
+                        }
+                    }
+
+                    info!(
+                        "✅ Worker {}.{} completed: {} blocks, {} messages",
+                        shard_id, worker_id, total_blocks, total_messages
+                    );
+                    Ok::<(), crate::SnapRagError>(())
+                });
+
+                all_handles.push((shard_id, worker_id, handle));
+            }
+        }
+
+        // Wait for all workers across all shards
+        info!("⏳ Waiting for {} workers to complete...", all_handles.len());
+
+        for (shard_id, worker_id, handle) in all_handles {
+            match handle.await {
+                Ok(Ok(())) => {
+                    info!("✅ Worker {}.{} finished successfully", shard_id, worker_id);
+                }
+                Ok(Err(e)) => {
+                    error!("❌ Worker {}.{} failed: {}", shard_id, worker_id, e);
+                    return Err(e);
+                }
+                Err(e) => {
+                    error!("❌ Worker {}.{} panicked: {}", shard_id, worker_id, e);
+                    return Err(crate::SnapRagError::Custom(format!(
+                        "Worker {}.{} panicked: {}",
+                        shard_id, worker_id, e
+                    )));
+                }
+            }
+        }
+
+        info!("🎉 All workers completed successfully!");
+        Ok(())
+    }
 }
