@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use tracing::debug;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
@@ -403,6 +404,41 @@ impl LifecycleManager {
                 // Track completed batches to find minimum continuous progress
                 let completed_batches = Arc::new(tokio::sync::Mutex::new(std::collections::BTreeSet::new()));
                 let mut task_handles = vec![];
+                
+                // Spawn a background task to periodically save progress
+                let progress_saver_db = database.clone();
+                let progress_saver_batches = completed_batches.clone();
+                let progress_saver_stop = should_stop.clone();
+                let progress_saver = tokio::spawn(async move {
+                    let mut last_saved_progress = shard_from_block;
+                    loop {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                        
+                        if progress_saver_stop.load(Ordering::SeqCst) {
+                            break;
+                        }
+                        
+                        // Calculate continuous progress
+                        let batches = progress_saver_batches.lock().await;
+                        let mut continuous_progress = shard_from_block;
+                        let batch_size_u64 = config.batch_size as u64;
+                        
+                        while batches.contains(&continuous_progress) {
+                            continuous_progress += batch_size_u64;
+                        }
+                        drop(batches);
+                        
+                        // Only update if progress changed
+                        if continuous_progress > last_saved_progress {
+                            if let Err(e) = progress_saver_db.update_last_processed_height(shard_id, continuous_progress).await {
+                                warn!("Failed to save progress: {}", e);
+                            } else {
+                                debug!("💾 Shard {} progress saved: {}", shard_id, continuous_progress);
+                                last_saved_progress = continuous_progress;
+                            }
+                        }
+                    }
+                });
 
                 // Spawn tasks dynamically until we reach the end or stop signal
                 loop {
@@ -476,24 +512,8 @@ impl LifecycleManager {
                                                     shard_id, batch_start, batch_end, chunks.len(), messages_in_batch
                                                 );
 
-                                                // ✅ Success - mark batch as completed
+                                                // ✅ Success - mark batch as completed (progress saver will handle DB update)
                                                 completed_batches_shared.lock().await.insert(batch_start);
-                                                
-                                                // Calculate minimum continuous progress
-                                                let batches = completed_batches_shared.lock().await;
-                                                let mut continuous_progress = shard_from_block;
-                                                let batch_size_u64 = config.batch_size as u64;
-                                                
-                                                // Find the highest continuous block
-                                                while batches.contains(&continuous_progress) {
-                                                    continuous_progress += batch_size_u64;
-                                                }
-                                                drop(batches);
-                                                
-                                                // Save continuous progress
-                                                if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
-                                                    warn!("Failed to save progress: {}", save_err);
-                                                }
 
                                                 return Ok::<(u64, u64), crate::SnapRagError>((
                                                     chunks.len() as u64,
@@ -558,7 +578,8 @@ impl LifecycleManager {
                 let mut completed_tasks = 0usize;
                 let mut failed_tasks = 0usize;
 
-                for (batch_start, task) in task_handles {
+                let mut task_handles_iter = task_handles.into_iter();
+                while let Some((batch_start, task)) = task_handles_iter.next() {
                     match task.await {
                         Ok(Ok((blocks, messages))) => {
                             total_blocks += blocks;
@@ -574,33 +595,75 @@ impl LifecycleManager {
                             }
                         }
                         Ok(Err(e)) => {
-                            failed_tasks += 1;
-                            completed_tasks += 1;
                             error!("🔴 Shard {} batch {} failed: {}", shard_id, batch_start, e);
                             
-                            // Save progress at the point of failure
-                            let current_progress = current_block.load(Ordering::SeqCst);
-                            if let Err(save_err) = database.update_last_processed_height(shard_id, current_progress).await {
+                            // Signal all workers to stop (already set by the failed worker, but set again to be safe)
+                            should_stop.store(true, Ordering::SeqCst);
+                            
+                            // Calculate and save final continuous progress
+                            let batches = completed_batches.lock().await;
+                            let mut continuous_progress = shard_from_block;
+                            let batch_size_u64 = config.batch_size as u64;
+                            while batches.contains(&continuous_progress) {
+                                continuous_progress += batch_size_u64;
+                            }
+                            drop(batches);
+                            
+                            if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
                                 error!("Failed to save progress: {}", save_err);
                             } else {
-                                info!("💾 Saved progress at block {} before stopping", current_progress);
+                                info!("💾 Saved final progress at block {} before stopping", continuous_progress);
                             }
+                            
+                            // Wait for remaining spawned tasks to finish gracefully
+                            let remaining = task_handles_iter.len();
+                            if remaining > 0 {
+                                info!("⏳ Waiting for {} remaining tasks to finish...", remaining);
+                                for (_batch_start, task) in task_handles_iter {
+                                    let _ = task.await;  // Ignore individual errors, we're already failing
+                                }
+                                info!("✅ All tasks stopped gracefully");
+                            }
+                            
+                            // Stop progress saver
+                            let _ = progress_saver.await;
                             
                             // Fail fast - stop entire shard sync
                             return Err(e);
                         }
                         Err(e) => {
-                            failed_tasks += 1;
-                            completed_tasks += 1;
                             error!("🔴 Shard {} batch {} panicked: {}", shard_id, batch_start, e);
                             
-                            // Save progress
-                            let current_progress = current_block.load(Ordering::SeqCst);
-                            if let Err(save_err) = database.update_last_processed_height(shard_id, current_progress).await {
+                            // Signal all workers to stop
+                            should_stop.store(true, Ordering::SeqCst);
+                            
+                            // Calculate and save final continuous progress
+                            let batches = completed_batches.lock().await;
+                            let mut continuous_progress = shard_from_block;
+                            let batch_size_u64 = config.batch_size as u64;
+                            while batches.contains(&continuous_progress) {
+                                continuous_progress += batch_size_u64;
+                            }
+                            drop(batches);
+                            
+                            if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
                                 error!("Failed to save progress: {}", save_err);
                             } else {
-                                info!("💾 Saved progress at block {} before stopping", current_progress);
+                                info!("💾 Saved final progress at block {} before stopping", continuous_progress);
                             }
+                            
+                            // Wait for remaining spawned tasks to finish gracefully
+                            let remaining = task_handles_iter.len();
+                            if remaining > 0 {
+                                info!("⏳ Waiting for {} remaining tasks to finish...", remaining);
+                                for (_batch_start, task) in task_handles_iter {
+                                    let _ = task.await;
+                                }
+                                info!("✅ All tasks stopped gracefully");
+                            }
+                            
+                            // Stop progress saver
+                            let _ = progress_saver.await;
                             
                             return Err(crate::SnapRagError::Custom(format!("Task panicked: {}", e)));
                         }
@@ -619,6 +682,10 @@ impl LifecycleManager {
                     "✅ Shard {} completed: {} blocks, {} messages",
                     shard_id, total_blocks, total_messages
                 );
+                
+                // Stop the progress saver and wait for it
+                should_stop.store(true, Ordering::SeqCst);
+                let _ = progress_saver.await;
 
                 Ok::<(), crate::SnapRagError>(())
             });
