@@ -215,11 +215,16 @@ impl SocialGraphAnalyzer {
         let response = client
             .get_links_by_fid(fid as u64, "follow", Some(1000), None)
             .await?;
+        
+        tracing::info!("📩 Received {} messages from Snapchain linksByFid", response.messages.len());
         let mut following = Vec::new();
 
         for message in &response.messages {
             if let Some(data) = &message.data {
+                tracing::debug!("Message data body keys: {:?}", data.body.keys().collect::<Vec<_>>());
+                
                 if let Some(link_body) = data.body.get("link_body") {
+                    tracing::debug!("link_body content: {:?}", link_body);
                     let target_fid = link_body
                         .get("target_fid")
                         .and_then(|v| v.as_i64())
@@ -269,6 +274,8 @@ impl SocialGraphAnalyzer {
         let response = client
             .get_links_by_target_fid(fid as u64, "follow", Some(1000), None)
             .await?;
+        
+        tracing::info!("📩 Received {} messages from Snapchain linksByTargetFid", response.messages.len());
         let mut followers = Vec::new();
 
         for message in &response.messages {
