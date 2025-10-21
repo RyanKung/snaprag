@@ -22,7 +22,7 @@ async fn cleanup_by_message_hash(db: &Database, message_hash: &[u8]) {
         "DELETE FROM reactions WHERE message_hash = $1",
         "DELETE FROM verifications WHERE message_hash = $1",
         "DELETE FROM user_profile_changes WHERE message_hash = $1",
-        "DELETE FROM username_proofs WHERE message_hash = $1",
+        // username_proofs: Skip (no message_hash column, has UNIQUE constraint)
         "DELETE FROM frame_actions WHERE message_hash = $1",
     ];
 
@@ -114,8 +114,7 @@ async fn test_message_types_quick() {
     ));
     flush_batched_data(&db, batched).await.expect("Username proof insert failed");
     
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM username_proofs WHERE message_hash = $1")
-        .bind(&test_hash_3)
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM username_proofs WHERE fid = 99 AND username_type = 1")
         .fetch_one(db.pool())
         .await
         .expect("Query failed");

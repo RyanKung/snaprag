@@ -405,7 +405,7 @@ pub(crate) async fn print_sync_status(snaprag: &SnapRag) -> Result<()> {
 
 /// Get the timestamp of the latest synced message (fast version)
 async fn get_latest_message_time(snaprag: &SnapRag) -> Result<String> {
-    const FARCASTER_EPOCH: i64 = 1609459200;
+    const FARCASTER_EPOCH: i64 = 1_609_459_200;
 
     // Use LIMIT 1 with ORDER BY DESC - uses index efficiently
     let latest_timestamp = sqlx::query_scalar::<_, Option<i64>>(

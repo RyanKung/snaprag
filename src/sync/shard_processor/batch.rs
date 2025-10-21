@@ -13,7 +13,7 @@ const MAX_PARAMS: usize = 65000;
 // Batch sizes for different entity types
 const PROFILE_PARAMS_PER_ROW: usize = 5; // fid, field_name, field_value, timestamp, message_hash
 const ONCHAIN_PARAMS_PER_ROW: usize = 9; // fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data
-const USERNAME_PARAMS_PER_ROW: usize = 10; // fid, username, owner, signature, username_type, timestamp, message_hash, shard_id, block_height, transaction_fid
+const USERNAME_PARAMS_PER_ROW: usize = 6; // fid, username, owner_address, signature, username_type, timestamp
 const FRAME_PARAMS_PER_ROW: usize = 13; // fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_id, block_height, transaction_fid
 
 const PROFILE_CHUNK_SIZE: usize = MAX_PARAMS / PROFILE_PARAMS_PER_ROW;
@@ -492,7 +492,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
         for chunk in batched.username_proofs.chunks(USERNAME_CHUNK_SIZE) {
             let estimated_size = 300 + chunk.len() * 80;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO username_proofs (fid, username, owner, signature, username_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
+            query.push_str("INSERT INTO username_proofs (fid, username, owner_address, signature, username_type, timestamp) VALUES ");
 
             for i in 0..chunk.len() {
                 if i > 0 {
@@ -501,27 +501,24 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 let base = i * USERNAME_PARAMS_PER_ROW;
                 write!(
                     &mut query,
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5,
-                    base + 6, base + 7, base + 8, base + 9, base + 10
+                    "(${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5, base + 6
                 ).expect("write! to String should not fail");
             }
 
-            query.push_str(" ON CONFLICT (fid) DO UPDATE SET username = EXCLUDED.username, owner = EXCLUDED.owner, signature = EXCLUDED.signature, username_type = EXCLUDED.username_type, timestamp = EXCLUDED.timestamp, message_hash = EXCLUDED.message_hash, shard_id = EXCLUDED.shard_id, block_height = EXCLUDED.block_height, transaction_fid = EXCLUDED.transaction_fid");
+            query.push_str(" ON CONFLICT (fid, username_type) DO UPDATE SET username = EXCLUDED.username, owner_address = EXCLUDED.owner_address, signature = EXCLUDED.signature, timestamp = EXCLUDED.timestamp");
 
             let mut q = sqlx::query(&query);
-            for (fid, username, owner, signature, username_type, timestamp, message_hash, shard_block_info) in chunk {
+            for (fid, username, owner, signature, username_type, timestamp, _message_hash, _shard_block_info) in chunk {
+                // Convert owner from Vec<u8> to hex string for VARCHAR(42) column
+                let owner_hex = format!("0x{}", hex::encode(owner));
                 q = q
                     .bind(fid)
                     .bind(username)
-                    .bind(owner)
+                    .bind(owner_hex)
                     .bind(signature)
                     .bind(username_type)
-                    .bind(timestamp)
-                    .bind(message_hash)
-                    .bind(shard_block_info.shard_id as i32)
-                    .bind(shard_block_info.block_height as i64)
-                    .bind(shard_block_info.transaction_fid as i64);
+                    .bind(timestamp);
             }
 
             q.execute(&mut *tx).await?;

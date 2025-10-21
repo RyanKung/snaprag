@@ -49,7 +49,7 @@ pub mod social_graph;
 pub mod sync;
 
 /// Farcaster epoch constant (January 1, 2021 UTC in milliseconds)
-pub const FARCASTER_EPOCH: u64 = 1609459200000;
+pub const FARCASTER_EPOCH: u64 = 1_609_459_200_000;
 
 /// Convert Farcaster timestamp (seconds since Farcaster epoch) to Unix timestamp (seconds since Unix epoch)
 #[must_use] 

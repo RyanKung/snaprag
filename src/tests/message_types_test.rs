@@ -31,7 +31,7 @@ mod message_types_tests {
             "DELETE FROM reactions WHERE message_hash = $1",
             "DELETE FROM verifications WHERE message_hash = $1",
             "DELETE FROM user_profile_changes WHERE message_hash = $1",
-            "DELETE FROM username_proofs WHERE message_hash = $1",
+            // username_proofs: Skip cleanup (no message_hash column, has UNIQUE constraint on fid+username_type)
             "DELETE FROM frame_actions WHERE message_hash = $1",
         ];
 
@@ -322,9 +322,8 @@ mod message_types_tests {
         flush_batched_data(&db, batched).await.expect("Failed to flush");
 
         let result: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM username_proofs WHERE message_hash = $1"
+            "SELECT COUNT(*) FROM username_proofs WHERE fid = 99 AND username_type = 1" // Test FID and type
         )
-            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");

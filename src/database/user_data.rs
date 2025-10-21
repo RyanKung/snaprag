@@ -111,15 +111,12 @@ impl Database {
     ) -> Result<()> {
         // Build dynamic query based on which embeddings are provided
         let mut field_names = Vec::new();
-        let mut param_num = 2; // $1 is fid
 
         if profile_embedding.is_some() {
             field_names.push("profile_embedding");
-            param_num += 1;
         }
         if bio_embedding.is_some() {
             field_names.push("bio_embedding");
-            param_num += 1;
         }
         if interests_embedding.is_some() {
             field_names.push("interests_embedding");
