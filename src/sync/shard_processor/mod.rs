@@ -9,7 +9,7 @@ use crate::Result;
 // Re-export submodules
 mod batch;
 mod cast_handlers;
-mod message_handlers;
+mod handlers;
 mod types;
 mod utils;
 
@@ -74,7 +74,7 @@ impl ShardProcessor {
 
             // Process each transaction and collect data
             for (tx_idx, transaction) in chunk.transactions.iter().enumerate() {
-                message_handlers::collect_transaction_data(
+                handlers::collect_transaction_data(
                     transaction,
                     shard_id,
                     block_number,
@@ -130,7 +130,7 @@ impl ShardProcessor {
 
         // Process each transaction and collect data
         for (tx_idx, transaction) in chunk.transactions.iter().enumerate() {
-            message_handlers::collect_transaction_data(
+            handlers::collect_transaction_data(
                 transaction,
                 shard_id,
                 block_number,
