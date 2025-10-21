@@ -779,20 +779,17 @@ fn reaction_body_to_json(reaction: &grpc_proto::ReactionBody) -> Value {
     let mut obj = Map::new();
     obj.insert("type".to_string(), json!(reaction.r#type));
 
+    // 🚀 FIX: Use "target_cast_id" key to match parsing code expectations
     if let Some(target) = reaction.target.as_ref() {
-        let target_value = match target {
+        match target {
             grpc_proto::reaction_body::Target::TargetCastId(cast_id) => {
-                let mut target_map = Map::new();
-                target_map.insert("cast_id".to_string(), cast_id_to_json(cast_id));
-                Value::Object(target_map)
+                // Insert directly as target_cast_id (not nested under "target")
+                obj.insert("target_cast_id".to_string(), cast_id_to_json(cast_id));
             }
             grpc_proto::reaction_body::Target::TargetUrl(url) => {
-                let mut target_map = Map::new();
-                target_map.insert("url".to_string(), json!(url));
-                Value::Object(target_map)
+                obj.insert("target_url".to_string(), json!(url));
             }
-        };
-        obj.insert("target".to_string(), target_value);
+        }
     }
 
     Value::Object(obj)
