@@ -46,10 +46,9 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
         }
     }
 
-    // Run schema fixes and migrations
-    print_info("🔧 Applying schema migrations...");
-    run_schema_migrations(snaprag).await?;
-    print_success("✅ Schema migrations applied");
+    // Schema migrations are now consolidated in 000_complete_init.sql
+    // No need to run additional migrations (they would overwrite with old schema)
+    print_info("✅ Schema fully initialized from 000_complete_init.sql");
 
     if !skip_indexes {
         print_info("📊 Creating performance-optimized indexes...");

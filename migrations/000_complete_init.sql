@@ -360,18 +360,6 @@ CREATE TABLE IF NOT EXISTS processed_messages (
 -- 6. OTHER TABLES
 -- ==============================================================================
 
-CREATE TABLE IF NOT EXISTS username_proofs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    fid BIGINT NOT NULL,
-    username VARCHAR(255) NOT NULL,
-    username_type SMALLINT NOT NULL,
-    owner_address VARCHAR(42) NOT NULL,
-    signature BYTEA NOT NULL,
-    timestamp BIGINT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(fid, username_type)
-);
-
 CREATE TABLE IF NOT EXISTS user_profile_trends (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     fid BIGINT NOT NULL,
