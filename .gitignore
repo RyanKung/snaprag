@@ -120,6 +120,17 @@ timeline_*.txt
 summary_*.md
 summary_*.txt
 
+# All bash scripts (temporary helper scripts)
+*.sh
+!scripts/*.sh
+
+# PostgreSQL optimization and analysis files
+POSTGRES_*.sql
+POSTGRES_*.md
+*_OPTIMIZATION*.sql
+*_OPTIMIZATION*.md
+*_ANALYSIS.md
+
 # AI-generated temporary files
 ai_*.md
 ai_*.txt
