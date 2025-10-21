@@ -195,13 +195,31 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
 
     // Batch insert reactions (split into chunks to avoid parameter limit)
     if !batched.reactions.is_empty() {
-        tracing::info!("❤️  Batch inserting {} reactions", batched.reactions.len());
+        tracing::info!("❤️  Batch inserting {} reactions (before dedup)", batched.reactions.len());
+
+        // 🚀 Deduplicate by (fid, target_cast_hash, reaction_type) to avoid unique constraint violation
+        // Keep the latest reaction for each unique combination
+        let mut reactions_map: HashMap<(i64, Vec<u8>, i16), _> = HashMap::new();
+        for reaction in &batched.reactions {
+            let key = (reaction.0, reaction.1.clone(), reaction.3); // (fid, target_cast_hash, reaction_type)
+            reactions_map.insert(key, reaction.clone());
+        }
+        let deduped_reactions: Vec<_> = reactions_map.into_values().collect();
+        
+        if deduped_reactions.len() < batched.reactions.len() {
+            tracing::debug!(
+                "Deduplicated reactions: {} -> {} ({} duplicates)",
+                batched.reactions.len(),
+                deduped_reactions.len(),
+                batched.reactions.len() - deduped_reactions.len()
+            );
+        }
 
         const PARAMS_PER_ROW: usize = 9; // fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
-        for chunk in batched.reactions.chunks(CHUNK_SIZE) {
+        for chunk in deduped_reactions.chunks(CHUNK_SIZE) {
             // 🚀 Pre-allocate
             let estimated_size = 200 + chunk.len() * 60;
             let mut query = String::with_capacity(estimated_size);
@@ -220,7 +238,10 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                 ));
             }
 
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // 🚀 FIX: Handle both unique constraints properly
+            // Table has: UNIQUE(message_hash) and UNIQUE(fid, target_cast_hash, reaction_type)
+            // Strategy: Use the composite key to handle duplicates
+            query.push_str(" ON CONFLICT (fid, target_cast_hash, reaction_type) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (
