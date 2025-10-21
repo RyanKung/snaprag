@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 /// Batched data for bulk insert
 pub struct BatchedData {
+    // Casts: (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions, shard_block_info)
     pub casts: Vec<(
         i64,
         Option<String>,
@@ -11,6 +12,7 @@ pub struct BatchedData {
         Option<Vec<u8>>,
         Option<serde_json::Value>,
         Option<serde_json::Value>,
+        crate::models::ShardBlockInfo,
     )>,
     // Links: (fid, target_fid, link_type, timestamp, message_hash, shard_block_info)
     pub links: Vec<(

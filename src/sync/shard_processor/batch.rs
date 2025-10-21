@@ -97,17 +97,17 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
             );
         }
 
-        const PARAMS_PER_ROW: usize = 8;
+        const PARAMS_PER_ROW: usize = 10; // Added shard_id and block_height
         const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
-        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~8125 rows per chunk
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~6500 rows per chunk
 
         // Split casts into chunks
         for chunk in deduped_casts.chunks(CHUNK_SIZE) {
             // Build dynamic query
             // 🚀 Pre-allocate capacity
-            let estimated_size = 150 + chunk.len() * 50;
+            let estimated_size = 150 + chunk.len() * 60;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) VALUES ");
+            query.push_str("INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions, shard_id, block_height) VALUES ");
 
             // 🚀 Direct string building
             for i in 0..chunk.len() {
@@ -116,9 +116,9 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                 }
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4,
-                    base + 5, base + 6, base + 7, base + 8
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5,
+                    base + 6, base + 7, base + 8, base + 9, base + 10
                 ));
             }
 
@@ -128,7 +128,7 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions) in
+            for (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions, shard_block_info) in
                 chunk
             {
                 q = q
@@ -139,7 +139,9 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                     .bind(parent_hash)
                     .bind(root_hash)
                     .bind(embeds)
-                    .bind(mentions);
+                    .bind(mentions)
+                    .bind(shard_block_info.shard_id as i32)
+                    .bind(shard_block_info.block_height as i64);
             }
 
             q.execute(&mut *tx).await?;

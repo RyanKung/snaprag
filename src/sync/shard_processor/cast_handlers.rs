@@ -62,6 +62,7 @@ pub(super) async fn collect_cast_add(
         root_hash,
         embeds,
         mentions,
+        shard_block_info.clone(),
     ));
 
     // ❌ Removed: activities tracking disabled (user_activity_timeline dropped)
