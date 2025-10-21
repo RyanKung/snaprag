@@ -49,6 +49,8 @@ pub struct BatchedData {
     pub fids_to_ensure: HashSet<i64>,
     // Profile field updates: (fid, field_name, value, timestamp, message_hash)
     pub profile_updates: Vec<(i64, String, Option<String>, i64, Vec<u8>)>,
+    // Onchain events: (fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data)
+    pub onchain_events: Vec<(i64, i32, i32, i32, Option<Vec<u8>>, i64, Option<Vec<u8>>, Option<i32>, serde_json::Value)>,
 }
 
 impl BatchedData {
@@ -60,6 +62,7 @@ impl BatchedData {
             verifications: Vec::new(),
             fids_to_ensure: HashSet::new(),
             profile_updates: Vec::new(),
+            onchain_events: Vec::new(),
         }
     }
 }

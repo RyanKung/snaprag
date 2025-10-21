@@ -317,17 +317,62 @@ pub(super) async fn collect_message_data(
     Ok(())
 }
 
-/// Process system messages
+/// Process system messages (OnChainEvents)
 pub(super) async fn process_system_message(
     system_msg: &crate::sync::client::proto::ValidatorMessage,
     shard_block_info: &ShardBlockInfo,
     batched: &mut BatchedData,
 ) -> Result<()> {
-    // System messages are typically id_register events
-    // We'll handle them in the batch processing phase
-    tracing::debug!(
-        "Processing system message in shard {}",
-        shard_block_info.shard_id
-    );
+    // System messages contain OnChainEvents (id_register, storage_rent, etc.)
+    if let Some(onchain_event) = &system_msg.on_chain_event {
+        let fid = onchain_event.fid as i64;
+        let event_type = onchain_event.r#type;
+        let chain_id = onchain_event.chain_id as i32;
+        let block_number = onchain_event.block_number as i32;
+        let block_timestamp = onchain_event.block_timestamp as i64;
+        let block_hash = if onchain_event.block_hash.is_empty() {
+            None
+        } else {
+            Some(onchain_event.block_hash.clone())
+        };
+        let transaction_hash = if onchain_event.transaction_hash.is_empty() {
+            None
+        } else {
+            Some(onchain_event.transaction_hash.clone())
+        };
+        let log_index = if onchain_event.log_index > 0 {
+            Some(onchain_event.log_index as i32)
+        } else {
+            None
+        };
+
+        // Serialize event body to JSON for storage
+        let event_data = serde_json::to_value(onchain_event).unwrap_or(serde_json::Value::Null);
+
+        batched.onchain_events.push((
+            fid,
+            event_type,
+            chain_id,
+            block_number,
+            block_hash,
+            block_timestamp,
+            transaction_hash,
+            log_index,
+            event_data,
+        ));
+
+        tracing::debug!(
+            "Collected onchain event: FID {} type {} (block {})",
+            fid,
+            event_type,
+            block_number
+        );
+    } else {
+        tracing::warn!(
+            "System message in shard {} has no onchain_event",
+            shard_block_info.shard_id
+        );
+    }
+    
     Ok(())
 }

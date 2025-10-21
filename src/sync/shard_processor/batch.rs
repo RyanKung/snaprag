@@ -10,13 +10,14 @@ use crate::Result;
 pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
-        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates",
+        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events",
         batched.fids_to_ensure.len(),
         batched.casts.len(),
         batched.links.len(),
         batched.reactions.len(),
         batched.verifications.len(),
-        batched.profile_updates.len()
+        batched.profile_updates.len(),
+        batched.onchain_events.len()
     );
 
     // Start a transaction for the entire batch
@@ -363,6 +364,51 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                     .bind(value)
                     .bind(timestamp)
                     .bind(message_hash);
+            }
+
+            q.execute(&mut *tx).await?;
+        }
+    }
+
+    // Batch insert onchain events (system messages)
+    if !batched.onchain_events.is_empty() {
+        tracing::info!("⛓️  Batch inserting {} onchain events", batched.onchain_events.len());
+
+        const PARAMS_PER_ROW: usize = 9; // fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data
+        const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
+
+        for chunk in batched.onchain_events.chunks(CHUNK_SIZE) {
+            let estimated_size = 250 + chunk.len() * 70;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO onchain_events (fid, event_type, chain_id, block_number, block_hash, block_timestamp, transaction_hash, log_index, event_data) VALUES ");
+
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5,
+                    base + 6, base + 7, base + 8, base + 9
+                ));
+            }
+
+            query.push_str(" ON CONFLICT (transaction_hash, log_index) DO NOTHING");
+
+            let mut q = sqlx::query(&query);
+            for (fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data) in chunk {
+                q = q
+                    .bind(fid)
+                    .bind(event_type)
+                    .bind(chain_id)
+                    .bind(block_number)
+                    .bind(block_hash)
+                    .bind(block_timestamp)
+                    .bind(tx_hash)
+                    .bind(log_index)
+                    .bind(event_data);
             }
 
             q.execute(&mut *tx).await?;

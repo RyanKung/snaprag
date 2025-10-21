@@ -124,6 +124,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         "links",
         "reactions",
         "verifications",
+        "onchain_events", // System messages
         "username_proofs",
         "user_activities",
         "processed_messages",
@@ -361,6 +362,7 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
     sqlx::query("ANALYZE links").execute(pool).await.ok();
     sqlx::query("ANALYZE reactions").execute(pool).await.ok();
     sqlx::query("ANALYZE verifications").execute(pool).await.ok();
+    sqlx::query("ANALYZE onchain_events").execute(pool).await.ok();
 
     Ok(())
 }

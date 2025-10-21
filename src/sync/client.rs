@@ -82,6 +82,7 @@ pub mod proto {
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct OnChainEvent {
         pub r#type: i32,
+        pub chain_id: u32,
         pub block_number: u64,
         pub block_hash: Vec<u8>,
         pub block_timestamp: u64, // Unix timestamp
@@ -383,6 +384,7 @@ impl SnapchainClient {
                     if let Some(grpc_event) = grpc_sys_msg.on_chain_event {
                         proto_sys_msg.on_chain_event = Some(proto::OnChainEvent {
                             r#type: grpc_event.r#type,
+                            chain_id: grpc_event.chain_id,
                             block_number: grpc_event.block_number as u64,
                             block_hash: grpc_event.block_hash.clone(),
                             block_timestamp: grpc_event.block_timestamp, // Unix timestamp from chain

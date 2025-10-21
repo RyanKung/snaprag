@@ -202,7 +202,35 @@ CREATE TRIGGER trigger_cast_embeddings_updated_at
     EXECUTE FUNCTION update_cast_embeddings_updated_at();
 
 -- ==============================================================================
--- 5. SYNC TRACKING
+-- 5. ONCHAIN EVENTS (System Messages)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS onchain_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    fid bigint NOT NULL,
+    event_type integer NOT NULL,  -- OnChainEventType: 1=signer, 3=id_register, 4=storage_rent
+    chain_id integer NOT NULL,
+    block_number integer NOT NULL,
+    block_hash bytea,
+    block_timestamp bigint NOT NULL,
+    transaction_hash bytea,
+    log_index integer,
+    event_data jsonb,  -- Store the full event body as JSON
+    shard_id integer,
+    shard_block_height bigint,
+    created_at timestamp with time zone DEFAULT now(),
+    UNIQUE(transaction_hash, log_index)  -- Prevent duplicates
+);
+
+CREATE INDEX IF NOT EXISTS idx_onchain_events_fid 
+    ON onchain_events(fid);
+CREATE INDEX IF NOT EXISTS idx_onchain_events_type 
+    ON onchain_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_onchain_events_block 
+    ON onchain_events(block_number DESC);
+
+-- ==============================================================================
+-- 6. SYNC TRACKING
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS sync_progress (
