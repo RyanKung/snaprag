@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::*;
+use crate::cli::output::{print_info, print_success};
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -60,9 +60,9 @@ pub async fn handle_cast_embeddings_backfill(
     }
 
     let process_count = limit.unwrap_or(count as usize);
-    println!("\n📊 Found {} casts without embeddings", count);
-    println!("   Processing: {} casts", process_count);
-    println!("   Endpoint: {}", endpoint_info);
+    println!("\n📊 Found {count} casts without embeddings");
+    println!("   Processing: {process_count} casts");
+    println!("   Endpoint: {endpoint_info}");
     println!("   Batch size: {}", config.embeddings_batch_size());
     println!(
         "   Parallel tasks: {}\n",
@@ -140,7 +140,7 @@ pub async fn handle_embeddings_generate(config: &AppConfig, fid: i64, verbose: b
     use crate::database::Database;
     use crate::embeddings::EmbeddingService;
 
-    println!("🔮 Generate Embeddings for FID: {}", fid);
+    println!("🔮 Generate Embeddings for FID: {fid}");
     println!("====================================\n");
 
     println!("⏳ Initializing services...");
@@ -167,7 +167,7 @@ pub async fn handle_embeddings_generate(config: &AppConfig, fid: i64, verbose: b
 
     let profiles = database.list_user_profiles(profile_query).await?;
     let profile = profiles.into_iter().next().ok_or_else(|| {
-        crate::SnapRagError::Custom(format!("Profile not found for FID: {}", fid))
+        crate::SnapRagError::Custom(format!("Profile not found for FID: {fid}"))
     })?;
 
     println!(
@@ -237,7 +237,7 @@ pub async fn handle_embeddings_test(config: &AppConfig, text: String) -> Result<
 
     println!("🧪 Test Embedding Generation");
     println!("============================\n");
-    println!("Text: {}\n", text);
+    println!("Text: {text}\n");
 
     println!("⏳ Initializing embedding service...");
     let embedding_service = EmbeddingService::new(config)?;
@@ -247,7 +247,7 @@ pub async fn handle_embeddings_test(config: &AppConfig, text: String) -> Result<
     let embedding = embedding_service.generate(&text).await?;
     let duration = start.elapsed();
 
-    println!("✅ Generated embedding in {:?}", duration);
+    println!("✅ Generated embedding in {duration:?}");
     println!("\n📊 Embedding Details:");
     println!("  - Dimension: {}", embedding.len());
     println!("  - Model: {}", embedding_service.model());
@@ -263,15 +263,15 @@ pub async fn handle_embeddings_test(config: &AppConfig, text: String) -> Result<
     let std_dev = variance.sqrt();
 
     println!("\n📊 Statistics:");
-    println!("  - Mean: {:.6}", mean);
-    println!("  - Std Dev: {:.6}", std_dev);
+    println!("  - Mean: {mean:.6}");
+    println!("  - Std Dev: {std_dev:.6}");
     println!(
         "  - Min: {:.6}",
-        embedding.iter().cloned().fold(f32::INFINITY, f32::min)
+        embedding.iter().copied().fold(f32::INFINITY, f32::min)
     );
     println!(
         "  - Max: {:.6}",
-        embedding.iter().cloned().fold(f32::NEG_INFINITY, f32::max)
+        embedding.iter().copied().fold(f32::NEG_INFINITY, f32::max)
     );
 
     Ok(())
@@ -329,7 +329,7 @@ pub async fn handle_embeddings_stats(config: &AppConfig) -> Result<()> {
 
     println!("📈 Coverage:");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("Total Profiles: {}", total);
+    println!("Total Profiles: {total}");
     println!(
         "With Profile Embedding: {} ({:.1}%)",
         with_profile_emb,
@@ -353,7 +353,7 @@ pub async fn handle_embeddings_stats(config: &AppConfig) -> Result<()> {
 
     let missing = total - with_all_emb;
     if missing > 0 {
-        println!("\n⚠️  {} profiles need embeddings", missing);
+        println!("\n⚠️  {missing} profiles need embeddings");
         println!("   Run: cargo run embeddings backfill --force");
     } else {
         println!("\n✅ All profiles have embeddings!");

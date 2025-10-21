@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::info::print_sync_status;
 use crate::cli::commands::SyncCommands;
-use crate::cli::output::*;
+use crate::cli::output::{print_info, print_success, print_error};
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -61,14 +61,14 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
                     from_block,
                     to_val,
                     if let Some(b) = batch {
-                        format!(" (batch: {})", b)
+                        format!(" (batch: {b})")
                     } else {
                         String::new()
                     },
-                    if !shard_ids.is_empty() {
-                        format!(" (shards: {:?})", shard_ids)
-                    } else {
+                    if shard_ids.is_empty() {
                         String::new()
+                    } else {
+                        format!(" (shards: {shard_ids:?})")
                     },
                     workers_per_shard
                 ));
@@ -77,14 +77,14 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
                     "Starting synchronization from block {} to latest{}{} (workers: {}x per shard)...",
                     from_block,
                     if let Some(b) = batch {
-                        format!(" (batch: {})", b)
+                        format!(" (batch: {b})")
                     } else {
                         String::new()
                     },
-                    if !shard_ids.is_empty() {
-                        format!(" (shards: {:?})", shard_ids)
-                    } else {
+                    if shard_ids.is_empty() {
                         String::new()
+                    } else {
+                        format!(" (shards: {shard_ids:?})")
                     },
                     workers_per_shard
                 ));
@@ -94,8 +94,7 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
         }
         SyncCommands::Test { shard, block } => {
             print_info(&format!(
-                "Testing single block synchronization for shard {} block {}...",
-                shard, block
+                "Testing single block synchronization for shard {shard} block {block}..."
             ));
 
             // For test command, we need to create a sync service directly
@@ -112,7 +111,7 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
                     ));
                 }
                 Err(e) => {
-                    print_error(&format!("Single block test failed: {}", e));
+                    print_error(&format!("Single block test failed: {e}"));
                     return Err(e);
                 }
             }

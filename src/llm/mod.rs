@@ -1,7 +1,7 @@
 //! LLM integration module
 //!
 //! This module provides functionality for interacting with Large Language Models:
-//! - OpenAI GPT models
+//! - `OpenAI` GPT models
 //! - Ollama local models
 //! - Custom endpoints
 //! - Streaming responses
@@ -48,6 +48,7 @@ pub struct LlmConfig {
 }
 
 impl LlmConfig {
+    #[must_use] 
     pub fn from_app_config(config: &crate::config::AppConfig) -> Self {
         // Determine provider based on endpoint
         let provider = if config.llm_endpoint().contains("api.openai.com") {
@@ -59,14 +60,14 @@ impl LlmConfig {
         };
 
         // Get model from config or use default based on provider
-        let model = if !config.llm_model().is_empty() {
-            config.llm_model().to_string()
-        } else {
+        let model = if config.llm_model().is_empty() {
             match provider {
                 LlmProvider::OpenAI => "gpt-4".to_string(),
                 LlmProvider::Ollama => "gemma3:27b".to_string(),
                 LlmProvider::Custom => "default".to_string(),
             }
+        } else {
+            config.llm_model().to_string()
         };
 
         Self {
@@ -152,12 +153,14 @@ impl LlmService {
     }
 
     /// Get the model name
+    #[must_use] 
     pub fn model(&self) -> &str {
         &self.config.model
     }
 
     /// Get the provider
-    pub fn provider(&self) -> LlmProvider {
+    #[must_use] 
+    pub const fn provider(&self) -> LlmProvider {
         self.config.provider
     }
 }

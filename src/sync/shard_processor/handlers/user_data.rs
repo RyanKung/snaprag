@@ -1,10 +1,10 @@
-/// UserDataAdd message handler
+/// `UserDataAdd` message handler
 
 use crate::Result;
 
 use super::super::types::BatchedData;
 
-/// Handle UserDataAdd message (type 11) - all 13 profile field types
+/// Handle `UserDataAdd` message (type 11) - all 13 profile field types
 pub(super) fn handle_user_data_add(
     body: &serde_json::Value,
     fid: i64,
@@ -15,7 +15,7 @@ pub(super) fn handle_user_data_add(
     if let Some(user_data_body) = body.get("user_data_body") {
         let data_type = user_data_body
             .get("type")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .unwrap_or(0);
 
         let value = user_data_body

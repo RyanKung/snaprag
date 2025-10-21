@@ -17,13 +17,13 @@ impl Database {
 
         for table_name in required_tables {
             let result = sqlx::query_scalar::<_, bool>(
-                r#"
+                r"
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_schema = 'public' 
                     AND table_name = $1
                 )
-                "#,
+                ",
             )
             .bind(table_name)
             .fetch_one(&self.pool)
@@ -37,14 +37,14 @@ impl Database {
 
         // Check if shard_id column exists in user_activity_timeline (key indicator of complete schema)
         let has_shard_id = sqlx::query_scalar::<_, bool>(
-            r#"
+            r"
             SELECT EXISTS (
                 SELECT FROM information_schema.columns 
                 WHERE table_schema = 'public' 
                 AND table_name = 'user_activity_timeline' 
                 AND column_name = 'shard_id'
             )
-            "#,
+            ",
         )
         .fetch_one(&self.pool)
         .await?;
@@ -75,7 +75,7 @@ impl Database {
     pub async fn init_schema(&self) -> Result<()> {
         // Create user_profiles table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS user_profiles (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 fid BIGINT UNIQUE NOT NULL,
@@ -100,7 +100,7 @@ impl Database {
                 block_height BIGINT,
                 transaction_fid BIGINT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -118,7 +118,7 @@ impl Database {
 
         // Create user_profile_snapshots table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS user_profile_snapshots (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 fid BIGINT NOT NULL,
@@ -142,14 +142,14 @@ impl Database {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 UNIQUE(fid, snapshot_timestamp)
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create user_data_changes table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS user_data_changes (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 fid BIGINT NOT NULL,
@@ -160,14 +160,14 @@ impl Database {
                 message_hash BYTEA NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create username_proofs table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS username_proofs (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 fid BIGINT NOT NULL,
@@ -179,14 +179,14 @@ impl Database {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 UNIQUE(fid, username_type)
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create user_activity_timeline table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS user_activity_timeline (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 fid BIGINT NOT NULL,
@@ -196,14 +196,14 @@ impl Database {
                 message_hash BYTEA,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create user_profile_trends table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS user_profile_trends (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 fid BIGINT NOT NULL,
@@ -219,7 +219,7 @@ impl Database {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 UNIQUE(fid, trend_period, trend_date)
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;

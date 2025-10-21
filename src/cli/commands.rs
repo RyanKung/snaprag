@@ -104,7 +104,7 @@ pub enum Commands {
         /// Maximum number of results
         #[arg(short, long, default_value = "20")]
         limit: u32,
-        /// Search in specific fields (username,display_name,bio,all)
+        /// Search in specific fields (`username,display_name,bio,all`)
         #[arg(long, default_value = "all")]
         fields: String,
     },
@@ -122,7 +122,7 @@ pub enum Commands {
         /// Skip first N activities
         #[arg(short, long, default_value = "0")]
         offset: i64,
-        /// Filter by activity type (cast_add, reaction_add, link_add, etc.)
+        /// Filter by activity type (`cast_add`, `reaction_add`, `link_add`, etc.)
         #[arg(short = 't', long)]
         activity_type: Option<String>,
         /// Show detailed JSON data
@@ -421,7 +421,7 @@ pub enum EmbeddingsCommands {
 
 #[derive(Subcommand)]
 pub enum ServeCommands {
-    /// Start API server (RESTful + MCP)
+    /// Start API server (`RESTful` + MCP)
     Api {
         /// Host to bind to
         #[arg(long, default_value = "127.0.0.1")]

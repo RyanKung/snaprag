@@ -1,4 +1,4 @@
-//! Logging configuration for SnapRAG
+//! Logging configuration for `SnapRAG`
 
 use std::path::Path;
 
@@ -31,9 +31,8 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
         let level = &config.logging.level;
         // 🚀 Always suppress sqlx SQL queries and third-party library noise
         // sqlx=error to disable slow query logging
-        EnvFilter::new(&format!(
-            "warn,snaprag={},sqlx=error,h2=warn,tonic=warn,hyper=warn,tower=warn",
-            level
+        EnvFilter::new(format!(
+            "warn,snaprag={level},sqlx=error,h2=warn,tonic=warn,hyper=warn,tower=warn"
         ))
     } else {
         // Fallback to environment variable or default to info level
@@ -104,15 +103,13 @@ pub fn init_logging_with_level(level: &str) -> Result<()> {
     // Even in debug mode, keep third-party libraries at warn level to reduce noise
     let env_filter = if level == "debug" || level == "trace" {
         // 🚀 In debug/trace mode, still suppress SQL queries unless explicitly needed
-        EnvFilter::new(&format!(
-            "warn,snaprag={},sqlx=error,h2=warn,tonic=warn,hyper=warn,tower=warn",
-            level
+        EnvFilter::new(format!(
+            "warn,snaprag={level},sqlx=error,h2=warn,tonic=warn,hyper=warn,tower=warn"
         ))
     } else {
         // 🚀 For info/warn/error levels, suppress all third-party noise
-        EnvFilter::new(&format!(
-            "warn,snaprag={},sqlx=error,h2=warn,tonic=warn,hyper=warn,tower=warn",
-            level
+        EnvFilter::new(format!(
+            "warn,snaprag={level},sqlx=error,h2=warn,tonic=warn,hyper=warn,tower=warn"
         ))
     };
 

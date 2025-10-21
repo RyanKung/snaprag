@@ -4,10 +4,10 @@
 /// - reaction.rs: ReactionAdd/Remove handlers
 /// - link.rs: LinkAdd/Remove handlers
 /// - verification.rs: VerificationAdd/Remove handlers (ETH + Solana)
-/// - user_data.rs: UserDataAdd handler (13 field types)
-/// - username.rs: UsernameProof handler
-/// - frame.rs: FrameAction handler
-/// - system.rs: System message (OnChainEvent) handler
+/// - `user_data.rs`: `UserDataAdd` handler (13 field types)
+/// - username.rs: `UsernameProof` handler
+/// - frame.rs: `FrameAction` handler
+/// - system.rs: System message (`OnChainEvent`) handler
 
 use super::cast_handlers::collect_cast_add;
 use super::types::BatchedData;
@@ -39,7 +39,7 @@ pub(super) async fn collect_transaction_data(
 
     // Create shard block info for tracking
     // Note: For system transactions (fid=0), we use 0 as transaction_fid
-    let shard_block_info = ShardBlockInfo::new(shard_id, block_number, fid as u64, timestamp);
+    let shard_block_info = ShardBlockInfo::new(shard_id, block_number, fid, timestamp);
 
     // Process user messages (only in user transactions, fid > 0)
     if fid > 0 {
@@ -71,7 +71,7 @@ pub(super) async fn collect_message_data(
 
     let message_type = data.r#type;
     let fid = data.fid as i64;
-    let timestamp = data.timestamp as i64;
+    let timestamp = i64::from(data.timestamp);
     let message_hash = message.hash.clone();
 
     // Ensure FID will be created for ALL message types

@@ -30,6 +30,7 @@ pub struct ShardProcessor {
 
 impl ShardProcessor {
     /// Create a new shard processor
+    #[must_use]
     pub fn new(database: Database) -> Self {
         Self {
             database,

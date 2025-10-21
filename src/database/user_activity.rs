@@ -1,5 +1,5 @@
 use super::Database;
-use crate::models::*;
+use crate::models::UserActivityTimeline;
 use crate::Result;
 
 impl Database {
@@ -13,11 +13,11 @@ impl Database {
         message_hash: Option<Vec<u8>>,
     ) -> Result<UserActivityTimeline> {
         let activity = sqlx::query_as::<_, UserActivityTimeline>(
-            r#"
+            r"
             INSERT INTO user_activity_timeline (fid, activity_type, activity_data, timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING *
-            "#
+            "
         )
         .bind(fid)
         .bind(activity_type)
@@ -88,7 +88,7 @@ impl Database {
         let activities = if let Some(act_type) = activity_type {
             // Query with activity type filter
             sqlx::query_as::<_, UserActivityTimeline>(
-                r#"
+                r"
                 SELECT 
                     id,
                     fid,
@@ -105,18 +105,18 @@ impl Database {
                 ORDER BY timestamp DESC
                 LIMIT $3
                 OFFSET $4
-                "#,
+                ",
             )
             .bind(fid)
             .bind(act_type)
-            .bind(limit.unwrap_or(100) as i64)
-            .bind(offset.unwrap_or(0) as i64)
+            .bind(limit.unwrap_or(100))
+            .bind(offset.unwrap_or(0))
             .fetch_all(&self.pool)
             .await?
         } else {
             // Query all activities
             sqlx::query_as::<_, UserActivityTimeline>(
-                r#"
+                r"
                 SELECT 
                     id,
                     fid,
@@ -133,11 +133,11 @@ impl Database {
                 ORDER BY timestamp DESC
                 LIMIT $2
                 OFFSET $3
-                "#,
+                ",
             )
             .bind(fid)
-            .bind(limit.unwrap_or(100) as i64)
-            .bind(offset.unwrap_or(0) as i64)
+            .bind(limit.unwrap_or(100))
+            .bind(offset.unwrap_or(0))
             .fetch_all(&self.pool)
             .await?
         };

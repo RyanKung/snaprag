@@ -76,12 +76,12 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
     ];
 
     for index_name in &indexes_to_drop {
-        match sqlx::query(&format!("DROP INDEX IF EXISTS {} CASCADE", index_name))
+        match sqlx::query(&format!("DROP INDEX IF EXISTS {index_name} CASCADE"))
             .execute(db)
             .await
         {
-            Ok(_) => println!("  ✅ Dropped: {}", index_name),
-            Err(e) => println!("  ⚠️  Failed to drop {}: {}", index_name, e),
+            Ok(_) => println!("  ✅ Dropped: {index_name}"),
+            Err(e) => println!("  ⚠️  Failed to drop {index_name}: {e}"),
         }
     }
 
@@ -99,14 +99,13 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     for table in &tables {
         match sqlx::query(&format!(
-            "ALTER TABLE {} SET (autovacuum_enabled = false)",
-            table
+            "ALTER TABLE {table} SET (autovacuum_enabled = false)"
         ))
         .execute(db)
         .await
         {
-            Ok(_) => println!("  ✅ Disabled autovacuum: {}", table),
-            Err(e) => println!("  ⚠️  Failed for {}: {}", table, e),
+            Ok(_) => println!("  ✅ Disabled autovacuum: {table}"),
+            Err(e) => println!("  ⚠️  Failed for {table}: {e}"),
         }
     }
 
@@ -173,11 +172,11 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
     ];
 
     for (name, sql) in &indexes_to_create {
-        print!("  🔨 Creating {}... ", name);
+        print!("  🔨 Creating {name}... ");
         io::stdout().flush()?;
         match sqlx::query(sql).execute(db).await {
             Ok(_) => println!("✅"),
-            Err(e) => println!("⚠️  Failed: {}", e),
+            Err(e) => println!("⚠️  Failed: {e}"),
         }
     }
 
@@ -195,28 +194,27 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     for table in &tables {
         match sqlx::query(&format!(
-            "ALTER TABLE {} SET (autovacuum_enabled = true)",
-            table
+            "ALTER TABLE {table} SET (autovacuum_enabled = true)"
         ))
         .execute(db)
         .await
         {
-            Ok(_) => println!("  ✅ Enabled autovacuum: {}", table),
-            Err(e) => println!("  ⚠️  Failed for {}: {}", table, e),
+            Ok(_) => println!("  ✅ Enabled autovacuum: {table}"),
+            Err(e) => println!("  ⚠️  Failed for {table}: {e}"),
         }
     }
 
     println!("\n🧹 Running VACUUM ANALYZE (this may take a while)...");
 
     for table in &tables {
-        print!("  🧹 Analyzing {}... ", table);
+        print!("  🧹 Analyzing {table}... ");
         io::stdout().flush()?;
-        match sqlx::query(&format!("VACUUM ANALYZE {}", table))
+        match sqlx::query(&format!("VACUUM ANALYZE {table}"))
             .execute(db)
             .await
         {
             Ok(_) => println!("✅"),
-            Err(e) => println!("⚠️  Failed: {}", e),
+            Err(e) => println!("⚠️  Failed: {e}"),
         }
     }
 
@@ -270,10 +268,10 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
 
         if let Some((exists,)) = result {
             if exists {
-                println!("  ✅ {}", index_name);
+                println!("  ✅ {index_name}");
                 existing_count += 1;
             } else {
-                println!("  ❌ {} (missing)", index_name);
+                println!("  ❌ {index_name} (missing)");
             }
         }
     }
@@ -313,10 +311,10 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         };
 
         if is_enabled {
-            println!("  ✅ {} (enabled)", table);
+            println!("  ✅ {table} (enabled)");
             enabled_count += 1;
         } else {
-            println!("  ❌ {} (disabled)", table);
+            println!("  ❌ {table} (disabled)");
         }
     }
 

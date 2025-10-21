@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
             snaprag::cli::handle_dashboard_command(&snaprag).await?;
         }
         Commands::Config => {
-            snaprag::cli::handle_config_command(&config).await?;
+            snaprag::cli::handle_config_command(&config)?;
         }
         Commands::Activity {
             fid,

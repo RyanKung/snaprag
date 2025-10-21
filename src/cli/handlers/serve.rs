@@ -20,8 +20,8 @@ pub async fn handle_serve_api(
 
     println!("🚀 Starting SnapRAG API Server");
     println!("===============================\n");
-    println!("📍 Host: {}", host);
-    println!("🔌 Port: {}", port);
+    println!("📍 Host: {host}");
+    println!("🔌 Port: {port}");
     println!("🌐 CORS: {}", if cors { "Enabled" } else { "Disabled" });
 
     #[cfg(feature = "payment")]

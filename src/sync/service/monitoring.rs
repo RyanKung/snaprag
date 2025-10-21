@@ -24,7 +24,7 @@ pub struct RealtimeMonitor {
 }
 
 impl RealtimeMonitor {
-    pub fn new(
+    pub const fn new(
         client: SnapchainClient,
         database: Arc<Database>,
         state_manager: Arc<RwLock<SyncStateManager>>,
@@ -105,7 +105,7 @@ impl RealtimeMonitor {
                         shard_id, err
                     );
                     let mut sm = self.state_manager.write().await;
-                    sm.add_error(format!("Shard {} real-time sync error: {}", shard_id, err))?;
+                    sm.add_error(format!("Shard {shard_id} real-time sync error: {err}"))?;
                 }
             }
 

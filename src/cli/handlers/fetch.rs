@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::*;
+use crate::cli::output::{print_info, print_success, print_error};
 use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
@@ -21,7 +21,7 @@ pub async fn handle_fetch_user(
 
     let start_time = std::time::Instant::now();
 
-    print_info(&format!("🔄 Fetching user {} on demand...", fid));
+    print_info(&format!("🔄 Fetching user {fid} on demand..."));
 
     // Create lazy loader
     tracing::debug!("⏱️  Connecting to database...");
@@ -40,15 +40,15 @@ pub async fn handle_fetch_user(
     let profile = lazy_loader
         .get_user_profile_smart(fid as i64)
         .await?
-        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {} not found", fid)))?;
+        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {fid} not found")))?;
 
     println!("\n✅ Profile loaded successfully:");
     println!("   FID: {}", profile.fid);
     if let Some(username) = &profile.username {
-        println!("   Username: @{}", username);
+        println!("   Username: @{username}");
     }
     if let Some(display_name) = &profile.display_name {
-        println!("   Display Name: {}", display_name);
+        println!("   Display Name: {display_name}");
     }
     if let Some(bio) = &profile.bio {
         let bio_preview = if bio.len() > 100 {
@@ -56,12 +56,12 @@ pub async fn handle_fetch_user(
         } else {
             bio.clone()
         };
-        println!("   Bio: {}", bio_preview);
+        println!("   Bio: {bio_preview}");
     }
 
     // Fetch casts if requested
     if with_casts {
-        print_info(&format!("🔄 Fetching casts for FID {}...", fid));
+        print_info(&format!("🔄 Fetching casts for FID {fid}..."));
         let limit = if max_casts > 0 {
             Some(max_casts)
         } else {
@@ -99,8 +99,7 @@ pub async fn handle_fetch_user(
                     .filter(|c| {
                         c.text
                             .as_ref()
-                            .map(|t| !t.trim().is_empty())
-                            .unwrap_or(false)
+                            .is_some_and(|t| !t.trim().is_empty())
                     })
                     .map(|c| c.message_hash.clone())
                     .collect();
@@ -115,7 +114,7 @@ pub async fn handle_fetch_user(
                     .collect();
 
                 let existing_count = message_hashes.len() - casts_without_embeddings.len();
-                println!("   ✅ {} already have embeddings", existing_count);
+                println!("   ✅ {existing_count} already have embeddings");
 
                 if casts_without_embeddings.is_empty() {
                     println!("   ℹ️  All casts already have embeddings. Skipping generation.");
@@ -130,8 +129,7 @@ pub async fn handle_fetch_user(
                             .get_embedding_endpoint(endpoint_name)
                             .ok_or_else(|| {
                                 crate::SnapRagError::Custom(format!(
-                                    "Endpoint '{}' not found",
-                                    endpoint_name
+                                    "Endpoint '{endpoint_name}' not found"
                                 ))
                             })?;
                         let embedding_config = crate::embeddings::EmbeddingConfig::from_endpoint(
@@ -174,7 +172,7 @@ pub async fn handle_fetch_user(
                                     )
                                     .await
                                 {
-                                    Ok(_) => {
+                                    Ok(()) => {
                                         success += 1;
                                     }
                                     Err(e) => {
@@ -197,16 +195,14 @@ pub async fn handle_fetch_user(
                         let bar: String = "█".repeat(filled) + &"░".repeat(bar_width - filled);
 
                         print!(
-                            "\r   Progress: [{}] {}% ({}/{}) - ✅ {} ⏭ {} ❌ {}",
-                            bar, percentage, processed, total, success, skipped, failed
+                            "\r   Progress: [{bar}] {percentage}% ({processed}/{total}) - ✅ {success} ⏭ {skipped} ❌ {failed}"
                         );
                         std::io::Write::flush(&mut std::io::stdout()).ok();
                     }
 
                     println!();
                     println!(
-                        "   ✅ Embeddings: {} success, {} skipped, {} failed",
-                        success, skipped, failed
+                        "   ✅ Embeddings: {success} success, {skipped} skipped, {failed} failed"
                     );
                 }
             }
@@ -214,7 +210,7 @@ pub async fn handle_fetch_user(
     }
 
     tracing::debug!("⏱️  Total time: {:?}", start_time.elapsed());
-    print_success(&format!("✅ Successfully fetched FID {}", fid));
+    print_success(&format!("✅ Successfully fetched FID {fid}"));
     Ok(())
 }
 
@@ -273,8 +269,7 @@ pub async fn handle_fetch_users(
         let result = match (profile_result, casts_result) {
             (Ok(Some(profile)), Ok(casts)) => Ok((profile, casts)),
             (Ok(None), _) => Err(crate::SnapRagError::Custom(format!(
-                "User {} not found",
-                fid
+                "User {fid} not found"
             ))),
             (Err(e), _) | (_, Err(e)) => Err(e),
         };
@@ -295,7 +290,7 @@ pub async fn handle_fetch_users(
             }
             Err(e) => {
                 fail_count += 1;
-                println!("   ❌ Failed: {}", e);
+                println!("   ❌ Failed: {e}");
             }
         }
 
@@ -306,12 +301,12 @@ pub async fn handle_fetch_users(
     }
 
     println!("\n📊 Batch fetch complete:");
-    println!("   ✅ Success: {}", success_count);
+    println!("   ✅ Success: {success_count}");
     if fail_count > 0 {
-        println!("   ❌ Failed: {}", fail_count);
+        println!("   ❌ Failed: {fail_count}");
     }
     if with_casts {
-        println!("   📝 Total casts: {}", total_casts);
+        println!("   📝 Total casts: {total_casts}");
     }
 
     Ok(())
@@ -328,7 +323,7 @@ pub async fn handle_fetch_popular(
     use crate::sync::client::SnapchainClient;
     use crate::sync::lazy_loader::LazyLoader;
 
-    print_info(&format!("🔄 Fetching top {} popular users...", limit));
+    print_info(&format!("🔄 Fetching top {limit} popular users..."));
 
     // Create lazy loader
     let database = Arc::new(Database::from_config(config).await?);
@@ -337,13 +332,13 @@ pub async fn handle_fetch_popular(
 
     // Get popular FIDs from activity timeline
     let popular_fids = sqlx::query_scalar::<_, i64>(
-        r#"
+        r"
         SELECT fid
         FROM user_activity_timeline
         GROUP BY fid
         ORDER BY COUNT(*) DESC
         LIMIT $1
-        "#,
+        ",
     )
     .bind(limit as i64)
     .fetch_all(database.pool())
@@ -373,8 +368,7 @@ pub async fn handle_fetch_popular(
         let result = match (profile_result, casts_result) {
             (Ok(Some(profile)), Ok(casts)) => Ok((profile, casts)),
             (Ok(None), _) => Err(crate::SnapRagError::Custom(format!(
-                "User {} not found",
-                fid
+                "User {fid} not found"
             ))),
             (Err(e), _) | (_, Err(e)) => Err(e),
         };
@@ -394,7 +388,7 @@ pub async fn handle_fetch_popular(
                 );
             }
             Err(e) => {
-                println!("   ⚠️  Skipped: {}", e);
+                println!("   ⚠️  Skipped: {e}");
             }
         }
 
@@ -407,7 +401,7 @@ pub async fn handle_fetch_popular(
     println!("\n📊 Preload complete:");
     println!("   ✅ Loaded: {}/{}", success_count, popular_fids.len());
     if with_casts {
-        println!("   📝 Total casts: {}", total_casts);
+        println!("   📝 Total casts: {total_casts}");
     }
 
     print_success("✅ Popular users preloaded!");

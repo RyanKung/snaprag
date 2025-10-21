@@ -13,7 +13,7 @@ use crate::llm::streaming::StreamingResponse;
 /// Supported LLM providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LlmProvider {
-    /// OpenAI GPT models
+    /// `OpenAI` GPT models
     OpenAI,
     /// Ollama local models
     Ollama,
@@ -135,7 +135,7 @@ impl LlmClient {
         }
     }
 
-    /// OpenAI completion
+    /// `OpenAI` completion
     async fn generate_openai(
         &self,
         prompt: &str,
@@ -178,7 +178,7 @@ impl LlmClient {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -192,15 +192,14 @@ impl LlmClient {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(SnapragError::LlmError(format!(
-                "OpenAI API error ({}): {}",
-                status, error_text
+                "OpenAI API error ({status}): {error_text}"
             )));
         }
 
         let result: OpenAIResponse = response
             .json()
             .await
-            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {e}")))?;
 
         result
             .choices
@@ -210,7 +209,7 @@ impl LlmClient {
             .ok_or_else(|| SnapragError::LlmError("No response from OpenAI".to_string()))
     }
 
-    /// OpenAI chat completion
+    /// `OpenAI` chat completion
     async fn chat_openai(
         &self,
         messages: Vec<ChatMessage>,
@@ -252,7 +251,7 @@ impl LlmClient {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -266,15 +265,14 @@ impl LlmClient {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(SnapragError::LlmError(format!(
-                "OpenAI API error ({}): {}",
-                status, error_text
+                "OpenAI API error ({status}): {error_text}"
             )));
         }
 
         let result: OpenAIResponse = response
             .json()
             .await
-            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {e}")))?;
 
         result
             .choices
@@ -284,7 +282,7 @@ impl LlmClient {
             .ok_or_else(|| SnapragError::LlmError("No response from OpenAI".to_string()))
     }
 
-    /// OpenAI streaming
+    /// `OpenAI` streaming
     async fn generate_openai_stream(
         &self,
         prompt: &str,
@@ -349,15 +347,14 @@ impl LlmClient {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(SnapragError::LlmError(format!(
-                "Ollama API error ({}): {}",
-                status, error_text
+                "Ollama API error ({status}): {error_text}"
             )));
         }
 
         let result: OllamaResponse = response
             .json()
             .await
-            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {e}")))?;
 
         Ok(result.response)
     }
@@ -412,15 +409,14 @@ impl LlmClient {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(SnapragError::LlmError(format!(
-                "Ollama API error ({}): {}",
-                status, error_text
+                "Ollama API error ({status}): {error_text}"
             )));
         }
 
         let result: OllamaResponse = response
             .json()
             .await
-            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| SnapragError::LlmError(format!("Failed to parse response: {e}")))?;
 
         Ok(result.message.content)
     }

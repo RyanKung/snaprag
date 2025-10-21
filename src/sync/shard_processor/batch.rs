@@ -63,7 +63,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             let mut q = sqlx::query(&query);
             for fid in chunk {
                 // Create synthetic message_hash for fid_created event
-                let synthetic_hash = format!("fid_created_{}", fid).as_bytes().to_vec();
+                let synthetic_hash = format!("fid_created_{fid}").as_bytes().to_vec();
                 q = q
                     .bind(fid)
                     .bind("fid_created")

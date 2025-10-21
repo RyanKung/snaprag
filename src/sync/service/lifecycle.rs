@@ -29,7 +29,7 @@ pub struct LifecycleManager {
 }
 
 impl LifecycleManager {
-    pub fn new(
+    pub const fn new(
         config: SyncConfig,
         client: SnapchainClient,
         database: Arc<Database>,
@@ -61,7 +61,7 @@ impl LifecycleManager {
         // Then start real-time sync for new data
         if self.config.enable_realtime_sync {
             info!("Starting real-time sync for new data...");
-            self.start_full_realtime_sync().await?;
+            self.start_full_realtime_sync()?;
         }
 
         Ok(())
@@ -72,8 +72,7 @@ impl LifecycleManager {
         // Validate range parameters
         if from_block > to_block {
             return Err(crate::SnapRagError::Custom(format!(
-                "Invalid range: from_block ({}) cannot be greater than to_block ({})",
-                from_block, to_block
+                "Invalid range: from_block ({from_block}) cannot be greater than to_block ({to_block})"
             )));
         }
 
@@ -100,7 +99,7 @@ impl LifecycleManager {
                 "Starting historical data sync from block {} to block {}...",
                 from_block, to_block
             );
-            self.start_historical_sync_with_range(from_block, to_block, &mut lock)
+            self.start_historical_sync_with_range(from_block, to_block, &lock)
                 .await?;
         }
 
@@ -167,7 +166,7 @@ impl LifecycleManager {
         &self,
         from_block: u64,
         to_block: u64,
-        lock: &mut SyncLockFile,
+        lock: &SyncLockFile,
     ) -> Result<()> {
         info!(
             "Starting historical data sync from block {} to block {}...",
@@ -237,7 +236,7 @@ impl LifecycleManager {
                     let request = crate::sync::client::proto::ShardChunksRequest {
                         shard_id,
                         start_block_number: current_block,
-                        stop_block_number: Some(current_block + batch as u64 - 1),
+                        stop_block_number: Some(current_block + u64::from(batch) - 1),
                     };
 
                     match client.get_shard_chunks(request).await {
@@ -316,8 +315,7 @@ impl LifecycleManager {
                 Err(e) => {
                     error!("❌ Shard {} task panicked: {}", shard_id, e);
                     return Err(crate::SnapRagError::Custom(format!(
-                        "Shard {} sync task panicked: {}",
-                        shard_id, e
+                        "Shard {shard_id} sync task panicked: {e}"
                     )));
                 }
             }
@@ -327,7 +325,7 @@ impl LifecycleManager {
         Ok(())
     }
 
-    async fn start_full_realtime_sync(&self) -> Result<()> {
+    fn start_full_realtime_sync(&self) -> Result<()> {
         info!("Real-time sync not yet implemented in refactored service");
         warn!("Use 'snaprag sync start --from-block <last_block>' for now");
         Ok(())
@@ -421,7 +419,7 @@ impl LifecycleManager {
                         // Calculate continuous progress
                         let batches = progress_saver_batches.lock().await;
                         let mut continuous_progress = shard_from_block;
-                        let batch_size_u64 = config.batch_size as u64;
+                        let batch_size_u64 = u64::from(config.batch_size);
                         
                         while batches.contains(&continuous_progress) {
                             continuous_progress += batch_size_u64;
@@ -448,17 +446,17 @@ impl LifecycleManager {
                         break;
                     }
 
-                    let batch_start = current_block.fetch_add(config.batch_size as u64, Ordering::SeqCst);
+                    let batch_start = current_block.fetch_add(u64::from(config.batch_size), Ordering::SeqCst);
                     
                     if batch_start >= shard_to_block {
                         break; // No more batches to process
                     }
 
-                    let batch_end = (batch_start + config.batch_size as u64 - 1).min(shard_to_block);
+                    let batch_end = (batch_start + u64::from(config.batch_size) - 1).min(shard_to_block);
                     
                     // Acquire semaphore permit (will wait if at max workers)
                     let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
-                        crate::SnapRagError::Custom(format!("Semaphore error: {}", e))
+                        crate::SnapRagError::Custom(format!("Semaphore error: {e}"))
                     })?;
 
                     let client = client.clone();
@@ -501,7 +499,7 @@ impl LifecycleManager {
                                             .process_chunks_batch(&chunks, shard_id)
                                             .await
                                         {
-                                            Ok(_) => {
+                                            Ok(()) => {
                                                 let process_elapsed = process_start.elapsed();
                                                 let messages_in_batch: u64 = chunks
                                                     .iter()
@@ -559,7 +557,7 @@ impl LifecycleManager {
                                             }
                                             Err(e) => {
                                                 let error_msg = e.to_string();
-                                                let error_debug = format!("{:?}", e);
+                                                let error_debug = format!("{e:?}");
                                                 
                                                 error!(
                                                     "🔴 CRITICAL: Shard {} batch {}-{} processing FAILED after {} attempts\n\
@@ -587,9 +585,8 @@ impl LifecycleManager {
                                                 return Err(e);
                                             }
                                         }
-                                    } else {
-                                        return Ok((0, 0)); // Empty batch
                                     }
+                                    return Ok((0, 0)); // Empty batch
                                 }
                                 Err(e) if e.to_string().contains("no more chunks") => {
                                     return Ok((0, 0)); // Skip empty batches
@@ -621,7 +618,7 @@ impl LifecycleManager {
                                 }
                                 Err(e) => {
                                     let error_msg = e.to_string();
-                                    let error_debug = format!("{:?}", e);
+                                    let error_debug = format!("{e:?}");
                                     
                                     error!(
                                         "🔴 CRITICAL: Shard {} batch {}-{} fetch FAILED after {} attempts\n\
@@ -673,7 +670,7 @@ impl LifecycleManager {
                             total_messages += messages;
                             completed_tasks += 1;
 
-                            if completed_tasks % 100 == 0 {
+                            if completed_tasks.is_multiple_of(100) {
                                 let progress_pct = (completed_tasks as f64 / total_tasks as f64 * 100.0).min(100.0);
                                 info!(
                                     "Shard {}: {}/{} tasks ({:.1}%), {} blocks, {} msgs total",
@@ -690,7 +687,7 @@ impl LifecycleManager {
                             // Calculate and save final continuous progress
                             let batches = completed_batches.lock().await;
                             let mut continuous_progress = shard_from_block;
-                            let batch_size_u64 = config.batch_size as u64;
+                            let batch_size_u64 = u64::from(config.batch_size);
                             while batches.contains(&continuous_progress) {
                                 continuous_progress += batch_size_u64;
                             }
@@ -727,7 +724,7 @@ impl LifecycleManager {
                             // Calculate and save final continuous progress
                             let batches = completed_batches.lock().await;
                             let mut continuous_progress = shard_from_block;
-                            let batch_size_u64 = config.batch_size as u64;
+                            let batch_size_u64 = u64::from(config.batch_size);
                             while batches.contains(&continuous_progress) {
                                 continuous_progress += batch_size_u64;
                             }
@@ -752,7 +749,7 @@ impl LifecycleManager {
                             // Stop progress saver
                             let _ = progress_saver.await;
                             
-                            return Err(crate::SnapRagError::Custom(format!("Task panicked: {}", e)));
+                            return Err(crate::SnapRagError::Custom(format!("Task panicked: {e}")));
                         }
                     }
                 }
@@ -795,8 +792,7 @@ impl LifecycleManager {
                 Err(e) => {
                     error!("❌ Shard {} panicked: {}", shard_id, e);
                     return Err(crate::SnapRagError::Custom(format!(
-                        "Shard {} panicked: {}",
-                        shard_id, e
+                        "Shard {shard_id} panicked: {e}"
                     )));
                 }
             }

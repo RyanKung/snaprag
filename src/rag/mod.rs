@@ -53,7 +53,7 @@ pub struct SearchResult {
 }
 
 /// Type of match for the search result
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub enum MatchType {
     /// Vector similarity match
     Semantic,

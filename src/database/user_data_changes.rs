@@ -1,5 +1,5 @@
 use super::Database;
-use crate::models::*;
+use crate::models::UserDataChange;
 use crate::Result;
 
 impl Database {
@@ -14,11 +14,11 @@ impl Database {
         message_hash: Vec<u8>,
     ) -> Result<UserDataChange> {
         let change = sqlx::query_as::<_, UserDataChange>(
-            r#"
+            r"
             INSERT INTO user_data_changes (fid, data_type, old_value, new_value, change_timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
-            "#
+            "
         )
         .bind(fid)
         .bind(data_type)
@@ -43,7 +43,7 @@ impl Database {
         // Get user data changes with optional data_type filter
         let changes = if let Some(dt) = data_type {
             sqlx::query_as::<_, UserDataChange>(
-                r#"
+                r"
                 SELECT 
                     id, fid, data_type, old_value, new_value,
                     change_timestamp, message_hash, created_at
@@ -52,17 +52,17 @@ impl Database {
                 ORDER BY change_timestamp DESC
                 LIMIT $3
                 OFFSET $4
-                "#,
+                ",
             )
             .bind(fid)
             .bind(dt)
-            .bind(limit.unwrap_or(100) as i64)
-            .bind(offset.unwrap_or(0) as i64)
+            .bind(limit.unwrap_or(100))
+            .bind(offset.unwrap_or(0))
             .fetch_all(&self.pool)
             .await?
         } else {
             sqlx::query_as::<_, UserDataChange>(
-                r#"
+                r"
                 SELECT 
                     id, fid, data_type, old_value, new_value,
                     change_timestamp, message_hash, created_at
@@ -71,11 +71,11 @@ impl Database {
                 ORDER BY change_timestamp DESC
                 LIMIT $2
                 OFFSET $3
-                "#,
+                ",
             )
             .bind(fid)
-            .bind(limit.unwrap_or(100) as i64)
-            .bind(offset.unwrap_or(0) as i64)
+            .bind(limit.unwrap_or(100))
+            .bind(offset.unwrap_or(0))
             .fetch_all(&self.pool)
             .await?
         };

@@ -12,7 +12,7 @@ use crate::errors::SnapragError;
 /// Supported embedding providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmbeddingProvider {
-    /// OpenAI embeddings API
+    /// `OpenAI` embeddings API
     OpenAI,
     /// Ollama local embeddings
     Ollama,
@@ -72,7 +72,7 @@ impl EmbeddingClient {
         }
     }
 
-    /// Generate embedding using OpenAI API
+    /// Generate embedding using `OpenAI` API
     async fn generate_openai(&self, text: &str) -> Result<Vec<f32>> {
         let api_key = self
             .api_key
@@ -106,7 +106,7 @@ impl EmbeddingClient {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -120,13 +120,12 @@ impl EmbeddingClient {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(SnapragError::EmbeddingError(format!(
-                "OpenAI API error ({}): {}",
-                status, error_text
+                "OpenAI API error ({status}): {error_text}"
             )));
         }
 
         let result: OpenAIResponse = response.json().await.map_err(|e| {
-            SnapragError::EmbeddingError(format!("Failed to parse response: {}", e))
+            SnapragError::EmbeddingError(format!("Failed to parse response: {e}"))
         })?;
 
         result
@@ -137,7 +136,7 @@ impl EmbeddingClient {
             .ok_or_else(|| SnapragError::EmbeddingError("No embedding in response".to_string()))
     }
 
-    /// Generate embeddings in batch using OpenAI API
+    /// Generate embeddings in batch using `OpenAI` API
     async fn generate_batch_openai(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
         let api_key = self
             .api_key
@@ -171,7 +170,7 @@ impl EmbeddingClient {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -185,13 +184,12 @@ impl EmbeddingClient {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(SnapragError::EmbeddingError(format!(
-                "OpenAI API error ({}): {}",
-                status, error_text
+                "OpenAI API error ({status}): {error_text}"
             )));
         }
 
         let result: OpenAIResponse = response.json().await.map_err(|e| {
-            SnapragError::EmbeddingError(format!("Failed to parse response: {}", e))
+            SnapragError::EmbeddingError(format!("Failed to parse response: {e}"))
         })?;
 
         Ok(result.data.into_iter().map(|d| d.embedding).collect())
@@ -234,13 +232,12 @@ impl EmbeddingClient {
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(SnapragError::EmbeddingError(format!(
-                "Ollama API error ({}): {}",
-                status, error_text
+                "Ollama API error ({status}): {error_text}"
             )));
         }
 
         let result: OllamaResponse = response.json().await.map_err(|e| {
-            SnapragError::EmbeddingError(format!("Failed to parse response: {}", e))
+            SnapragError::EmbeddingError(format!("Failed to parse response: {e}"))
         })?;
 
         Ok(result.embedding)

@@ -6,7 +6,7 @@ use tracing::error;
 use tracing::info;
 
 use super::AppState;
-use crate::api::types::*;
+use crate::api::types::{ProfileSearchRequest, ApiResponse, ProfileResponse, CastSearchRequest, CastResponse};
 use crate::rag::CastRetriever;
 use crate::rag::Retriever;
 

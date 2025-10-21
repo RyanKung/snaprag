@@ -1,7 +1,7 @@
 //! Data query handlers (list, search, activity)
 
 use crate::cli::commands::DataType;
-use crate::cli::output::*;
+use crate::cli::output::{print_list_header, print_fid_list, print_profile_list, print_cast_list, print_link_list, print_user_data_list, print_info, print_warning, print_error};
 use crate::Result;
 use crate::SnapRag;
 
@@ -65,7 +65,7 @@ pub async fn handle_list_command(
                 has_username: if has_username { Some(true) } else { None },
                 has_display_name: if has_display_name { Some(true) } else { None },
                 has_bio: if has_bio { Some(true) } else { None },
-                limit: Some(limit as i64),
+                limit: Some(i64::from(limit)),
                 offset: None,
                 sort_by,
                 sort_order,
@@ -103,7 +103,7 @@ pub async fn handle_list_command(
                 location,
                 twitter_username: twitter,
                 github_username: github,
-                limit: Some(limit as i64),
+                limit: Some(i64::from(limit)),
                 offset: None,
                 start_timestamp: None,
                 end_timestamp: None,
@@ -128,7 +128,7 @@ pub async fn handle_list_command(
                 has_embeds: None,
                 start_timestamp: None,
                 end_timestamp: None,
-                limit: Some(limit as i64),
+                limit: Some(i64::from(limit)),
                 offset: None,
                 sort_by: Some(crate::models::CastSortBy::Timestamp),
                 sort_order: Some(crate::models::SortOrder::Desc),
@@ -147,7 +147,7 @@ pub async fn handle_list_command(
                 link_type: Some("follow".to_string()),
                 start_timestamp: None,
                 end_timestamp: None,
-                limit: Some(limit as i64),
+                limit: Some(i64::from(limit)),
                 offset: None,
                 sort_by: Some(crate::models::LinkSortBy::Timestamp),
                 sort_order: Some(crate::models::SortOrder::Desc),
@@ -166,7 +166,7 @@ pub async fn handle_list_command(
                 value_search: search.clone(),
                 start_timestamp: None,
                 end_timestamp: None,
-                limit: Some(limit as i64),
+                limit: Some(i64::from(limit)),
                 offset: None,
                 sort_by: Some(crate::models::UserDataSortBy::Timestamp),
                 sort_order: Some(crate::models::SortOrder::Desc),
@@ -186,7 +186,7 @@ pub async fn handle_search_command(
     limit: u32,
     fields: String,
 ) -> Result<()> {
-    print_info(&format!("🔍 Searching: \"{}\"", query));
+    print_info(&format!("🔍 Searching: \"{query}\""));
 
     let profile_query = crate::models::UserProfileQuery {
         fid: None,
@@ -208,7 +208,7 @@ pub async fn handle_search_command(
         location: None,
         twitter_username: None,
         github_username: None,
-        limit: Some(limit as i64),
+        limit: Some(i64::from(limit)),
         offset: None,
         start_timestamp: None,
         end_timestamp: None,
@@ -237,12 +237,12 @@ pub async fn handle_activity_command(
     activity_type: Option<String>,
     detailed: bool,
 ) -> Result<()> {
-    print_info(&format!("🔍 Querying activity timeline for FID {}", fid));
+    print_info(&format!("🔍 Querying activity timeline for FID {fid}"));
 
     // Check if profile exists
     let profile = snaprag.database().get_user_profile(fid).await?;
     if profile.is_none() {
-        print_error(&format!("❌ Profile not found for FID {}", fid));
+        print_error(&format!("❌ Profile not found for FID {fid}"));
         return Ok(());
     }
 
@@ -263,12 +263,12 @@ pub async fn handle_activity_command(
 
     println!("\n👤 Profile Information:");
     if let Some(username) = &profile.username {
-        println!("  Username: @{}", username);
+        println!("  Username: @{username}");
     }
     if let Some(display_name) = &profile.display_name {
-        println!("  Display Name: {}", display_name);
+        println!("  Display Name: {display_name}");
     }
-    println!("  FID: {}", fid);
+    println!("  FID: {fid}");
 
     // Show registration time if available
     if let Some(reg) = registration.first() {
@@ -281,7 +281,7 @@ pub async fn handle_activity_command(
         // Show registration block if available
         if let Some(data) = &reg.activity_data {
             if let Some(block) = data.get("block_number") {
-                println!("  📦 Registration Block: {}", block);
+                println!("  📦 Registration Block: {block}");
             }
         }
     }
@@ -335,7 +335,7 @@ pub async fn handle_activity_command(
             "signer_event" => "🔑",
             _ => "📌",
         };
-        println!("  {} {}: {}", icon, activity_type, count);
+        println!("  {icon} {activity_type}: {count}");
     }
     println!();
 
@@ -362,9 +362,7 @@ pub async fn handle_activity_command(
 
         // Format timestamp
         let timestamp_str = if activity.timestamp > 0 {
-            chrono::DateTime::from_timestamp(activity.timestamp, 0)
-                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-                .unwrap_or_else(|| activity.timestamp.to_string())
+            chrono::DateTime::from_timestamp(activity.timestamp, 0).map_or_else(|| activity.timestamp.to_string(), |dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
         } else {
             "N/A".to_string()
         };

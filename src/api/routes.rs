@@ -10,7 +10,7 @@ use super::handlers::{
     self,
 };
 
-/// Create RESTful API router
+/// Create `RESTful` API router
 pub fn api_routes(state: AppState) -> Router {
     Router::new()
         // Health check

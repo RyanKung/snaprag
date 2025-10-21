@@ -1,5 +1,5 @@
 use super::Database;
-use crate::models::*;
+use crate::models::{Cast, CastQuery, CastSortBy, SortOrder, CastSearchResult, CastStats};
 use crate::Result;
 
 /// Cast thread structure
@@ -31,27 +31,27 @@ impl Database {
             let mut param_idx = 1;
 
             if let Some(_fid) = query.fid {
-                conditions.push(format!("fid = ${}", param_idx));
+                conditions.push(format!("fid = ${param_idx}"));
                 param_idx += 1;
             }
 
             if let Some(_text_search) = &query.text_search {
-                conditions.push(format!("text ILIKE ${}", param_idx));
+                conditions.push(format!("text ILIKE ${param_idx}"));
                 param_idx += 1;
             }
 
             if let Some(_parent_hash) = &query.parent_hash {
-                conditions.push(format!("parent_hash = ${}", param_idx));
+                conditions.push(format!("parent_hash = ${param_idx}"));
                 param_idx += 1;
             }
 
             if let Some(_start_timestamp) = query.start_timestamp {
-                conditions.push(format!("timestamp >= ${}", param_idx));
+                conditions.push(format!("timestamp >= ${param_idx}"));
                 param_idx += 1;
             }
 
             if let Some(_end_timestamp) = query.end_timestamp {
-                conditions.push(format!("timestamp <= ${}", param_idx));
+                conditions.push(format!("timestamp <= ${param_idx}"));
                 // param_idx would be incremented here if we had more conditions
             }
 
@@ -67,8 +67,7 @@ impl Database {
             };
 
             let sql = format!(
-                "SELECT * FROM casts WHERE {} ORDER BY {} {} LIMIT {} OFFSET {}",
-                where_clause, order_by, order_dir, limit, offset
+                "SELECT * FROM casts WHERE {where_clause} ORDER BY {order_by} {order_dir} LIMIT {limit} OFFSET {offset}"
             );
 
             let mut q = sqlx::query_as::<_, Cast>(&sql);
@@ -77,7 +76,7 @@ impl Database {
                 q = q.bind(fid);
             }
             if let Some(text_search) = &query.text_search {
-                q = q.bind(format!("%{}%", text_search));
+                q = q.bind(format!("%{text_search}%"));
             }
             if let Some(parent_hash) = &query.parent_hash {
                 q = q.bind(parent_hash);
@@ -132,14 +131,14 @@ impl Database {
     /// Count casts without embeddings
     pub async fn count_casts_without_embeddings(&self) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>(
-            r#"
+            r"
             SELECT COUNT(*) 
             FROM casts c
             LEFT JOIN cast_embeddings ce ON c.message_hash = ce.message_hash
             WHERE c.text IS NOT NULL 
               AND length(c.text) > 0
               AND ce.id IS NULL
-            "#,
+            ",
         )
         .fetch_one(&self.pool)
         .await?;
@@ -154,7 +153,7 @@ impl Database {
         offset: usize,
     ) -> Result<Vec<Cast>> {
         let casts = sqlx::query_as::<_, Cast>(
-            r#"
+            r"
             SELECT c.* 
             FROM casts c
             LEFT JOIN cast_embeddings ce ON c.message_hash = ce.message_hash
@@ -163,7 +162,7 @@ impl Database {
               AND ce.id IS NULL
             ORDER BY c.timestamp DESC
             LIMIT $1 OFFSET $2
-            "#,
+            ",
         )
         .bind(limit as i64)
         .bind(offset as i64)
@@ -174,7 +173,7 @@ impl Database {
     }
 
     /// Check which message hashes from a list don't have embeddings
-    /// Returns a HashSet of message hashes that need embeddings
+    /// Returns a `HashSet` of message hashes that need embeddings
     pub async fn get_missing_embeddings(
         &self,
         message_hashes: &[Vec<u8>],
@@ -212,14 +211,14 @@ impl Database {
         embedding: &[f32],
     ) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO cast_embeddings (message_hash, fid, text, embedding)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (message_hash) 
             DO UPDATE SET 
                 embedding = EXCLUDED.embedding,
                 updated_at = NOW()
-            "#,
+            ",
         )
         .bind(message_hash)
         .bind(fid)
@@ -253,7 +252,7 @@ impl Database {
         }
 
         let raw_results = sqlx::query_as::<_, RawResult>(
-            r#"
+            r"
             SELECT 
                 ce.message_hash,
                 ce.fid,
@@ -268,7 +267,7 @@ impl Database {
             WHERE 1 - (ce.embedding <=> $1::vector) > $2
             ORDER BY ce.embedding <=> $1::vector
             LIMIT $3
-            "#,
+            ",
         )
         .bind(&query_embedding)
         .bind(threshold_val)
@@ -319,7 +318,7 @@ impl Database {
         }
 
         let raw_results = sqlx::query_as::<_, RawResult>(
-            r#"
+            r"
             SELECT 
                 ce.message_hash,
                 ce.fid,
@@ -338,7 +337,7 @@ impl Database {
             WHERE 1 - (ce.embedding <=> $1::vector) > $2
             ORDER BY ce.embedding <=> $1::vector
             LIMIT $3
-            "#,
+            ",
         )
         .bind(&query_embedding)
         .bind(threshold_val)
@@ -368,7 +367,7 @@ impl Database {
     /// Get cast statistics (replies, reactions, etc.)
     pub async fn get_cast_stats(&self, message_hash: &[u8]) -> Result<CastStats> {
         let stats = sqlx::query_as::<_, CastStats>(
-            r#"
+            r"
             SELECT 
                 $1 as message_hash,
                 (SELECT COUNT(*) FROM casts WHERE parent_hash = $1) as reply_count,
@@ -378,7 +377,7 @@ impl Database {
                 (SELECT COUNT(DISTINCT fid) FROM user_activity_timeline 
                  WHERE message_hash = $1 
                  AND activity_type = 'reaction_add') as unique_reactors
-            "#,
+            ",
         )
         .bind(message_hash)
         .fetch_one(&self.pool)

@@ -13,7 +13,7 @@ pub struct DatabaseConfig {
     pub slow_query_threshold_secs: f64,
 }
 
-fn default_slow_query_threshold() -> f64 {
+const fn default_slow_query_threshold() -> f64 {
     1.5
 }
 
@@ -44,11 +44,11 @@ pub struct EmbeddingsConfig {
     pub endpoints: Vec<EmbeddingEndpoint>,
 }
 
-fn default_batch_size() -> usize {
+const fn default_batch_size() -> usize {
     100
 }
 
-fn default_parallel_tasks() -> usize {
+const fn default_parallel_tasks() -> usize {
     5
 }
 
@@ -95,7 +95,7 @@ pub struct X402Config {
     pub enabled: bool,
 }
 
-fn default_use_testnet() -> bool {
+const fn default_use_testnet() -> bool {
     true // x402.org/facilitator currently only supports testnet
 }
 
@@ -128,10 +128,10 @@ pub struct AppConfig {
 impl AppConfig {
     /// Load configuration from a TOML file
     pub fn from_file<P: AsRef<Path>>(path: P) -> crate::Result<Self> {
-        let content = std::fs::read_to_string(path).map_err(|e| crate::SnapRagError::Io(e))?;
+        let content = std::fs::read_to_string(path).map_err(crate::SnapRagError::Io)?;
 
-        let config: AppConfig =
-            toml::from_str(&content).map_err(|e| crate::SnapRagError::TomlParsing(e))?;
+        let config: Self =
+            toml::from_str(&content).map_err(crate::SnapRagError::TomlParsing)?;
 
         Ok(config)
     }
@@ -155,121 +155,145 @@ impl AppConfig {
     }
 
     /// Get database URL
+    #[must_use] 
     pub fn database_url(&self) -> &str {
         &self.database.url
     }
 
     /// Get max connections for database pool
-    pub fn max_connections(&self) -> u32 {
+    #[must_use] 
+    pub const fn max_connections(&self) -> u32 {
         self.database.max_connections
     }
 
     /// Get min connections for database pool
-    pub fn min_connections(&self) -> u32 {
+    #[must_use] 
+    pub const fn min_connections(&self) -> u32 {
         self.database.min_connections
     }
 
     /// Get connection timeout in seconds
-    pub fn connection_timeout(&self) -> u64 {
+    #[must_use] 
+    pub const fn connection_timeout(&self) -> u64 {
         self.database.connection_timeout
     }
 
     /// Get slow query threshold in seconds
-    pub fn slow_query_threshold_secs(&self) -> f64 {
+    #[must_use] 
+    pub const fn slow_query_threshold_secs(&self) -> f64 {
         self.database.slow_query_threshold_secs
     }
 
     /// Get embedding dimension
-    pub fn embedding_dimension(&self) -> usize {
+    #[must_use] 
+    pub const fn embedding_dimension(&self) -> usize {
         self.embeddings.dimension
     }
 
     /// Get embedding model name
+    #[must_use] 
     pub fn embedding_model(&self) -> &str {
         &self.embeddings.model
     }
 
     /// Get embeddings batch size
-    pub fn embeddings_batch_size(&self) -> usize {
+    #[must_use] 
+    pub const fn embeddings_batch_size(&self) -> usize {
         self.embeddings.batch_size
     }
 
     /// Get embeddings parallel tasks
-    pub fn embeddings_parallel_tasks(&self) -> usize {
+    #[must_use] 
+    pub const fn embeddings_parallel_tasks(&self) -> usize {
         self.embeddings.parallel_tasks
     }
 
     /// Get embedding endpoints
-    pub fn embedding_endpoints(&self) -> &Vec<EmbeddingEndpoint> {
+    #[must_use] 
+    pub const fn embedding_endpoints(&self) -> &Vec<EmbeddingEndpoint> {
         &self.embeddings.endpoints
     }
 
     /// Get embedding endpoint by name
+    #[must_use] 
     pub fn get_embedding_endpoint(&self, name: &str) -> Option<&EmbeddingEndpoint> {
         self.embeddings.endpoints.iter().find(|e| e.name == name)
     }
 
     /// Check if vector indexes are enabled
-    pub fn vector_indexes_enabled(&self) -> bool {
+    #[must_use] 
+    pub const fn vector_indexes_enabled(&self) -> bool {
         self.performance.enable_vector_indexes
     }
 
     /// Get vector index lists count
-    pub fn vector_index_lists(&self) -> usize {
+    #[must_use] 
+    pub const fn vector_index_lists(&self) -> usize {
         self.performance.vector_index_lists
     }
 
     /// Get snapchain HTTP endpoint
+    #[must_use] 
     pub fn snapchain_http_endpoint(&self) -> &str {
         &self.sync.snapchain_http_endpoint
     }
 
     /// Get snapchain gRPC endpoint
+    #[must_use] 
     pub fn snapchain_grpc_endpoint(&self) -> &str {
         &self.sync.snapchain_grpc_endpoint
     }
 
     /// Check if real-time sync is enabled
-    pub fn realtime_sync_enabled(&self) -> bool {
+    #[must_use] 
+    pub const fn realtime_sync_enabled(&self) -> bool {
         self.sync.enable_realtime_sync
     }
 
     /// Check if historical sync is enabled
-    pub fn historical_sync_enabled(&self) -> bool {
+    #[must_use] 
+    pub const fn historical_sync_enabled(&self) -> bool {
         self.sync.enable_historical_sync
     }
 
     /// Get historical sync start event ID
-    pub fn historical_sync_from_event_id(&self) -> u64 {
+    #[must_use] 
+    pub const fn historical_sync_from_event_id(&self) -> u64 {
         self.sync.historical_sync_from_event_id
     }
 
     /// Get sync batch size
-    pub fn sync_batch_size(&self) -> u32 {
+    #[must_use] 
+    pub const fn sync_batch_size(&self) -> u32 {
         self.sync.batch_size
     }
 
     /// Get sync interval in milliseconds
-    pub fn sync_interval_ms(&self) -> u64 {
+    #[must_use] 
+    pub const fn sync_interval_ms(&self) -> u64 {
         self.sync.sync_interval_ms
     }
 
     /// Get shard IDs to sync
-    pub fn shard_ids(&self) -> &Vec<u32> {
+    #[must_use] 
+    pub const fn shard_ids(&self) -> &Vec<u32> {
         &self.sync.shard_ids
     }
 
     /// Get LLM endpoint
+    #[must_use] 
     pub fn llm_endpoint(&self) -> &str {
         &self.llm.llm_endpoint
     }
 
     /// Get LLM key
+    #[must_use] 
     pub fn llm_key(&self) -> &str {
         &self.llm.llm_key
     }
 
     /// Get LLM model
+    #[must_use] 
     pub fn llm_model(&self) -> &str {
         &self.llm.llm_model
     }

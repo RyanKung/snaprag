@@ -1,6 +1,6 @@
 //! Cast-related command handlers
 
-use crate::cli::output::*;
+use crate::cli::output::{print_info, print_warning, print_error};
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -15,7 +15,7 @@ pub async fn handle_cast_search(
 ) -> Result<()> {
     use crate::embeddings::EmbeddingService;
 
-    print_info(&format!("🔍 Searching casts: \"{}\"", query));
+    print_info(&format!("🔍 Searching casts: \"{query}\""));
 
     // Check if we have any cast embeddings
     let embed_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cast_embeddings")
@@ -41,8 +41,7 @@ pub async fn handle_cast_search(
 
     if results.is_empty() {
         print_warning(&format!(
-            "No casts found matching '{}' (threshold: {:.2})",
-            query, threshold
+            "No casts found matching '{query}' (threshold: {threshold:.2})"
         ));
         return Ok(());
     }
@@ -55,7 +54,7 @@ pub async fn handle_cast_search(
         let author = snaprag.database().get_user_profile(result.fid).await?;
         let author_display = if let Some(profile) = author {
             if let Some(username) = profile.username {
-                format!("@{}", username)
+                format!("@{username}")
             } else if let Some(display_name) = profile.display_name {
                 display_name
             } else {
@@ -66,9 +65,7 @@ pub async fn handle_cast_search(
         };
 
         // Format timestamp
-        let timestamp_str = chrono::DateTime::from_timestamp(result.timestamp, 0)
-            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-            .unwrap_or_else(|| "Unknown".to_string());
+        let timestamp_str = chrono::DateTime::from_timestamp(result.timestamp, 0).map_or_else(|| "Unknown".to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string());
 
         println!(
             "{}. {} | {} | Similarity: {:.2}%",
@@ -84,7 +81,7 @@ pub async fn handle_cast_search(
         } else {
             result.text.clone()
         };
-        println!("   {}", display_text);
+        println!("   {display_text}");
 
         if detailed {
             println!("   Hash: {}", hex::encode(&result.message_hash));
@@ -106,23 +103,23 @@ pub async fn handle_cast_search(
 
 /// Handle cast recent command
 pub async fn handle_cast_recent(snaprag: &SnapRag, fid: i64, limit: usize) -> Result<()> {
-    print_info(&format!("📝 Recent casts by FID {}", fid));
+    print_info(&format!("📝 Recent casts by FID {fid}"));
 
     // Get profile
     let profile = snaprag.database().get_user_profile(fid).await?;
     if profile.is_none() {
-        print_error(&format!("❌ Profile not found for FID {}", fid));
+        print_error(&format!("❌ Profile not found for FID {fid}"));
         return Ok(());
     }
 
     let profile = profile.unwrap();
     println!("\n👤 Author:");
     if let Some(username) = &profile.username {
-        println!("  @{}", username);
+        println!("  @{username}");
     } else if let Some(display_name) = &profile.display_name {
-        println!("  {}", display_name);
+        println!("  {display_name}");
     } else {
-        println!("  FID {}", fid);
+        println!("  FID {fid}");
     }
     println!();
 
@@ -141,13 +138,11 @@ pub async fn handle_cast_recent(snaprag: &SnapRag, fid: i64, limit: usize) -> Re
     println!("{}", "─".repeat(100));
 
     for (idx, cast) in casts.iter().enumerate() {
-        let timestamp_str = chrono::DateTime::from_timestamp(cast.timestamp, 0)
-            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-            .unwrap_or_else(|| "Unknown".to_string());
+        let timestamp_str = chrono::DateTime::from_timestamp(cast.timestamp, 0).map_or_else(|| "Unknown".to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string());
 
         println!("{}. {}", idx + 1, timestamp_str);
         if let Some(text) = &cast.text {
-            println!("   {}", text);
+            println!("   {text}");
         } else {
             println!("   (No text content)");
         }
@@ -177,7 +172,7 @@ pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -
         .await?;
 
     if thread.root.is_none() {
-        print_error(&format!("❌ Cast not found: {}", hash));
+        print_error(&format!("❌ Cast not found: {hash}"));
         return Ok(());
     }
 
@@ -200,16 +195,16 @@ pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -
                 format!("FID {}", parent.fid)
             };
 
-            println!("{}📝 {}", indent, author_name);
+            println!("{indent}📝 {author_name}");
             if let Some(text) = &parent.text {
                 let display_text = if text.len() > 100 {
                     format!("{}...", &text[..100])
                 } else {
                     text.clone()
                 };
-                println!("{}   {}", indent, display_text);
+                println!("{indent}   {display_text}");
             }
-            println!("{}   ↓", indent);
+            println!("{indent}   ↓");
         }
     }
 
@@ -224,13 +219,11 @@ pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -
         format!("FID {}", root_cast.fid)
     };
 
-    let timestamp_str = chrono::DateTime::from_timestamp(root_cast.timestamp, 0)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-        .unwrap_or_else(|| "Unknown".to_string());
+    let timestamp_str = chrono::DateTime::from_timestamp(root_cast.timestamp, 0).map_or_else(|| "Unknown".to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string());
 
-    println!("\n{}🎯 {} | {}", indent, author_name, timestamp_str);
+    println!("\n{indent}🎯 {author_name} | {timestamp_str}");
     if let Some(text) = &root_cast.text {
-        println!("{}   {}", indent, text);
+        println!("{indent}   {text}");
     }
     println!("{}   Hash: {}", indent, &hash[..16]);
 
@@ -255,7 +248,7 @@ pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -
                 } else {
                     text.clone()
                 };
-                println!("      {}", display_text);
+                println!("      {display_text}");
             }
             println!();
         }

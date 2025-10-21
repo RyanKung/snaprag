@@ -27,8 +27,8 @@ pub(super) fn create_activity(
         activity_data,
         timestamp,
         message_hash,
-        Some(shard_block_info.shard_id as i32),
-        Some(shard_block_info.block_height as i64),
+        Some(shard_block_info.shard_id.min(i32::MAX as u32) as i32),
+        Some(shard_block_info.block_height.min(i64::MAX as u64) as i64),
     )
 }
 
@@ -46,11 +46,11 @@ pub(super) async fn batch_verify_fids(
 
     // 🚀 Single query to check all FIDs at once
     let verified_fids = sqlx::query_scalar::<_, i64>(
-        r#"
+        r"
         SELECT DISTINCT fid 
         FROM user_activity_timeline 
         WHERE fid = ANY($1) AND activity_type = 'id_register'
-        "#,
+        ",
     )
     .bind(&fid_vec)
     .fetch_all(database.pool())

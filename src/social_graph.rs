@@ -89,7 +89,8 @@ pub struct SocialGraphAnalyzer {
 
 impl SocialGraphAnalyzer {
     /// Create a new social graph analyzer
-    pub fn new(database: Arc<Database>) -> Self {
+    #[must_use] 
+    pub const fn new(database: Arc<Database>) -> Self {
         Self {
             database,
             snapchain_client: None,
@@ -97,7 +98,7 @@ impl SocialGraphAnalyzer {
     }
 
     /// Create with Snapchain client for lazy loading
-    pub fn with_snapchain(
+    pub const fn with_snapchain(
         database: Arc<Database>,
         client: Arc<crate::sync::client::SnapchainClient>,
     ) -> Self {
@@ -114,10 +115,10 @@ impl SocialGraphAnalyzer {
         let followers = self.get_followers(fid).await?;
 
         // Calculate influence score
-        let influence_score = if !following.is_empty() {
-            followers.len() as f32 / following.len() as f32
-        } else {
+        let influence_score = if following.is_empty() {
             0.0
+        } else {
+            followers.len() as f32 / following.len() as f32
         };
 
         // Analyze mentions from user's casts (this works even without links data)
@@ -153,7 +154,7 @@ impl SocialGraphAnalyzer {
             followers_count: followers.len(),
             influence_score,
             top_followed_users: top_followed,
-            top_followers: top_followers,
+            top_followers,
             most_mentioned_users: mentioned_users,
             social_circles,
             interaction_style,
@@ -344,7 +345,7 @@ impl SocialGraphAnalyzer {
                     if let Some(link_body) = data.body.get("link_body") {
                         let target_fid = link_body
                             .get("target_fid")
-                            .and_then(|v| v.as_i64())
+                            .and_then(serde_json::Value::as_i64)
                             .unwrap_or(0);
 
                         if target_fid > 0 {
@@ -403,7 +404,9 @@ impl SocialGraphAnalyzer {
         }
 
         // Batch insert only NEW links
-        if !batch_data.is_empty() {
+        if batch_data.is_empty() {
+            tracing::info!("✨ All data already exists - no insertion needed!");
+        } else {
             tracing::info!(
                 "💾 Batch inserting {} NEW links (skipped {} existing)...",
                 batch_data.len(),
@@ -431,8 +434,6 @@ impl SocialGraphAnalyzer {
                 let query = query_builder.build();
                 query.execute(self.database.pool()).await?;
             }
-        } else {
-            tracing::info!("✨ All data already exists - no insertion needed!");
         }
 
         tracing::info!(
@@ -554,7 +555,9 @@ impl SocialGraphAnalyzer {
         }
 
         // Batch insert only NEW links
-        if !batch_data.is_empty() {
+        if batch_data.is_empty() {
+            tracing::info!("✨ All data already exists - no insertion needed!");
+        } else {
             tracing::info!(
                 "💾 Batch inserting {} NEW links (skipped {} existing)...",
                 batch_data.len(),
@@ -582,8 +585,6 @@ impl SocialGraphAnalyzer {
                 let query = query_builder.build();
                 query.execute(self.database.pool()).await?;
             }
-        } else {
-            tracing::info!("✨ All data already exists - no insertion needed!");
         }
 
         tracing::info!(
@@ -824,14 +825,14 @@ impl SocialGraphAnalyzer {
     async fn analyze_interaction_style(&self, fid: i64) -> Result<InteractionStyle> {
         // Optimized: Single query with FILTER instead of 3 separate COUNT queries
         let counts: (i64, i64, i64) = sqlx::query_as(
-            r#"
+            r"
             SELECT 
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE parent_hash IS NOT NULL) as replies,
                 COUNT(*) FILTER (WHERE mentions IS NOT NULL) as mentions
             FROM casts 
             WHERE fid = $1
-            "#
+            "
         )
         .bind(fid)
         .fetch_one(self.database.pool())
@@ -931,6 +932,7 @@ impl SocialGraphAnalyzer {
     }
 
     /// Format social profile as a human-readable string for LLM context
+    #[must_use] 
     pub fn format_for_llm(&self, profile: &SocialProfile) -> String {
         let mut output = String::new();
 
@@ -977,7 +979,7 @@ impl SocialGraphAnalyzer {
             ));
         }
 
-        output.push_str("\n");
+        output.push('\n');
 
         // Most mentioned users
         if !profile.most_mentioned_users.is_empty() {
@@ -986,7 +988,7 @@ impl SocialGraphAnalyzer {
                 let name = user
                     .username
                     .as_ref()
-                    .map(|u| format!("@{}", u))
+                    .map(|u| format!("@{u}"))
                     .or_else(|| user.display_name.clone())
                     .unwrap_or_else(|| format!("FID {}", user.fid));
 
@@ -998,7 +1000,7 @@ impl SocialGraphAnalyzer {
                     user.category
                 ));
             }
-            output.push_str("\n");
+            output.push('\n');
         }
 
         // Interaction style
@@ -1014,7 +1016,7 @@ impl SocialGraphAnalyzer {
             output.push_str("  🌐 Network Connector - actively introduces people\n");
         }
 
-        output.push_str("\n");
+        output.push('\n');
 
         // Add context instructions
         output.push_str("🎯 Social Context Instructions:\n");
@@ -1043,10 +1045,10 @@ impl SocialGraphAnalyzer {
                 .most_mentioned_users
                 .iter()
                 .take(3)
-                .filter_map(|u| u.username.as_ref().map(|n| format!("@{}", n)))
+                .filter_map(|u| u.username.as_ref().map(|n| format!("@{n}")))
                 .collect();
             output.push_str(&names.join(", "));
-            output.push_str("\n");
+            output.push('\n');
         }
 
         output.push_str("\n═══════════════════════════════════════════════════════\n\n");

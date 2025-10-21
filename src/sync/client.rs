@@ -199,7 +199,7 @@ impl SnapchainClient {
         let grpc_url = if grpc_endpoint.starts_with("http://") {
             grpc_endpoint.to_string()
         } else {
-            format!("http://{}", grpc_endpoint)
+            format!("http://{grpc_endpoint}")
         };
 
         tracing::debug!("Creating Snapchain client:");
@@ -212,8 +212,7 @@ impl SnapchainClient {
                 .await
                 .map_err(|e| {
                     crate::SnapRagError::Custom(format!(
-                        "Failed to connect to gRPC endpoint: {}",
-                        e
+                        "Failed to connect to gRPC endpoint: {e}"
                     ))
                 })?;
 
@@ -231,7 +230,7 @@ impl SnapchainClient {
         })
     }
 
-    /// Create a new Snapchain client from AppConfig
+    /// Create a new Snapchain client from `AppConfig`
     pub async fn from_config(config: &crate::AppConfig) -> Result<Self> {
         Self::new(
             config.snapchain_http_endpoint(),
@@ -247,7 +246,7 @@ impl SnapchainClient {
         let request = tonic::Request::new(crate::generated::grpc_client::GetInfoRequest::default());
 
         let response = grpc_client.get_info(request).await.map_err(|e| {
-            crate::errors::SnapRagError::Custom(format!("gRPC get_info call failed: {}", e))
+            crate::errors::SnapRagError::Custom(format!("gRPC get_info call failed: {e}"))
         })?;
 
         let grpc_response = response.into_inner();
@@ -258,18 +257,15 @@ impl SnapchainClient {
                 num_messages: grpc_response
                     .db_stats
                     .as_ref()
-                    .map(|s| s.num_messages)
-                    .unwrap_or(0),
+                    .map_or(0, |s| s.num_messages),
                 num_fid_registrations: grpc_response
                     .db_stats
                     .as_ref()
-                    .map(|s| s.num_fid_registrations)
-                    .unwrap_or(0),
+                    .map_or(0, |s| s.num_fid_registrations),
                 approx_size: grpc_response
                     .db_stats
                     .as_ref()
-                    .map(|s| s.approx_size)
-                    .unwrap_or(0),
+                    .map_or(0, |s| s.approx_size),
             }),
             peer_id: grpc_response.peer_id,
             num_shards: grpc_response.num_shards,
@@ -303,7 +299,7 @@ impl SnapchainClient {
         let response = grpc_client
             .get_shard_chunks(tonic_request)
             .await
-            .map_err(|e| crate::SnapRagError::Custom(format!("gRPC call failed: {}", e)))?;
+            .map_err(|e| crate::SnapRagError::Custom(format!("gRPC call failed: {e}")))?;
 
         let grpc_response = response.into_inner();
 
@@ -385,7 +381,7 @@ impl SnapchainClient {
                         proto_sys_msg.on_chain_event = Some(proto::OnChainEvent {
                             r#type: grpc_event.r#type,
                             chain_id: grpc_event.chain_id,
-                            block_number: grpc_event.block_number as u64,
+                            block_number: u64::from(grpc_event.block_number),
                             block_hash: grpc_event.block_hash.clone(),
                             block_timestamp: grpc_event.block_timestamp, // Unix timestamp from chain
                             transaction_hash: grpc_event.transaction_hash.clone(),
@@ -437,7 +433,7 @@ impl SnapchainClient {
 
         tracing::debug!("Calling gRPC get_links_by_fid for FID {}", fid);
         let response = grpc_client.get_links_by_fid(request).await.map_err(|e| {
-            crate::errors::SnapRagError::Custom(format!("gRPC get_links_by_fid failed: {}", e))
+            crate::errors::SnapRagError::Custom(format!("gRPC get_links_by_fid failed: {e}"))
         })?;
 
         let grpc_response = response.into_inner();
@@ -458,26 +454,23 @@ impl SnapchainClient {
                     use crate::generated::grpc_client::link_body::Target;
                     use crate::generated::grpc_client::message_data::Body;
 
-                    match body_oneof {
-                        Body::LinkBody(ref link_body) => {
-                            let mut link_body_json = serde_json::Map::new();
+                    if let Body::LinkBody(ref link_body) = body_oneof {
+                        let mut link_body_json = serde_json::Map::new();
 
-                            // Extract target_fid from the target oneof
-                            if let Some(Target::TargetFid(target_fid)) = &link_body.target {
-                                link_body_json.insert(
-                                    "target_fid".to_string(),
-                                    serde_json::json!(target_fid),
-                                );
-                            }
-
-                            link_body_json
-                                .insert("type".to_string(), serde_json::json!(&link_body.r#type));
-                            body.insert(
-                                "link_body".to_string(),
-                                serde_json::Value::Object(link_body_json),
+                        // Extract target_fid from the target oneof
+                        if let Some(Target::TargetFid(target_fid)) = &link_body.target {
+                            link_body_json.insert(
+                                "target_fid".to_string(),
+                                serde_json::json!(target_fid),
                             );
                         }
-                        _ => {}
+
+                        link_body_json
+                            .insert("type".to_string(), serde_json::json!(&link_body.r#type));
+                        body.insert(
+                            "link_body".to_string(),
+                            serde_json::Value::Object(link_body_json),
+                        );
                     }
                 }
 
@@ -485,7 +478,7 @@ impl SnapchainClient {
                     data: Some(FarcasterMessageData {
                         message_type: format!("{}", data.r#type),
                         fid: data.fid,
-                        timestamp: data.timestamp as u64,
+                        timestamp: u64::from(data.timestamp),
                         network: format!("{}", data.network),
                         body,
                     }),
@@ -523,11 +516,11 @@ impl SnapchainClient {
         );
 
         if let Some(size) = page_size {
-            url.push_str(&format!("&pageSize={}", size));
+            url.push_str(&format!("&pageSize={size}"));
         }
 
         if let Some(token) = next_page_token {
-            url.push_str(&format!("&nextPageToken={}", token));
+            url.push_str(&format!("&nextPageToken={token}"));
         }
 
         let response = self.client.get(&url).send().await?;
@@ -553,11 +546,11 @@ impl SnapchainClient {
         let mut url = format!("{}/v1/castsByFid?fid={}", self.base_url, fid);
 
         if let Some(size) = page_size {
-            url.push_str(&format!("&pageSize={}", size));
+            url.push_str(&format!("&pageSize={size}"));
         }
 
         if let Some(token) = next_page_token {
-            url.push_str(&format!("&nextPageToken={}", token));
+            url.push_str(&format!("&nextPageToken={token}"));
         }
 
         let response = self.client.get(&url).send().await?;
@@ -582,7 +575,7 @@ impl SnapchainClient {
         let mut url = format!("{}/v1/userDataByFid?fid={}", self.base_url, fid);
 
         if let Some(data_type) = user_data_type {
-            url.push_str(&format!("&user_data_type={}", data_type));
+            url.push_str(&format!("&user_data_type={data_type}"));
         }
 
         let response = self.client.get(&url).send().await?;
@@ -610,13 +603,13 @@ impl SnapchainClient {
         // Add query parameters
         let mut params = vec![format!("shard_id={}", shard_id)];
         if let Some(size) = page_size {
-            params.push(format!("pageSize={}", size));
+            params.push(format!("pageSize={size}"));
         }
         if let Some(token) = page_token {
-            params.push(format!("pageToken={}", token));
+            params.push(format!("pageToken={token}"));
         }
         if !params.is_empty() {
-            url.push_str("?");
+            url.push('?');
             url.push_str(&params.join("&"));
         }
 
@@ -664,7 +657,7 @@ impl SnapchainClient {
         }
 
         let mut fids_vec: Vec<u64> = all_fids.into_iter().collect();
-        fids_vec.sort();
+        fids_vec.sort_unstable();
 
         tracing::info!(
             "Discovered {} unique FIDs across {} shards",
@@ -920,28 +913,36 @@ pub struct FarcasterMessageData {
     pub body: HashMap<String, serde_json::Value>,
 }
 
+impl Default for SnapchainProtobufClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SnapchainProtobufClient {
     /// Create a new protobuf client
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {}
     }
 
-    /// Create a new protobuf client from AppConfig
-    pub fn from_config(_config: &crate::AppConfig) -> Self {
+    /// Create a new protobuf client from `AppConfig`
+    #[must_use] 
+    pub const fn from_config(_config: &crate::AppConfig) -> Self {
         Self::new()
     }
 
     /// Serialize data to protobuf format
     pub fn serialize<T: protobuf::Message>(&self, message: &T) -> Result<Vec<u8>> {
         message.write_to_bytes().map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to serialize protobuf: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to serialize protobuf: {e}"))
         })
     }
 
     /// Deserialize data from protobuf format
     pub fn deserialize<T: protobuf::Message>(&self, data: &[u8]) -> Result<T> {
         T::parse_from_bytes(data).map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to deserialize protobuf: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to deserialize protobuf: {e}"))
         })
     }
 }

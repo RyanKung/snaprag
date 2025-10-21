@@ -5,7 +5,7 @@ use crate::Result;
 
 use super::super::types::BatchedData;
 
-/// Handle ReactionAdd message (type 3)
+/// Handle `ReactionAdd` message (type 3)
 pub(super) fn handle_reaction_add(
     body: &serde_json::Value,
     fid: i64,
@@ -17,12 +17,12 @@ pub(super) fn handle_reaction_add(
     if let Some(reaction_body) = body.get("reaction_body") {
         let reaction_type = reaction_body
             .get("type")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .unwrap_or(1) as i16; // 1=like, 2=recast
 
         // Handle target_cast_id (reaction to a cast)
         if let Some(target) = reaction_body.get("target_cast_id") {
-            let target_fid = target.get("fid").and_then(|v| v.as_i64());
+            let target_fid = target.get("fid").and_then(serde_json::Value::as_i64);
 
             if let Some(target_hash_str) = target.get("hash").and_then(|v| v.as_str()) {
                 if let Ok(target_hash) = hex::decode(target_hash_str) {
@@ -48,7 +48,7 @@ pub(super) fn handle_reaction_add(
         }
         // Handle target_url (reaction to external URL)
         else if let Some(target_url) = reaction_body.get("target_url").and_then(|v| v.as_str()) {
-            let url_hash = format!("url_{}", target_url).as_bytes().to_vec();
+            let url_hash = format!("url_{target_url}").as_bytes().to_vec();
 
             batched.reactions.push((
                 fid,
@@ -72,7 +72,7 @@ pub(super) fn handle_reaction_add(
     }
 }
 
-/// Handle ReactionRemove message (type 4)
+/// Handle `ReactionRemove` message (type 4)
 pub(super) fn handle_reaction_remove(
     body: &serde_json::Value,
     fid: i64,
@@ -83,9 +83,8 @@ pub(super) fn handle_reaction_remove(
     if let Some(reaction_body) = body.get("reaction_body") {
         let reaction_type = reaction_body
             .get("type")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i16)
-            .unwrap_or(1);
+            .and_then(serde_json::Value::as_i64)
+            .map_or(1, |v| v as i16);
 
         // Try to get target cast hash
         if let Some(target_cast_id) = reaction_body.get("target_cast_id") {
@@ -108,7 +107,7 @@ pub(super) fn handle_reaction_remove(
         }
         // Handle target_url removes
         else if let Some(target_url) = reaction_body.get("target_url").and_then(|v| v.as_str()) {
-            let url_hash = format!("url_{}", target_url).as_bytes().to_vec();
+            let url_hash = format!("url_{target_url}").as_bytes().to_vec();
             batched.reaction_removes.push((
                 fid,
                 url_hash,

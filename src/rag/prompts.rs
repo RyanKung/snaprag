@@ -1,15 +1,16 @@
 //! Enhanced prompts for RAG queries
 
 /// Build profile RAG prompt
+#[must_use] 
 pub fn build_profile_rag_prompt(question: &str, context: &str) -> String {
     format!(
-        r#"You are an expert assistant helping users discover and learn about Farcaster protocol users.
+        r"You are an expert assistant helping users discover and learn about Farcaster protocol users.
 
 Context: The following are Farcaster user profiles that may be relevant to the question:
 
-{}
+{context}
 
-Question: {}
+Question: {question}
 
 Instructions:
 1. Provide a helpful and accurate answer based on the profiles above
@@ -18,21 +19,21 @@ Instructions:
 4. Be concise but informative
 5. Focus on the most relevant information
 
-Answer:"#,
-        context, question
+Answer:"
     )
 }
 
 /// Build cast RAG prompt
+#[must_use] 
 pub fn build_cast_rag_prompt(question: &str, context: &str) -> String {
     format!(
         r#"You are an expert Farcaster analyst helping users understand discussions, trends, and community sentiment.
 
 Context: The following are relevant Farcaster casts (posts) that may help answer the question:
 
-{}
+{context}
 
-Question: {}
+Question: {question}
 
 Instructions:
 1. Analyze the casts above to provide a comprehensive answer
@@ -43,18 +44,18 @@ Instructions:
 6. Be analytical and insightful, not just summarizing
 7. Keep your answer concise but substantive
 
-Answer:"#,
-        context, question
+Answer:"#
     )
 }
 
 /// Build trend analysis prompt
+#[must_use] 
 pub fn build_trend_analysis_prompt(casts: &str, time_period: &str) -> String {
     format!(
-        r#"You are a Farcaster trends analyst. Analyze the following casts from {} and identify key trends.
+        r"You are a Farcaster trends analyst. Analyze the following casts from {time_period} and identify key trends.
 
 Casts:
-{}
+{casts}
 
 Task: Provide a comprehensive trend analysis including:
 1. Main topics and themes being discussed
@@ -66,22 +67,22 @@ Task: Provide a comprehensive trend analysis including:
 
 Be data-driven and specific. Use examples from the casts to support your analysis.
 
-Trend Analysis:"#,
-        time_period, casts
+Trend Analysis:"
     )
 }
 
 /// Build user profiling prompt
+#[must_use] 
 pub fn build_user_profiling_prompt(username: &str, bio: &str, recent_casts: &str) -> String {
     format!(
-        r#"You are an expert at understanding user personas and community behavior.
+        r"You are an expert at understanding user personas and community behavior.
 
 User Profile:
-- Username: {}
-- Bio: {}
+- Username: {username}
+- Bio: {bio}
 
 Recent Activity:
-{}
+{recent_casts}
 
 Task: Create a comprehensive profile analysis including:
 1. Core interests and areas of expertise
@@ -93,37 +94,37 @@ Task: Create a comprehensive profile analysis including:
 
 Be objective and insightful.
 
-Profile Analysis:"#,
-        username, bio, recent_casts
+Profile Analysis:"
     )
 }
 
 /// Build content summarization prompt
+#[must_use] 
 pub fn build_summary_prompt(content: &str, max_length: usize) -> String {
     format!(
-        r#"Summarize the following Farcaster content concisely.
+        r"Summarize the following Farcaster content concisely.
 
 Content:
-{}
+{content}
 
 Requirements:
-- Maximum {} words
+- Maximum {max_length} words
 - Capture key points only
 - Maintain factual accuracy
 - Use clear, direct language
 
-Summary:"#,
-        content, max_length
+Summary:"
     )
 }
 
 /// Build thread context prompt
+#[must_use] 
 pub fn build_thread_context_prompt(thread: &str) -> String {
     format!(
-        r#"You are analyzing a Farcaster conversation thread.
+        r"You are analyzing a Farcaster conversation thread.
 
 Thread:
-{}
+{thread}
 
 Task: Provide a thread summary including:
 1. Main topic of discussion
@@ -132,21 +133,21 @@ Task: Provide a thread summary including:
 4. Any conclusions or outcomes
 5. Notable insights or perspectives
 
-Thread Analysis:"#,
-        thread
+Thread Analysis:"
     )
 }
 
 /// Build comparative analysis prompt
+#[must_use] 
 pub fn build_comparison_prompt(item1: &str, item2: &str, comparison_type: &str) -> String {
     format!(
-        r#"Compare and contrast the following two {}:
+        r"Compare and contrast the following two {comparison_type}:
 
 Item 1:
-{}
+{item1}
 
 Item 2:
-{}
+{item2}
 
 Task: Provide a detailed comparison including:
 1. Similarities
@@ -155,7 +156,6 @@ Task: Provide a detailed comparison including:
 4. Use cases or contexts
 5. Recommendations
 
-Comparison Analysis:"#,
-        comparison_type, item1, item2
+Comparison Analysis:"
     )
 }

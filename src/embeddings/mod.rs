@@ -1,7 +1,7 @@
 //! Embeddings generation module
 //!
 //! This module provides functionality for generating text embeddings using various providers:
-//! - OpenAI (text-embedding-ada-002, text-embedding-3-small, etc.)
+//! - `OpenAI` (text-embedding-ada-002, text-embedding-3-small, etc.)
 //! - Ollama (local models)
 //! - Custom endpoints
 //!
@@ -37,7 +37,7 @@ pub use generator::EmbeddingService;
 
 use crate::errors::Result;
 
-/// Default embedding dimension for OpenAI text-embedding-ada-002
+/// Default embedding dimension for `OpenAI` text-embedding-ada-002
 pub const DEFAULT_EMBEDDING_DIM: usize = 1536;
 
 /// Maximum batch size for embedding generation
@@ -55,6 +55,7 @@ pub struct EmbeddingConfig {
 
 impl EmbeddingConfig {
     /// Create from app config using default LLM endpoint
+    #[must_use] 
     pub fn from_app_config(config: &crate::config::AppConfig) -> Self {
         // Determine provider based on llm_key or endpoint
         // Priority: llm_key > endpoint domain
@@ -86,6 +87,7 @@ impl EmbeddingConfig {
     }
 
     /// Create from a specific endpoint configuration
+    #[must_use] 
     pub fn from_endpoint(
         config: &crate::config::AppConfig,
         endpoint_config: &crate::config::EmbeddingEndpoint,

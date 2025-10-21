@@ -25,14 +25,14 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
     // Run complete initialization SQL
     print_info("📋 Running complete initialization script...");
     match run_complete_init(snaprag).await {
-        Ok(_) => {
+        Ok(()) => {
             print_success("✅ All tables created");
             print_success("✅ Vector columns configured");
             print_success("✅ Triggers and functions created");
         }
         Err(e) => {
             if e.to_string().contains("vector") || e.to_string().contains("extension") {
-                print_warning(&format!("⚠️  Could not enable pgvector extension: {}", e));
+                print_warning(&format!("⚠️  Could not enable pgvector extension: {e}"));
                 print_warning("Please run on the database server (192.168.1.192):");
                 println!(
                     "  sudo -u postgres psql -d snaprag -c 'CREATE EXTENSION IF NOT EXISTS vector;'"
@@ -40,9 +40,8 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
                 println!();
                 println!("Then run: snaprag init --force");
                 return Err(e);
-            } else {
-                return Err(e);
             }
+            return Err(e);
         }
     }
 
@@ -50,12 +49,12 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
     // No need to run additional migrations (they would overwrite with old schema)
     print_info("✅ Schema fully initialized from 000_complete_init.sql");
 
-    if !skip_indexes {
+    if skip_indexes {
+        print_info("⏭️  Skipping index creation (--skip-indexes)");
+    } else {
         print_info("📊 Creating performance-optimized indexes...");
         create_optimized_indexes(snaprag).await?;
         print_success("✅ Indexes created");
-    } else {
-        print_info("⏭️  Skipping index creation (--skip-indexes)");
     }
 
     println!();
@@ -104,7 +103,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     // 🚀 DROP all views and tables (complete reset)
     // Drop views first
     for view_name in ["user_profiles", "user_profiles_with_embeddings"] {
-        sqlx::query(&format!("DROP VIEW IF EXISTS {} CASCADE", view_name))
+        sqlx::query(&format!("DROP VIEW IF EXISTS {view_name} CASCADE"))
             .execute(pool)
             .await
             .ok();
@@ -133,23 +132,19 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     ];
 
     for table in &tables {
-        match sqlx::query(&format!("DROP TABLE IF EXISTS {} CASCADE", table))
+        match sqlx::query(&format!("DROP TABLE IF EXISTS {table} CASCADE"))
             .execute(snaprag.database().pool())
             .await
         {
-            Ok(_) => print_success(&format!("Dropped table: {}", table)),
-            Err(e) => print_warning(&format!("Could not drop {}: {}", table, e)),
+            Ok(_) => print_success(&format!("Dropped table: {table}")),
+            Err(e) => print_warning(&format!("Could not drop {table}: {e}")),
         }
     }
 
     // Drop the trigger function
-    match sqlx::query("DROP FUNCTION IF EXISTS update_cast_embeddings_updated_at() CASCADE")
+    if let Ok(_) = sqlx::query("DROP FUNCTION IF EXISTS update_cast_embeddings_updated_at() CASCADE")
         .execute(snaprag.database().pool())
-        .await
-    {
-        Ok(_) => print_success("Dropped trigger function"),
-        Err(_) => {}
-    }
+        .await { print_success("Dropped trigger function") }
 
     println!();
     print_success("✅ Database completely reset!");
@@ -247,8 +242,7 @@ async fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
     if !output.status.success() {
         if stderr.contains("extension") && stderr.contains("permission") {
             return Err(crate::SnapRagError::Custom(format!(
-                "Extension error: {}",
-                stderr
+                "Extension error: {stderr}"
             )));
         }
         return Err(crate::SnapRagError::Custom(format!(
@@ -302,7 +296,7 @@ async fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
     
     // Run each migration
     for (name, sql) in migrations {
-        let temp_path = format!("/tmp/snaprag_{}", name);
+        let temp_path = format!("/tmp/snaprag_{name}");
         std::fs::write(&temp_path, sql)?;
         
         tracing::info!("Running migration: {}", name);
@@ -319,10 +313,10 @@ async fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
         
         std::fs::remove_file(&temp_path).ok();
         
-        if !output.status.success() {
-            tracing::warn!("Migration {} had warnings: {}", name, String::from_utf8_lossy(&output.stderr));
-        } else {
+        if output.status.success() {
             tracing::info!("Migration {} completed", name);
+        } else {
+            tracing::warn!("Migration {} had warnings: {}", name, String::from_utf8_lossy(&output.stderr));
         }
     }
     

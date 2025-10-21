@@ -8,7 +8,7 @@ use tracing::error;
 use tracing::info;
 
 use super::AppState;
-use crate::api::types::*;
+use crate::api::types::{ApiResponse, ProfileResponse, SearchQuery};
 use crate::models::UserProfileQuery;
 
 /// Get profile by FID (with automatic lazy loading)

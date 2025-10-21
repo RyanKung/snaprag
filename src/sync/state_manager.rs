@@ -55,6 +55,7 @@ pub struct SyncStateManager {
 
 impl SyncStateManager {
     /// Create a new sync state manager
+    #[must_use]
     pub fn new(state_file_path: &str) -> Self {
         Self {
             state_file_path: state_file_path.to_string(),
@@ -90,12 +91,13 @@ impl SyncStateManager {
     }
 
     /// Get current state
-    pub fn get_state(&self) -> &PersistentSyncState {
+    #[must_use]
+    pub const fn get_state(&self) -> &PersistentSyncState {
         &self.state
     }
 
     /// Get mutable reference to state
-    pub fn get_state_mut(&mut self) -> &mut PersistentSyncState {
+    pub const fn get_state_mut(&mut self) -> &mut PersistentSyncState {
         &mut self.state
     }
 
@@ -118,6 +120,7 @@ impl SyncStateManager {
     }
 
     /// Get last processed height for a shard
+    #[must_use]
     pub fn get_last_processed_height(&self, shard_id: u32) -> u64 {
         self.state
             .last_processed_heights
@@ -171,6 +174,7 @@ impl SyncStateManager {
     }
 
     /// Get sync statistics
+    #[must_use]
     pub fn get_stats(&self) -> SyncStats {
         SyncStats {
             status: self.state.status.clone(),
@@ -200,6 +204,7 @@ pub struct SyncStats {
 
 impl SyncStats {
     /// Format stats for display
+    #[must_use]
     pub fn format(&self) -> String {
         format!(
             "Status: {}, Messages: {}, Blocks: {}, Errors: {}, Last Sync: {}",
@@ -207,11 +212,13 @@ impl SyncStats {
             self.total_messages,
             self.total_blocks,
             self.error_count,
-            self.last_sync_timestamp
-                .map(|ts| chrono::DateTime::from_timestamp(ts as i64, 0)
-                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-                    .unwrap_or_else(|| "Unknown".to_string()))
-                .unwrap_or_else(|| "Never".to_string())
+            self.last_sync_timestamp.map_or_else(
+                || "Never".to_string(),
+                |ts| chrono::DateTime::from_timestamp(ts as i64, 0).map_or_else(
+                    || "Unknown".to_string(),
+                    |dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()
+                )
+            )
         )
     }
 }

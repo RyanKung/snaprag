@@ -9,7 +9,7 @@ use axum::Json;
 use tracing::error;
 use tracing::info;
 
-use crate::api::types::*;
+use crate::api::types::{ApiResponse, HealthResponse, FetchResponse, ProfileResponse, FetchUsersBatchRequest};
 use crate::config::AppConfig;
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
@@ -113,8 +113,7 @@ pub async fn fetch_user(
         Err(e) => {
             error!("Failed to fetch user profile for FID {}: {}", fid, e);
             Ok(Json(ApiResponse::error(format!(
-                "Failed to fetch user profile: {}",
-                e
+                "Failed to fetch user profile: {e}"
             ))))
         }
     }
@@ -167,7 +166,7 @@ pub async fn fetch_users_batch(
         }
 
         // Fetch user profile
-        match loader.fetch_user_profile(fid as u64).await {
+        match loader.fetch_user_profile(fid).await {
             Ok(profile) => {
                 info!("✅ Successfully fetched user profile for FID {}", fid);
                 responses.push(FetchResponse {

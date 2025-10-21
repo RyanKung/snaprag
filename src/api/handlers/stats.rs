@@ -5,7 +5,7 @@ use axum::Json;
 use tracing::info;
 
 use super::AppState;
-use crate::api::types::*;
+use crate::api::types::{ApiResponse, StatsResponse};
 
 /// Get stats
 pub async fn get_stats(

@@ -78,20 +78,18 @@ impl EmbeddingService {
         }
 
         // Generate embeddings for non-empty texts
-        let mut embeddings = if !filtered_texts.is_empty() {
-            if filtered_texts.len() <= MAX_BATCH_SIZE {
-                self.client.generate_batch(filtered_texts).await?
-            } else {
-                // Split into chunks
-                let mut all_embeddings = Vec::new();
-                for chunk in filtered_texts.chunks(MAX_BATCH_SIZE) {
-                    let chunk_embeddings = self.client.generate_batch(chunk.to_vec()).await?;
-                    all_embeddings.extend(chunk_embeddings);
-                }
-                all_embeddings
-            }
-        } else {
+        let mut embeddings = if filtered_texts.is_empty() {
             Vec::new()
+        } else if filtered_texts.len() <= MAX_BATCH_SIZE {
+            self.client.generate_batch(filtered_texts).await?
+        } else {
+            // Split into chunks
+            let mut all_embeddings = Vec::new();
+            for chunk in filtered_texts.chunks(MAX_BATCH_SIZE) {
+                let chunk_embeddings = self.client.generate_batch(chunk.to_vec()).await?;
+                all_embeddings.extend(chunk_embeddings);
+            }
+            all_embeddings
         };
 
         // Insert zero vectors for empty texts at correct positions
@@ -115,22 +113,22 @@ impl EmbeddingService {
 
         if let Some(u) = username {
             if !u.trim().is_empty() {
-                parts.push(format!("Username: {}", u));
+                parts.push(format!("Username: {u}"));
             }
         }
         if let Some(d) = display_name {
             if !d.trim().is_empty() {
-                parts.push(format!("Name: {}", d));
+                parts.push(format!("Name: {d}"));
             }
         }
         if let Some(b) = bio {
             if !b.trim().is_empty() {
-                parts.push(format!("Bio: {}", b));
+                parts.push(format!("Bio: {b}"));
             }
         }
         if let Some(l) = location {
             if !l.trim().is_empty() {
-                parts.push(format!("Location: {}", l));
+                parts.push(format!("Location: {l}"));
             }
         }
 
@@ -166,12 +164,12 @@ impl EmbeddingService {
         }
         if let Some(t) = twitter {
             if !t.trim().is_empty() {
-                parts.push(format!("Twitter: {}", t));
+                parts.push(format!("Twitter: {t}"));
             }
         }
         if let Some(g) = github {
             if !g.trim().is_empty() {
-                parts.push(format!("GitHub: {}", g));
+                parts.push(format!("GitHub: {g}"));
             }
         }
 
@@ -184,17 +182,20 @@ impl EmbeddingService {
     }
 
     /// Get the embedding dimension
-    pub fn dimension(&self) -> usize {
+    #[must_use] 
+    pub const fn dimension(&self) -> usize {
         self.config.dimension
     }
 
     /// Get the model name
+    #[must_use] 
     pub fn model(&self) -> &str {
         &self.config.model
     }
 
     /// Get the provider
-    pub fn provider(&self) -> EmbeddingProvider {
+    #[must_use] 
+    pub const fn provider(&self) -> EmbeddingProvider {
         self.config.provider
     }
 }

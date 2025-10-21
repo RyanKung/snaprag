@@ -21,17 +21,19 @@ impl PromptTemplate {
     }
 
     /// Fill in the template with variables
+    #[must_use] 
     pub fn render(&self, values: &HashMap<String, String>) -> String {
         let mut result = self.template.clone();
         for var in &self.variables {
             if let Some(value) = values.get(var) {
-                result = result.replace(&format!("{{{}}}", var), value);
+                result = result.replace(&format!("{{{var}}}"), value);
             }
         }
         result
     }
 
     /// Get required variables
+    #[must_use] 
     pub fn variables(&self) -> &[String] {
         &self.variables
     }
@@ -43,8 +45,8 @@ fn extract_variables(template: &str) -> Vec<String> {
     let mut chars = template.chars().peekable();
 
     while let Some(c) = chars.next() {
-        if c == '{' {
-            if chars.peek() == Some(&'{') {
+        if c == '{'
+            && chars.peek() == Some(&'{') {
                 chars.next(); // skip second '{'
                 let mut var_name = String::new();
                 while let Some(&ch) = chars.peek() {
@@ -63,7 +65,6 @@ fn extract_variables(template: &str) -> Vec<String> {
                     variables.push(var_name);
                 }
             }
-        }
     }
 
     variables
@@ -74,9 +75,10 @@ pub struct RagPrompts;
 
 impl RagPrompts {
     /// Profile search prompt
+    #[must_use] 
     pub fn profile_search() -> PromptTemplate {
         PromptTemplate::new(
-            r#"You are helping search for Farcaster user profiles. 
+            r"You are helping search for Farcaster user profiles. 
             
 Based on the following user profiles:
 
@@ -84,28 +86,30 @@ Based on the following user profiles:
 
 User query: {{query}}
 
-Please provide a summary of the most relevant profiles and explain why they match the query."#,
+Please provide a summary of the most relevant profiles and explain why they match the query.",
         )
     }
 
     /// Context-based QA prompt
+    #[must_use] 
     pub fn context_qa() -> PromptTemplate {
         PromptTemplate::new(
-            r#"You are an expert on the Farcaster protocol and its community.
+            r"You are an expert on the Farcaster protocol and its community.
 
 Context information from the database:
 {{context}}
 
 Question: {{question}}
 
-Please provide a detailed and accurate answer based on the context above. If the context doesn't contain enough information to answer the question, please say so."#,
+Please provide a detailed and accurate answer based on the context above. If the context doesn't contain enough information to answer the question, please say so.",
         )
     }
 
     /// Profile summary prompt
+    #[must_use] 
     pub fn profile_summary() -> PromptTemplate {
         PromptTemplate::new(
-            r#"Generate a comprehensive summary of the following Farcaster user profile:
+            r"Generate a comprehensive summary of the following Farcaster user profile:
 
 Username: {{username}}
 Display Name: {{display_name}}
@@ -118,14 +122,15 @@ Please provide:
 1. A brief overview of the user
 2. Key interests and focus areas
 3. Professional background (if evident)
-4. Community connections and influence"#,
+4. Community connections and influence",
         )
     }
 
     /// Semantic search query enhancement
+    #[must_use] 
     pub fn query_enhancement() -> PromptTemplate {
         PromptTemplate::new(
-            r#"Enhance the following search query to improve semantic matching:
+            r"Enhance the following search query to improve semantic matching:
 
 Original query: {{query}}
 
@@ -134,7 +139,7 @@ Please provide:
 2. Key concepts to search for
 3. Alternative phrasings
 
-Return only the enhanced query text without explanations."#,
+Return only the enhanced query text without explanations.",
         )
     }
 }

@@ -40,16 +40,15 @@ pub async fn generate_ai_response_with_social(
     // Build context
     let mut context = String::new();
     context.push_str(&format!(
-        "You are role-playing as {}, a Farcaster user",
-        display_name
+        "You are role-playing as {display_name}, a Farcaster user"
     ));
     if let Some(username) = username {
-        context.push_str(&format!(" (username: @{})", username));
+        context.push_str(&format!(" (username: @{username})"));
     }
-    context.push_str(&format!(". Your FID is {}.\n\n", fid));
+    context.push_str(&format!(". Your FID is {fid}.\n\n"));
 
     if let Some(bio) = &profile.bio {
-        context.push_str(&format!("Your bio: {}\n\n", bio));
+        context.push_str(&format!("Your bio: {bio}\n\n"));
     }
 
     // Add social graph context if available
@@ -75,8 +74,8 @@ pub async fn generate_ai_response_with_social(
         context.push_str("\n─────────────────────────────────────────────────────\n");
         context.push_str("📊 STYLE ANALYSIS\n");
         context.push_str("─────────────────────────────────────────────────────\n\n");
-        context.push_str(&format!("Average length: {} characters\n\n", avg_length));
-        context.push_str(&format!("{}\n\n", writing_style));
+        context.push_str(&format!("Average length: {avg_length} characters\n\n"));
+        context.push_str(&format!("{writing_style}\n\n"));
 
         context.push_str("─────────────────────────────────────────────────────\n");
         context.push_str("🎯 CRITICAL RULES - YOU MUST FOLLOW THESE:\n");
@@ -129,14 +128,14 @@ pub async fn generate_ai_response_with_social(
         if !history.is_empty() {
             context.push_str("Previous conversation:\n\n");
             for (q, a) in history {
-                context.push_str(&format!("User: {}\n", q));
-                context.push_str(&format!("You: {}\n\n", a));
+                context.push_str(&format!("User: {q}\n"));
+                context.push_str(&format!("You: {a}\n\n"));
             }
         }
     }
 
     context.push_str("===== THE QUESTION =====\n\n");
-    context.push_str(&format!("User: {}\n\n", question));
+    context.push_str(&format!("User: {question}\n\n"));
     context.push_str("You (RESPOND IN YOUR STYLE - match examples above!):");
 
     // Log context in debug mode for troubleshooting
@@ -147,15 +146,15 @@ pub async fn generate_ai_response_with_social(
     spinner.start();
 
     // Use lower temperature for very concise styles
-    let adjusted_temp = if !casts.is_empty() {
+    let adjusted_temp = if casts.is_empty() {
+        temperature
+    } else {
         let avg_len: usize = casts.iter().map(|c| c.text.len()).sum::<usize>() / casts.len().max(1);
         if avg_len < 80 {
             temperature.min(0.5) // Lower temp for brief styles
         } else {
             temperature
         }
-    } else {
-        temperature
     };
 
     let response = llm
@@ -214,7 +213,7 @@ fn format_social_profile_for_llm(profile: &crate::social_graph::SocialProfile) -
         ));
     }
 
-    output.push_str("\n");
+    output.push('\n');
 
     // Most mentioned users
     if !profile.most_mentioned_users.is_empty() {
@@ -223,13 +222,13 @@ fn format_social_profile_for_llm(profile: &crate::social_graph::SocialProfile) -
             let name = user
                 .username
                 .as_ref()
-                .map(|u| format!("@{}", u))
+                .map(|u| format!("@{u}"))
                 .or_else(|| user.display_name.clone())
                 .unwrap_or_else(|| format!("FID {}", user.fid));
 
             output.push_str(&format!("  {}. {} ({}x)\n", idx + 1, name, user.count));
         }
-        output.push_str("\n");
+        output.push('\n');
     }
 
     // Interaction style
@@ -244,7 +243,7 @@ fn format_social_profile_for_llm(profile: &crate::social_graph::SocialProfile) -
         output.push_str("🌐 You're a network connector - you introduce people\n");
     }
 
-    output.push_str("\n");
+    output.push('\n');
 
     // Add context instructions
     output.push_str("🎯 Social Context:\n");
@@ -267,10 +266,10 @@ fn format_social_profile_for_llm(profile: &crate::social_graph::SocialProfile) -
             .most_mentioned_users
             .iter()
             .take(3)
-            .filter_map(|u| u.username.as_ref().map(|n| format!("@{}", n)))
+            .filter_map(|u| u.username.as_ref().map(|n| format!("@{n}")))
             .collect();
         output.push_str(&names.join(", "));
-        output.push_str("\n");
+        output.push('\n');
     }
 
     // Add word cloud - your vocabulary fingerprint
@@ -288,7 +287,7 @@ fn format_social_profile_for_llm(profile: &crate::social_graph::SocialProfile) -
         if !profile.word_cloud.signature_words.is_empty() {
             output.push_str("\n✨ Your Signature Words: ");
             output.push_str(&profile.word_cloud.signature_words.join(", "));
-            output.push_str("\n");
+            output.push('\n');
             output.push_str("  → Use these words naturally in your responses\n");
         }
     }

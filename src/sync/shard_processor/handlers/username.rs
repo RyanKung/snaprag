@@ -1,11 +1,11 @@
-/// UsernameProof message handler
+/// `UsernameProof` message handler
 
 use crate::models::ShardBlockInfo;
 use crate::Result;
 
 use super::super::types::BatchedData;
 
-/// Handle UsernameProof message (type 12)
+/// Handle `UsernameProof` message (type 12)
 pub(super) fn handle_username_proof(
     body: &serde_json::Value,
     fid: i64,
@@ -31,9 +31,8 @@ pub(super) fn handle_username_proof(
                 
                 let username_type = username_proof_body
                     .get("type")
-                    .and_then(|v| v.as_i64())
-                    .map(|v| v as i16)
-                    .unwrap_or(1); // Default to FNAME
+                    .and_then(serde_json::Value::as_i64)
+                    .map_or(1, |v| v as i16); // Default to FNAME
                 
                 batched.username_proofs.push((
                     fid,

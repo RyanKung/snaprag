@@ -19,7 +19,7 @@ pub struct SyncCoordinator {
 }
 
 impl SyncCoordinator {
-    pub fn new(client: SnapchainClient, database: Arc<Database>) -> Self {
+    pub const fn new(client: SnapchainClient, database: Arc<Database>) -> Self {
         Self { client, database }
     }
 
@@ -75,7 +75,7 @@ impl SyncCoordinator {
         from_block: u64,
         batch_size: u32,
     ) -> Result<ChunkProcessStats> {
-        let to_block = from_block + batch_size as u64;
+        let to_block = from_block + u64::from(batch_size);
 
         info!(
             "📦 Processing blocks {} to {} (batch size: {})",

@@ -27,19 +27,19 @@ pub enum UserDataType {
 impl From<i16> for UserDataType {
     fn from(value: i16) -> Self {
         match value {
-            1 => UserDataType::Pfp,
-            2 => UserDataType::Display,
-            3 => UserDataType::Bio,
-            5 => UserDataType::Url,
-            6 => UserDataType::Username,
-            7 => UserDataType::Location,
-            8 => UserDataType::Twitter,
-            9 => UserDataType::Github,
-            10 => UserDataType::Banner,
-            11 => UserDataType::PrimaryAddressEthereum,
-            12 => UserDataType::PrimaryAddressSolana,
-            13 => UserDataType::ProfileToken,
-            _ => UserDataType::None,
+            1 => Self::Pfp,
+            2 => Self::Display,
+            3 => Self::Bio,
+            5 => Self::Url,
+            6 => Self::Username,
+            7 => Self::Location,
+            8 => Self::Twitter,
+            9 => Self::Github,
+            10 => Self::Banner,
+            11 => Self::PrimaryAddressEthereum,
+            12 => Self::PrimaryAddressSolana,
+            13 => Self::ProfileToken,
+            _ => Self::None,
         }
     }
 }
@@ -57,10 +57,10 @@ pub enum UsernameType {
 impl From<i32> for UsernameType {
     fn from(value: i32) -> Self {
         match value {
-            1 => UsernameType::Fname,
-            2 => UsernameType::EnsL1,
-            3 => UsernameType::Basename,
-            _ => UsernameType::None,
+            1 => Self::Fname,
+            2 => Self::EnsL1,
+            3 => Self::Basename,
+            _ => Self::None,
         }
     }
 }
@@ -319,7 +319,8 @@ pub struct ShardBlockInfo {
 }
 
 impl ShardBlockInfo {
-    pub fn new(shard_id: u32, block_height: u64, transaction_fid: u64, timestamp: u64) -> Self {
+    #[must_use] 
+    pub const fn new(shard_id: u32, block_height: u64, transaction_fid: u64, timestamp: u64) -> Self {
         Self {
             shard_id,
             block_height,

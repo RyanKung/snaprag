@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 /// Batched data for bulk insert
+#[derive(Default)]
 pub struct BatchedData {
     // Casts: (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions, shard_block_info)
     pub casts: Vec<(
@@ -65,20 +66,8 @@ pub struct BatchedData {
 }
 
 impl BatchedData {
+    #[must_use]
     pub fn new() -> Self {
-        Self {
-            casts: Vec::new(),
-            links: Vec::new(),
-            reactions: Vec::new(),
-            verifications: Vec::new(),
-            fids_to_ensure: HashSet::new(),
-            profile_updates: Vec::new(),
-            onchain_events: Vec::new(),
-            link_removes: Vec::new(),
-            reaction_removes: Vec::new(),
-            verification_removes: Vec::new(),
-            username_proofs: Vec::new(),
-            frame_actions: Vec::new(),
-        }
+        Self::default()
     }
 }

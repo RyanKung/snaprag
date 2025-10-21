@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::*;
+use crate::cli::output::{print_info, print_warning};
 use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
@@ -24,7 +24,7 @@ pub async fn handle_rag_query_casts(
     use crate::rag::CastContextAssembler;
     use crate::rag::CastRetriever;
 
-    print_info(&format!("🤖 RAG Query on Casts: \"{}\"", query));
+    print_info(&format!("🤖 RAG Query on Casts: \"{query}\""));
 
     // Check if we have embeddings
     let embed_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cast_embeddings")
@@ -117,7 +117,7 @@ pub async fn handle_rag_query(
 
     println!("🤖 SnapRAG Query");
     println!("================\n");
-    println!("Question: {}\n", query);
+    println!("Question: {query}\n");
 
     // Parse retrieval method
     let retrieval_method = match method.as_str() {
@@ -168,7 +168,7 @@ pub async fn handle_rag_query(
                 } else {
                     bio.clone()
                 };
-                println!("     Bio: {}", bio_preview);
+                println!("     Bio: {bio_preview}");
             }
         }
     }
@@ -193,7 +193,7 @@ pub async fn handle_rag_search(
 
     println!("🔍 SnapRAG Search");
     println!("=================\n");
-    println!("Query: {}\n", query);
+    println!("Query: {query}\n");
 
     println!("⏳ Initializing search...");
     let database = Arc::new(Database::from_config(config).await?);
@@ -232,11 +232,11 @@ pub async fn handle_rag_search(
             } else {
                 bio.clone()
             };
-            println!("   Bio: {}", bio_preview);
+            println!("   Bio: {bio_preview}");
         }
 
         if let Some(location) = &result.profile.location {
-            println!("   Location: {}", location);
+            println!("   Location: {location}");
         }
 
         println!();

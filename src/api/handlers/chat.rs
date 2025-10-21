@@ -7,7 +7,7 @@ use tracing::error;
 use tracing::info;
 
 use super::AppState;
-use crate::api::types::*;
+use crate::api::types::{CreateChatRequest, ApiResponse, CreateChatResponse, ChatMessageRequest, ChatMessageResponse, SessionInfoResponse};
 
 /// Parse user identifier (FID or username) and return FID
 async fn parse_user_identifier(
@@ -26,7 +26,7 @@ async fn parse_user_identifier(
             .get_user_profile_by_username(username)
             .await?
             .ok_or_else(|| {
-                crate::SnapRagError::Custom(format!("Username @{} not found in database", username))
+                crate::SnapRagError::Custom(format!("Username @{username} not found in database"))
             })?;
 
         Ok(profile.fid as u64)
@@ -34,8 +34,7 @@ async fn parse_user_identifier(
         // Try to parse as FID number
         trimmed.parse::<u64>().map_err(|_| {
             crate::SnapRagError::Custom(format!(
-                "Invalid user identifier '{}'. Use FID (e.g., '99') or username (e.g., '@jesse.base.eth')",
-                identifier
+                "Invalid user identifier '{identifier}'. Use FID (e.g., '99') or username (e.g., '@jesse.base.eth')"
             ))
         })
     }
@@ -56,13 +55,13 @@ fn build_chat_context(
     ));
 
     if let Some(username) = &profile.username {
-        context.push_str(&format!(" (username: @{})", username));
+        context.push_str(&format!(" (username: @{username})"));
     }
 
     context.push_str(&format!(". Your FID is {}.\n\n", profile.fid));
 
     if let Some(bio) = &profile.bio {
-        context.push_str(&format!("Your bio: {}\n\n", bio));
+        context.push_str(&format!("Your bio: {bio}\n\n"));
     }
 
     // Add writing style analysis and examples
@@ -82,7 +81,7 @@ fn build_chat_context(
         context.push_str("\n─────────────────────────────────────────────────────\n");
         context.push_str("📊 STYLE ANALYSIS\n");
         context.push_str("─────────────────────────────────────────────────────\n");
-        context.push_str(&format!("Average length: {} characters\n\n", avg_length));
+        context.push_str(&format!("Average length: {avg_length} characters\n\n"));
 
         context.push_str("🎯 CRITICAL RULES:\n\n");
 
@@ -115,11 +114,11 @@ fn build_chat_context(
         for message in &session.conversation_history {
             context.push_str(&format!("{}: {}\n", message.role, message.content));
         }
-        context.push_str("\n");
+        context.push('\n');
     }
 
     context.push_str("═══ THE QUESTION ═══\n\n");
-    context.push_str(&format!("User: {}\n\n", message));
+    context.push_str(&format!("User: {message}\n\n"));
     context.push_str("You (RESPOND IN YOUR EXACT STYLE):");
 
     context
@@ -138,8 +137,7 @@ pub async fn create_chat_session(
         Err(e) => {
             error!("Failed to parse user identifier: {}", e);
             return Ok(Json(ApiResponse::error(format!(
-                "Invalid user identifier: {}",
-                e
+                "Invalid user identifier: {e}"
             ))));
         }
     };
@@ -148,7 +146,7 @@ pub async fn create_chat_session(
     let profile = match state.database.get_user_profile(fid as i64).await {
         Ok(Some(p)) => p,
         Ok(None) => {
-            return Ok(Json(ApiResponse::error(format!("User {} not found", fid))));
+            return Ok(Json(ApiResponse::error(format!("User {fid} not found"))));
         }
         Err(e) => {
             error!("Database error: {}", e);

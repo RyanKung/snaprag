@@ -66,6 +66,7 @@ pub struct SyncRange {
 
 impl SyncLockFile {
     /// Create a new lock file
+    #[must_use] 
     pub fn new(status: &str, sync_range: Option<SyncRange>) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -153,6 +154,7 @@ pub struct SyncLockManager {
 
 impl SyncLockManager {
     /// Create a new lock manager
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             lock_file_path: "snaprag.lock".to_string(),
@@ -217,11 +219,7 @@ impl SyncLockManager {
             .unwrap_or_default()
             .as_secs();
 
-        if now > lock.last_update {
-            now - lock.last_update
-        } else {
-            0
-        }
+        now.saturating_sub(lock.last_update)
     }
 
     /// Force remove stale lock file
@@ -254,10 +252,10 @@ impl SyncLockManager {
     /// Read lock file
     pub fn read_lock(&self) -> Result<SyncLockFile> {
         let content = fs::read_to_string(&self.lock_file_path)
-            .map_err(|e| crate::SnapRagError::Custom(format!("Failed to read lock file: {}", e)))?;
+            .map_err(|e| crate::SnapRagError::Custom(format!("Failed to read lock file: {e}")))?;
 
         let lock: SyncLockFile = serde_json::from_str(&content).map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to parse lock file: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to parse lock file: {e}"))
         })?;
 
         Ok(lock)
@@ -268,7 +266,7 @@ impl SyncLockManager {
     pub fn write_lock(&self, lock: &SyncLockFile) -> Result<()> {
         // 🔒 Acquire write mutex to prevent concurrent file writes
         let _guard = self.write_mutex.lock().map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to acquire lock file mutex: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to acquire lock file mutex: {e}"))
         })?;
 
         // Read existing lock file to merge shard progress
@@ -306,11 +304,11 @@ impl SyncLockManager {
         };
 
         let content = serde_json::to_string_pretty(&merged_lock).map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to serialize lock file: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to serialize lock file: {e}"))
         })?;
 
         fs::write(&self.lock_file_path, content).map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to write lock file: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to write lock file: {e}"))
         })?;
 
         Ok(())
@@ -326,7 +324,7 @@ impl SyncLockManager {
     pub fn remove_lock(&self) -> Result<()> {
         if Path::new(&self.lock_file_path).exists() {
             fs::remove_file(&self.lock_file_path).map_err(|e| {
-                crate::SnapRagError::Custom(format!("Failed to remove lock file: {}", e))
+                crate::SnapRagError::Custom(format!("Failed to remove lock file: {e}"))
             })?;
             info!("Removed sync lock file");
         }
@@ -334,6 +332,7 @@ impl SyncLockManager {
     }
 
     /// Check if lock file exists
+    #[must_use] 
     pub fn lock_exists(&self) -> bool {
         Path::new(&self.lock_file_path).exists()
     }
@@ -345,6 +344,7 @@ impl SyncLockManager {
     }
 
     /// Get lock file path
+    #[must_use] 
     pub fn lock_file_path(&self) -> &str {
         &self.lock_file_path
     }

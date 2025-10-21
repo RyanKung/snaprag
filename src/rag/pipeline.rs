@@ -40,6 +40,7 @@ impl RagService {
     }
 
     /// Create from existing services
+    #[must_use] 
     pub fn from_services(
         database: Arc<Database>,
         embedding_service: Arc<EmbeddingService>,
@@ -129,13 +130,13 @@ impl RagService {
     /// Build prompt for LLM
     fn build_prompt(&self, question: &str, context: &str) -> String {
         format!(
-            r#"You are an expert assistant helping users discover and learn about Farcaster protocol users.
+            r"You are an expert assistant helping users discover and learn about Farcaster protocol users.
 
 Context: The following are Farcaster user profiles that may be relevant to the question:
 
-{}
+{context}
 
-Question: {}
+Question: {question}
 
 Instructions:
 1. Provide a helpful and accurate answer based on the profiles above
@@ -143,18 +144,19 @@ Instructions:
 3. If the profiles don't contain relevant information, say so
 4. Be concise but informative
 
-Answer:"#,
-            context, question
+Answer:"
         )
     }
 
     /// Get retriever reference
-    pub fn retriever(&self) -> &Retriever {
+    #[must_use] 
+    pub const fn retriever(&self) -> &Retriever {
         &self.retriever
     }
 
     /// Get context assembler reference
-    pub fn context_assembler(&self) -> &ContextAssembler {
+    #[must_use] 
+    pub const fn context_assembler(&self) -> &ContextAssembler {
         &self.context_assembler
     }
 }
@@ -194,6 +196,7 @@ pub struct RagResponse {
 
 impl RagResponse {
     /// Get a formatted string representation
+    #[must_use] 
     pub fn format(&self) -> String {
         let mut output = String::new();
         output.push_str(&format!("Query: {}\n\n", self.query));

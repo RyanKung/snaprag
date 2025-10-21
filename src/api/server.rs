@@ -133,7 +133,7 @@ pub async fn serve_api(
     }
 
     // Start server
-    let addr = format!("{}:{}", host, port);
+    let addr = format!("{host}:{port}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     info!("🌐 API server listening on http://{}", addr);

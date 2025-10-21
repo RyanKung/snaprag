@@ -227,7 +227,7 @@ async fn call_tool(
             let limit = req
                 .arguments
                 .get("limit")
-                .and_then(|v| v.as_u64())
+                .and_then(serde_json::Value::as_u64)
                 .unwrap_or(20) as usize;
 
             // Use the retriever
@@ -249,7 +249,7 @@ async fn call_tool(
                 Err(e) => Ok(Json(McpToolCallResponse {
                     content: vec![McpContent {
                         r#type: "text".to_string(),
-                        text: format!("Error: {}", e),
+                        text: format!("Error: {e}"),
                     }],
                     is_error: true,
                 })),
@@ -259,7 +259,7 @@ async fn call_tool(
             let fid = req
                 .arguments
                 .get("fid")
-                .and_then(|v| v.as_i64())
+                .and_then(serde_json::Value::as_i64)
                 .ok_or(StatusCode::BAD_REQUEST)?;
 
             // Try database first, then lazy load if available
@@ -308,7 +308,7 @@ async fn call_tool(
                 Err(e) => Ok(Json(McpToolCallResponse {
                     content: vec![McpContent {
                         r#type: "text".to_string(),
-                        text: format!("Error: {}", e),
+                        text: format!("Error: {e}"),
                     }],
                     is_error: true,
                 })),
@@ -318,19 +318,19 @@ async fn call_tool(
             let fid = req
                 .arguments
                 .get("fid")
-                .and_then(|v| v.as_i64())
+                .and_then(serde_json::Value::as_i64)
                 .ok_or(StatusCode::BAD_REQUEST)?;
 
             let with_casts = req
                 .arguments
                 .get("with_casts")
-                .and_then(|v| v.as_bool())
+                .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
 
             let generate_embeddings = req
                 .arguments
                 .get("generate_embeddings")
-                .and_then(|v| v.as_bool())
+                .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
 
             let Some(ref loader) = state.lazy_loader else {
@@ -350,7 +350,7 @@ async fn call_tool(
                     return Ok(Json(McpToolCallResponse {
                         content: vec![McpContent {
                             r#type: "text".to_string(),
-                            text: format!("User {} not found", fid),
+                            text: format!("User {fid} not found"),
                         }],
                         is_error: true,
                     }));
@@ -359,7 +359,7 @@ async fn call_tool(
                     return Ok(Json(McpToolCallResponse {
                         content: vec![McpContent {
                             r#type: "text".to_string(),
-                            text: format!("Error: {}", e),
+                            text: format!("Error: {e}"),
                         }],
                         is_error: true,
                     }));
@@ -400,7 +400,7 @@ async fn call_tool(
                         }
                     }
                 }
-                response_text.push_str(&format!("\n\nEmbeddings: {} generated", success));
+                response_text.push_str(&format!("\n\nEmbeddings: {success} generated"));
             }
 
             Ok(Json(McpToolCallResponse {

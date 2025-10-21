@@ -50,13 +50,13 @@ pub enum SnapRagError {
 
 impl From<&str> for SnapRagError {
     fn from(msg: &str) -> Self {
-        SnapRagError::Custom(msg.to_string())
+        Self::Custom(msg.to_string())
     }
 }
 
 impl From<String> for SnapRagError {
     fn from(msg: String) -> Self {
-        SnapRagError::Custom(msg)
+        Self::Custom(msg)
     }
 }
 

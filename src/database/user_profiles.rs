@@ -1,5 +1,5 @@
 use super::Database;
-use crate::models::*;
+use crate::models::{UserProfile, CreateUserProfileRequest, UpdateUserProfileRequest, UserDataType, UserProfileQuery};
 use crate::Result;
 use crate::SnapRagError;
 
@@ -27,7 +27,7 @@ impl Database {
                 profile.last_updated_timestamp.hash(&mut hasher);
                 value.hash(&mut hasher);
                 let hash_value = hasher.finish();
-                let message_hash = format!("profile_{}_{}", field_name, hash_value).as_bytes().to_vec();
+                let message_hash = format!("profile_{field_name}_{hash_value}").as_bytes().to_vec();
                 
                 sqlx::query(
                     "INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) 
@@ -79,7 +79,7 @@ impl Database {
                 value.hash(&mut hasher);
                 let hash_value = hasher.finish();
                 let message_hash = request.message_hash.clone().unwrap_or_else(|| {
-                    format!("create_{}_{}", field_name, hash_value).as_bytes().to_vec()
+                    format!("create_{field_name}_{hash_value}").as_bytes().to_vec()
                 });
                 
                 sqlx::query(
@@ -220,7 +220,7 @@ impl Database {
             ),
         ];
 
-        for (data_type, old_value) in fields_to_clear.iter() {
+        for (data_type, old_value) in &fields_to_clear {
             if old_value.is_some() {
                 self.record_user_data_change(
                     fid,
@@ -251,7 +251,7 @@ impl Database {
             timestamp.hash(&mut hasher);
             "deleted".hash(&mut hasher);
             let hash_value = hasher.finish();
-            let msg_hash = format!("delete_{}_{}", field_name, hash_value).as_bytes().to_vec();
+            let msg_hash = format!("delete_{field_name}_{hash_value}").as_bytes().to_vec();
             
             sqlx::query(
                 "INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) 
@@ -278,8 +278,8 @@ impl Database {
         // This function returns all profiles with basic pagination
         // For complex filtering, use semantic_search_profiles or specific query methods
 
-        let limit = query.limit.unwrap_or(100) as i64;
-        let offset = query.offset.unwrap_or(0) as i64;
+        let limit = query.limit.unwrap_or(100);
+        let offset = query.offset.unwrap_or(0);
 
         // If limit is explicitly None, get ALL profiles (use very large limit)
         let effective_limit = if query.limit.is_none() && offset == 0 {
@@ -289,7 +289,7 @@ impl Database {
         };
 
         let profiles = sqlx::query_as(
-            r#"
+            r"
             SELECT 
                 id, fid, username, display_name, bio, pfp_url, banner_url, location,
                 website_url, twitter_username, github_username, primary_address_ethereum,
@@ -300,7 +300,7 @@ impl Database {
             ORDER BY last_updated_at DESC
             LIMIT $1
             OFFSET $2
-            "#,
+            ",
         )
         .bind(effective_limit)
         .bind(offset)
@@ -314,7 +314,7 @@ impl Database {
         // Returns all profiles with pagination
         // Filters (has_username, has_display_name) are applied in handler layer
         let profiles = sqlx::query_as(
-            r#"
+            r"
             SELECT 
                 id,
                 fid,
@@ -343,10 +343,10 @@ impl Database {
             ORDER BY fid ASC
             LIMIT $1
             OFFSET $2
-            "#,
+            ",
         )
-        .bind(query.limit.unwrap_or(100) as i64)
-        .bind(query.offset.unwrap_or(0) as i64)
+        .bind(query.limit.unwrap_or(100))
+        .bind(query.offset.unwrap_or(0))
         .fetch_all(&self.pool)
         .await?;
         Ok(profiles)
@@ -370,12 +370,12 @@ impl Database {
 
         // Complete profiles = has username + display_name + bio (more meaningful)
         let complete_profiles = sqlx::query_scalar::<_, i64>(
-            r#"
+            r"
             SELECT COUNT(*) FROM user_profiles 
             WHERE username IS NOT NULL AND username != ''
               AND display_name IS NOT NULL AND display_name != ''
               AND bio IS NOT NULL AND bio != ''
-            "#,
+            ",
         )
         .fetch_one(&self.pool)
         .await?;
@@ -436,7 +436,7 @@ impl Database {
 
         // Get recent registrations
         let recent_registrations = sqlx::query_as::<_, crate::models::ProfileRegistration>(
-            r#"
+            r"
             SELECT 
                 fid,
                 username,
@@ -445,7 +445,7 @@ impl Database {
             FROM user_profiles 
             ORDER BY last_updated_at DESC 
             LIMIT 10
-            "#,
+            ",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -458,7 +458,7 @@ impl Database {
 
         // Get top usernames with actual counts
         let top_usernames = sqlx::query_as::<_, crate::models::UsernameStats>(
-            r#"
+            r"
             SELECT 
                 up.username,
                 COUNT(DISTINCT uat.id) as count,
@@ -469,7 +469,7 @@ impl Database {
             GROUP BY up.username
             ORDER BY count DESC
             LIMIT 10
-            "#,
+            ",
         )
         .bind(total_activities)
         .fetch_all(&self.pool)
@@ -489,14 +489,14 @@ impl Database {
             .await?;
 
         let activities_by_type = sqlx::query_as::<_, crate::models::ActivityTypeStats>(
-            r#"
+            r"
             SELECT 
                 activity_type,
                 COUNT(*) as count
             FROM user_activity_timeline
             GROUP BY activity_type
             ORDER BY count DESC
-            "#,
+            ",
         )
         .fetch_all(&self.pool)
         .await?;

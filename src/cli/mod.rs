@@ -1,4 +1,4 @@
-//! CLI module for SnapRAG binary
+//! CLI module for `SnapRAG` binary
 //!
 //! This module contains all CLI-related functionality including:
 //! - Command line argument parsing

@@ -50,8 +50,8 @@ pub async fn backfill_cast_embeddings_with_config(
     let process_limit = limit.unwrap_or(total_count as usize);
 
     // Process in batches with parallelism - configurable for different hardware
-    let batch_size = config.map(|c| c.embeddings_batch_size()).unwrap_or(100);
-    let parallel_tasks = config.map(|c| c.embeddings_parallel_tasks()).unwrap_or(5);
+    let batch_size = config.map_or(100, super::super::config::AppConfig::embeddings_batch_size);
+    let parallel_tasks = config.map_or(5, super::super::config::AppConfig::embeddings_parallel_tasks);
 
     info!(
         "Using batch_size={}, parallel_tasks={} for embeddings generation",
@@ -170,7 +170,7 @@ async fn process_single_cast_with_retry(
                     .store_cast_embedding(&cast.message_hash, cast.fid, text, &embedding)
                     .await
                 {
-                    Ok(_) => {
+                    Ok(()) => {
                         debug!("✓ Generated embedding for cast {}", hash_str);
                         return ProcessResult::Success;
                     }
@@ -212,10 +212,12 @@ pub struct CastBackfillStats {
 }
 
 impl CastBackfillStats {
-    pub fn processed(&self) -> usize {
+    #[must_use] 
+    pub const fn processed(&self) -> usize {
         self.success + self.skipped + self.failed
     }
 
+    #[must_use] 
     pub fn success_rate(&self) -> f64 {
         if self.processed() == 0 {
             0.0

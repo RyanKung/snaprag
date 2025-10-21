@@ -22,6 +22,7 @@ pub struct PricingConfig {
 impl PricingConfig {
     /// Create default pricing configuration
     /// NOTE: Paths should be WITHOUT /api prefix (middleware receives nested paths)
+    #[must_use] 
     pub fn default() -> Self {
         Self {
             free_endpoints: vec![
@@ -109,6 +110,7 @@ impl PricingConfig {
     }
 
     /// Get description for an endpoint
+    #[must_use] 
     pub fn get_description(&self, path: &str) -> String {
         match path {
             p if p.contains("/health") => "Health check endpoint".to_string(),

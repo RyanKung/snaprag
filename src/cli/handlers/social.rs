@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::*;
+use crate::cli::output::{print_info, print_warning};
 use crate::database::Database;
 use crate::social_graph::SocialGraphAnalyzer;
 use crate::sync::client::SnapchainClient;
@@ -28,18 +28,15 @@ pub async fn handle_social_analysis(
     let profile = lazy_loader
         .get_user_profile_smart(fid as i64)
         .await?
-        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {} not found", fid)))?;
+        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {fid} not found")))?;
 
     let username = profile
         .username
-        .as_ref()
-        .map(|u| format!("@{}", u))
-        .unwrap_or_else(|| format!("FID {}", fid));
+        .as_ref().map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
     print_info(&format!(
-        "📊 Analyzing social graph for {} ({})...",
-        display_name, username
+        "📊 Analyzing social graph for {display_name} ({username})..."
     ));
     println!();
 
@@ -66,12 +63,12 @@ pub async fn handle_social_analysis(
     println!(
         "  Following:        {} {}",
         social_profile.following_count,
-        if !has_links_data { "(not synced)" } else { "" }
+        if has_links_data { "" } else { "(not synced)" }
     );
     println!(
         "  Followers:        {} {}",
         social_profile.followers_count,
-        if !has_links_data { "(not synced)" } else { "" }
+        if has_links_data { "" } else { "(not synced)" }
     );
 
     if has_links_data {
@@ -125,7 +122,7 @@ pub async fn handle_social_analysis(
             let name = user
                 .username
                 .as_ref()
-                .map(|u| format!("@{}", u))
+                .map(|u| format!("@{u}"))
                 .or_else(|| user.display_name.clone())
                 .unwrap_or_else(|| format!("FID {}", user.fid));
 
@@ -252,7 +249,7 @@ pub async fn handle_social_analysis(
     }
 
     for item in summary {
-        println!("  • {}", item);
+        println!("  • {item}");
     }
     println!();
 
@@ -262,7 +259,7 @@ pub async fn handle_social_analysis(
         println!("║  DETAILED DATA                                                ║");
         println!("╚═══════════════════════════════════════════════════════════════╝");
         println!();
-        println!("{:#?}", social_profile);
+        println!("{social_profile:#?}");
     }
 
     Ok(())
@@ -278,14 +275,13 @@ async fn parse_user_identifier(identifier: &str, database: &Database) -> Result<
             .get_user_profile_by_username(username)
             .await?
             .ok_or_else(|| {
-                crate::SnapRagError::Custom(format!("Username @{} not found", username))
+                crate::SnapRagError::Custom(format!("Username @{username} not found"))
             })?;
         Ok(profile.fid as u64)
     } else {
         trimmed.parse::<u64>().map_err(|_| {
             crate::SnapRagError::Custom(format!(
-                "Invalid user identifier '{}'. Use FID or @username",
-                identifier
+                "Invalid user identifier '{identifier}'. Use FID or @username"
             ))
         })
     }
@@ -295,5 +291,5 @@ async fn parse_user_identifier(identifier: &str, database: &Database) -> Result<
 fn print_percentage(label: &str, value: f32) {
     let bar_length = (value / 5.0) as usize; // 20% = 4 chars
     let bar = "█".repeat(bar_length);
-    println!("  {:<20} {:>5.1}% {}", label, value, bar);
+    println!("  {label:<20} {value:>5.1}% {bar}");
 }

@@ -1,5 +1,5 @@
 use super::Database;
-use crate::models::*;
+use crate::models::{UserDataQuery, UserData, UserProfile, UserProfileQuery};
 use crate::Result;
 
 impl Database {
@@ -131,13 +131,12 @@ impl Database {
 
         // Insert or update profile_embeddings table (separate from event-sourcing)
         let field_list = field_names.join(", ");
-        let placeholders = (2..=field_names.len()+1).map(|n| format!("${}", n)).collect::<Vec<_>>().join(", ");
-        let updates_clause = field_names.iter().map(|f| format!("{} = EXCLUDED.{}", f, f)).collect::<Vec<_>>().join(", ");
+        let placeholders = (2..=field_names.len()+1).map(|n| format!("${n}")).collect::<Vec<_>>().join(", ");
+        let updates_clause = field_names.iter().map(|f| format!("{f} = EXCLUDED.{f}")).collect::<Vec<_>>().join(", ");
         
         let query_str = format!(
-            "INSERT INTO profile_embeddings (fid, {}) VALUES ($1, {})
-             ON CONFLICT (fid) DO UPDATE SET {}",
-            field_list, placeholders, updates_clause
+            "INSERT INTO profile_embeddings (fid, {field_list}) VALUES ($1, {placeholders})
+             ON CONFLICT (fid) DO UPDATE SET {updates_clause}"
         );
 
         let mut query = sqlx::query(&query_str).bind(fid);
@@ -166,7 +165,7 @@ impl Database {
         let threshold = similarity_threshold.unwrap_or(0.8);
 
         let profiles = sqlx::query_as(
-            r#"
+            r"
             SELECT p.*
             FROM user_profiles p
             JOIN profile_embeddings e ON p.fid = e.fid
@@ -174,7 +173,7 @@ impl Database {
                 AND (e.profile_embedding <=> $1::vector) < $2
             ORDER BY e.profile_embedding <=> $1::vector
             LIMIT $3
-            "#,
+            ",
         )
         .bind(query_embedding)
         .bind(threshold)
@@ -195,7 +194,7 @@ impl Database {
         let threshold = similarity_threshold.unwrap_or(0.8);
 
         let profiles = sqlx::query_as(
-            r#"
+            r"
             SELECT p.*
             FROM user_profiles p
             JOIN profile_embeddings e ON p.fid = e.fid
@@ -203,7 +202,7 @@ impl Database {
                 AND (e.bio_embedding <=> $1::vector) < $2
             ORDER BY e.bio_embedding <=> $1::vector
             LIMIT $3
-            "#,
+            ",
         )
         .bind(query_embedding)
         .bind(threshold)
@@ -225,7 +224,7 @@ impl Database {
             (Some(embedding), Some(text)) => {
                 // Combined vector + text search using CTE
                 let profiles = sqlx::query_as::<_, UserProfile>(
-                    r#"
+                    r"
                     WITH scored_profiles AS (
                         SELECT 
                             id, fid, username, display_name, bio, pfp_url, banner_url, location,
@@ -253,10 +252,10 @@ impl Database {
                     FROM scored_profiles
                     ORDER BY vector_distance * 0.5 + (1.0 - text_score) * 0.5
                     LIMIT $3
-                    "#,
+                    ",
                 )
                 .bind(embedding)
-                .bind(format!("%{}%", text))
+                .bind(format!("%{text}%"))
                 .bind(limit)
                 .fetch_all(&self.pool)
                 .await?;

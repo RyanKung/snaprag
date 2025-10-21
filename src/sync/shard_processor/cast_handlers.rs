@@ -13,7 +13,7 @@ pub(super) async fn collect_cast_add(
     batched: &mut BatchedData,
 ) -> Result<()> {
     let fid = data.fid as i64;
-    let timestamp = data.timestamp as i64;
+    let timestamp = i64::from(data.timestamp);
 
     // Parse cast data from the body
     let mut text = None;
@@ -26,7 +26,7 @@ pub(super) async fn collect_cast_add(
         if let Some(cast_add_body) = body.get("cast_add_body") {
             // Extract text
             if let Some(text_value) = cast_add_body.get("text") {
-                text = text_value.as_str().map(|s| s.to_string());
+                text = text_value.as_str().map(std::string::ToString::to_string);
             }
 
             // Extract parent cast info
@@ -55,7 +55,7 @@ pub(super) async fn collect_cast_add(
     // Collect cast for batch insert
     batched.casts.push((
         fid,
-        text.clone(),
+        text,
         timestamp,
         message_hash.to_vec(),
         parent_hash,

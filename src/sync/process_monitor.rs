@@ -18,7 +18,8 @@ pub struct ProcessMonitor {
 
 impl ProcessMonitor {
     /// Create a new process monitor
-    pub fn new() -> Self {
+    #[must_use] 
+    pub const fn new() -> Self {
         Self {
             max_idle_time: Duration::from_secs(300), // 5 minutes
             check_interval: Duration::from_secs(60), // 1 minute
@@ -74,10 +75,10 @@ impl ProcessMonitor {
         use std::process::Command;
 
         let output = Command::new("pgrep")
-            .args(&["-f", "snaprag"])
+            .args(["-f", "snaprag"])
             .output()
             .map_err(|e| {
-                crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {}", e))
+                crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {e}"))
             })?;
 
         let output_str = String::from_utf8_lossy(&output.stdout);
@@ -107,7 +108,7 @@ impl ProcessMonitor {
         }
 
         // Check if process has been idle (no CPU usage)
-        if self.is_process_idle(pid).await? {
+        if self.is_process_idle(pid)? {
             return Ok(true);
         }
 
@@ -125,22 +126,21 @@ impl ProcessMonitor {
 
         // Use ps to get elapsed time in seconds (etime format: seconds)
         let output = Command::new("ps")
-            .args(&["-o", "etimes=", "-p", &pid.to_string()])
+            .args(["-o", "etimes=", "-p", &pid.to_string()])
             .output()
             .map_err(|e| {
-                crate::SnapRagError::Custom(format!("Failed to get process start time: {}", e))
+                crate::SnapRagError::Custom(format!("Failed to get process start time: {e}"))
             })?;
 
         if !output.status.success() {
             return Err(crate::SnapRagError::Custom(format!(
-                "Process {} not found",
-                pid
+                "Process {pid} not found"
             )));
         }
 
         let elapsed_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
         let elapsed_secs: u64 = elapsed_str.parse().map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to parse elapsed time: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to parse elapsed time: {e}"))
         })?;
 
         // Calculate start time as (now - elapsed)
@@ -156,7 +156,7 @@ impl ProcessMonitor {
     }
 
     /// Check if process is idle based on last activity
-    async fn is_process_idle(&self, _pid: u32) -> Result<bool> {
+    fn is_process_idle(&self, _pid: u32) -> Result<bool> {
         // Process idle detection via last activity time
         // In a full implementation, could track per-process activity timestamps
         // For now, use the max_idle_time threshold
@@ -199,10 +199,10 @@ pub fn cleanup_all_snaprag_processes() -> Result<()> {
 
     // Find all snaprag processes
     let output = Command::new("pgrep")
-        .args(&["-f", "snaprag"])
+        .args(["-f", "snaprag"])
         .output()
         .map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {e}"))
         })?;
 
     if !output.stdout.is_empty() {
@@ -210,7 +210,7 @@ pub fn cleanup_all_snaprag_processes() -> Result<()> {
         let pids: Vec<&str> = output_str.lines().filter(|line| !line.is_empty()).collect();
 
         for pid in pids {
-            let _ = Command::new("kill").args(&["-9", pid]).output();
+            let _ = Command::new("kill").args(["-9", pid]).output();
         }
 
         // Wait for processes to terminate

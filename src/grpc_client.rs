@@ -1,4 +1,4 @@
-//! gRPC client for connecting to snapchain HubService
+//! gRPC client for connecting to snapchain `HubService`
 
 use anyhow::Result;
 
@@ -6,7 +6,7 @@ use crate::generated::grpc_client::hub_service_client::HubServiceClient as Gener
 use crate::generated::grpc_client::ShardChunksRequest;
 use crate::generated::grpc_client::ShardChunksResponse;
 
-/// Wrapper around the generated gRPC client for HubService
+/// Wrapper around the generated gRPC client for `HubService`
 pub struct HubServiceClient {
     client: GeneratedHubServiceClient<tonic::transport::Channel>,
 }
@@ -18,17 +18,17 @@ impl HubServiceClient {
         let endpoint_url = if endpoint.starts_with("http://") {
             endpoint.to_string()
         } else {
-            format!("http://{}", endpoint)
+            format!("http://{endpoint}")
         };
 
-        println!("Creating gRPC client for endpoint: {}", endpoint_url);
+        println!("Creating gRPC client for endpoint: {endpoint_url}");
 
         // Use the generated gRPC client
         // Note: tonic doesn't support message size limits on connect()
         // The server needs to be configured with larger limits, or we need to reduce batch_size
         let client = GeneratedHubServiceClient::connect(endpoint_url)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to gRPC endpoint: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to connect to gRPC endpoint: {e}"))?;
 
         Ok(Self { client })
     }
@@ -45,7 +45,7 @@ impl HubServiceClient {
             .client
             .get_shard_chunks(request)
             .await
-            .map_err(|e| anyhow::anyhow!("gRPC call failed: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("gRPC call failed: {e}"))?;
 
         println!("Received gRPC response successfully");
 

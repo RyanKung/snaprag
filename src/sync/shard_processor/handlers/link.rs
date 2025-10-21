@@ -5,7 +5,7 @@ use crate::Result;
 
 use super::super::types::BatchedData;
 
-/// Handle LinkAdd message (type 5)
+/// Handle `LinkAdd` message (type 5)
 pub(super) fn handle_link_add(
     body: &serde_json::Value,
     fid: i64,
@@ -26,7 +26,7 @@ pub(super) fn handle_link_add(
         
         let target_fid = link_body
             .get("target_fid")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .unwrap_or(0);
 
         if target_fid > 0 {
@@ -49,7 +49,7 @@ pub(super) fn handle_link_add(
     }
 }
 
-/// Handle LinkRemove message (type 6)
+/// Handle `LinkRemove` message (type 6)
 pub(super) fn handle_link_remove(
     body: &serde_json::Value,
     fid: i64,
@@ -65,7 +65,7 @@ pub(super) fn handle_link_remove(
         
         let target_fid = link_body
             .get("target_fid")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .unwrap_or(0);
 
         if target_fid > 0 {

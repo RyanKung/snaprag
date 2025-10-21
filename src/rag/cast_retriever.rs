@@ -17,7 +17,8 @@ pub struct CastRetriever {
 
 impl CastRetriever {
     /// Create a new cast retriever
-    pub fn new(database: Arc<Database>, embedding_service: Arc<EmbeddingService>) -> Self {
+    #[must_use] 
+    pub const fn new(database: Arc<Database>, embedding_service: Arc<EmbeddingService>) -> Self {
         Self {
             database,
             embedding_service,
@@ -168,7 +169,7 @@ impl CastRetriever {
 
         // Search with FID filter and engagement metrics
         let raw_results = sqlx::query_as::<_, RawResult>(
-            r#"
+            r"
             SELECT 
                 ce.message_hash,
                 ce.fid,
@@ -187,7 +188,7 @@ impl CastRetriever {
             WHERE ce.fid = $2 AND 1 - (ce.embedding <=> $1) > $3
             ORDER BY ce.embedding <=> $1
             LIMIT $4
-            "#,
+            ",
         )
         .bind(&query_embedding)
         .bind(fid)
@@ -234,7 +235,7 @@ impl CastRetriever {
         }
 
         let raw_results = sqlx::query_as::<_, RawResult>(
-            r#"
+            r"
             SELECT 
                 c.message_hash,
                 c.fid,
@@ -252,9 +253,9 @@ impl CastRetriever {
             WHERE c.text ILIKE $1
             ORDER BY c.timestamp DESC
             LIMIT $2
-            "#,
+            ",
         )
-        .bind(format!("%{}%", query))
+        .bind(format!("%{query}%"))
         .bind(limit as i64)
         .fetch_all(self.database.pool())
         .await?;

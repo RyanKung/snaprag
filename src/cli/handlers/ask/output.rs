@@ -9,15 +9,12 @@ pub fn display_response(
 ) {
     let username = profile
         .username
-        .as_ref()
-        .map(|u| format!("@{}", u))
-        .unwrap_or_else(|| format!("FID {}", profile.fid));
+        .as_ref().map_or_else(|| format!("FID {}", profile.fid), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
     println!("╔═══════════════════════════════════════════════════════════════╗");
     println!(
-        "║  {} ({})                                           ",
-        display_name, username
+        "║  {display_name} ({username})                                           "
     );
     println!("╚═══════════════════════════════════════════════════════════════╝");
     println!();
@@ -27,8 +24,7 @@ pub fn display_response(
     println!();
     println!("─────────────────────────────────────────────────────────────────");
     println!(
-        "💬 Based on {} casts  |  🎯 Context: {} relevant casts",
-        total_casts, relevant_casts
+        "💬 Based on {total_casts} casts  |  🎯 Context: {relevant_casts} relevant casts"
     );
     println!("─────────────────────────────────────────────────────────────────");
 }
@@ -40,7 +36,7 @@ pub fn print_wrapped(text: &str, max_width: usize) {
 
     for word in words {
         if current_line.len() + word.len() + 1 > max_width {
-            println!("{}", current_line);
+            println!("{current_line}");
             current_line = word.to_string();
         } else {
             if !current_line.is_empty() {
@@ -50,6 +46,6 @@ pub fn print_wrapped(text: &str, max_width: usize) {
         }
     }
     if !current_line.is_empty() {
-        println!("{}", current_line);
+        println!("{current_line}");
     }
 }

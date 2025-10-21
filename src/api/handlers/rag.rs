@@ -6,7 +6,7 @@ use tracing::error;
 use tracing::info;
 
 use super::AppState;
-use crate::api::types::*;
+use crate::api::types::{RagQueryRequest, ApiResponse};
 use crate::rag::RagQuery;
 use crate::rag::RagService;
 use crate::rag::RetrievalMethod;

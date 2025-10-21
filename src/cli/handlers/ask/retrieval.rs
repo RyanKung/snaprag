@@ -13,6 +13,7 @@ pub struct Spinner {
 }
 
 impl Spinner {
+    #[must_use] 
     pub fn new(message: &str) -> Self {
         Self {
             message: message.to_string(),
@@ -139,9 +140,9 @@ pub async fn find_relevant_casts(
             let age_str = if age_days < 1.0 {
                 "today".to_string()
             } else if age_days < 7.0 {
-                format!("{:.0}d ago", age_days)
+                format!("{age_days:.0}d ago")
             } else if age_days < 30.0 {
-                format!("{:.0}d ago", age_days)
+                format!("{age_days:.0}d ago")
             } else if age_days < 365.0 {
                 format!("{:.0}mo ago", age_days / 30.0)
             } else {
@@ -164,6 +165,7 @@ pub async fn find_relevant_casts(
 }
 
 /// Analyze user's writing style from their casts
+#[must_use] 
 pub fn analyze_writing_style(casts: &[crate::models::CastSearchResult]) -> String {
     if casts.is_empty() {
         return "casual and friendly".to_string();
@@ -373,18 +375,15 @@ fn analyze_link_sharing(casts: &[crate::models::CastSearchResult]) -> String {
 
     let mut result = if link_frequency > 0.5 {
         format!(
-            "⛓️ FREQUENT link sharer ({} links in {} posts)",
-            total_links, casts_with_links
+            "⛓️ FREQUENT link sharer ({total_links} links in {casts_with_links} posts)"
         )
     } else if link_frequency > 0.2 {
         format!(
-            "🔗 Occasional link sharer ({} links in {} posts)",
-            total_links, casts_with_links
+            "🔗 Occasional link sharer ({total_links} links in {casts_with_links} posts)"
         )
     } else {
         format!(
-            "Rarely shares links ({} in {} posts)",
-            total_links, casts_with_links
+            "Rarely shares links ({total_links} in {casts_with_links} posts)"
         )
     };
 
@@ -399,7 +398,7 @@ fn analyze_link_sharing(casts: &[crate::models::CastSearchResult]) -> String {
             .take(3)
             .map(|(domain, count)| {
                 let category = categorize_domain(domain);
-                format!("{} ({}x, {})", domain, count, category)
+                format!("{domain} ({count}x, {category})")
             })
             .collect();
         result.push_str(&top_domains.join(", "));

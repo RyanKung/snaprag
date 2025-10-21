@@ -11,11 +11,13 @@ pub struct ContextAssembler {
 
 impl ContextAssembler {
     /// Create a new context assembler
-    pub fn new(max_context_length: usize) -> Self {
+    #[must_use] 
+    pub const fn new(max_context_length: usize) -> Self {
         Self { max_context_length }
     }
 
     /// Assemble context from search results
+    #[must_use] 
     pub fn assemble(&self, results: &[SearchResult]) -> String {
         let mut context = String::new();
         let mut total_length = 0;
@@ -36,6 +38,7 @@ impl ContextAssembler {
     }
 
     /// Assemble context with metadata
+    #[must_use] 
     pub fn assemble_with_metadata(
         &self,
         results: &[SearchResult],
@@ -75,28 +78,29 @@ impl ContextAssembler {
         let mut parts = Vec::new();
 
         if let Some(username) = &profile.username {
-            parts.push(format!("Username: {}", username));
+            parts.push(format!("Username: {username}"));
         }
         if let Some(display_name) = &profile.display_name {
-            parts.push(format!("Display Name: {}", display_name));
+            parts.push(format!("Display Name: {display_name}"));
         }
         if let Some(bio) = &profile.bio {
-            parts.push(format!("Bio: {}", bio));
+            parts.push(format!("Bio: {bio}"));
         }
         if let Some(location) = &profile.location {
-            parts.push(format!("Location: {}", location));
+            parts.push(format!("Location: {location}"));
         }
         if let Some(twitter) = &profile.twitter_username {
-            parts.push(format!("Twitter: {}", twitter));
+            parts.push(format!("Twitter: {twitter}"));
         }
         if let Some(github) = &profile.github_username {
-            parts.push(format!("GitHub: {}", github));
+            parts.push(format!("GitHub: {github}"));
         }
 
         parts.join("\n")
     }
 
     /// Create a summary of the retrieved profiles
+    #[must_use] 
     pub fn create_summary(&self, results: &[SearchResult]) -> String {
         if results.is_empty() {
             return "No profiles found.".to_string();
@@ -147,11 +151,13 @@ pub struct CastContextAssembler {
 
 impl CastContextAssembler {
     /// Create a new cast context assembler
-    pub fn new(max_context_length: usize) -> Self {
+    #[must_use] 
+    pub const fn new(max_context_length: usize) -> Self {
         Self { max_context_length }
     }
 
     /// Assemble context from cast search results
+    #[must_use] 
     pub fn assemble(&self, results: &[crate::models::CastSearchResult]) -> String {
         let mut context = String::new();
         let mut total_length = 0;
@@ -217,6 +223,7 @@ impl CastContextAssembler {
     }
 
     /// Create a summary of the retrieved casts
+    #[must_use] 
     pub fn create_summary(&self, results: &[crate::models::CastSearchResult]) -> String {
         if results.is_empty() {
             return "No casts found.".to_string();

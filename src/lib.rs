@@ -1,6 +1,6 @@
-//! SnapRAG - A Farcaster data synchronization and RAG (Retrieval-Augmented Generation) library
+//! `SnapRAG` - A Farcaster data synchronization and RAG (Retrieval-Augmented Generation) library
 //!
-//! SnapRAG provides comprehensive tools for:
+//! `SnapRAG` provides comprehensive tools for:
 //! - Synchronizing Farcaster data from snapchain
 //! - Storing and querying user profiles, casts, and relationships
 //! - Vector embeddings and semantic search capabilities
@@ -52,12 +52,14 @@ pub mod sync;
 pub const FARCASTER_EPOCH: u64 = 1609459200000;
 
 /// Convert Farcaster timestamp (seconds since Farcaster epoch) to Unix timestamp (seconds since Unix epoch)
-pub fn farcaster_to_unix_timestamp(farcaster_timestamp: u64) -> u64 {
+#[must_use] 
+pub const fn farcaster_to_unix_timestamp(farcaster_timestamp: u64) -> u64 {
     farcaster_timestamp + (FARCASTER_EPOCH / 1000)
 }
 
 /// Convert Unix timestamp (seconds since Unix epoch) to Farcaster timestamp (seconds since Farcaster epoch)
-pub fn unix_to_farcaster_timestamp(unix_timestamp: u64) -> u64 {
+#[must_use] 
+pub const fn unix_to_farcaster_timestamp(unix_timestamp: u64) -> u64 {
     unix_timestamp - (FARCASTER_EPOCH / 1000)
 }
 
@@ -102,7 +104,7 @@ pub use sync::lazy_loader::LazyLoader;
 pub use sync::service::SyncService;
 use tracing::info;
 
-/// Main SnapRAG client for high-level operations
+/// Main `SnapRAG` client for high-level operations
 pub struct SnapRag {
     config: AppConfig,
     database: Arc<Database>,
@@ -111,7 +113,7 @@ pub struct SnapRag {
 }
 
 impl SnapRag {
-    /// Create a new SnapRAG instance
+    /// Create a new `SnapRAG` instance
     pub async fn new(config: &AppConfig) -> Result<Self> {
         let database = Arc::new(Database::from_config(config).await?);
         Ok(Self {
@@ -122,7 +124,7 @@ impl SnapRag {
         })
     }
 
-    /// Create SnapRAG instance with lazy loading enabled
+    /// Create `SnapRAG` instance with lazy loading enabled
     pub async fn new_with_lazy_loading(config: &AppConfig) -> Result<Self> {
         let database = Arc::new(Database::from_config(config).await?);
         let snapchain_client = Arc::new(sync::SnapchainClient::from_config(config).await?);
@@ -147,12 +149,14 @@ impl SnapRag {
     }
 
     /// Get the database instance for direct access
-    pub fn database(&self) -> &Arc<Database> {
+    #[must_use] 
+    pub const fn database(&self) -> &Arc<Database> {
         &self.database
     }
 
     /// Get reference to lazy loader
-    pub fn lazy_loader(&self) -> Option<&Arc<LazyLoader>> {
+    #[must_use] 
+    pub const fn lazy_loader(&self) -> Option<&Arc<LazyLoader>> {
         self.lazy_loader.as_ref()
     }
 
@@ -329,17 +333,11 @@ impl SnapRag {
                 Ok(lock) => Ok(Some(lock)),
                 Err(_) => {
                     // Fallback to sync_service if lock file read failed
-                    if let Some(sync_service) = &self.sync_service {
-                        sync_service.get_sync_status()
-                    } else {
-                        Ok(None)
-                    }
+                    self.sync_service.as_ref().map_or_else(|| Ok(None), |sync_service| sync_service.get_sync_status())
                 }
             }
-        } else if let Some(sync_service) = &self.sync_service {
-            sync_service.get_sync_status()
         } else {
-            Ok(None)
+            self.sync_service.as_ref().map_or_else(|| Ok(None), |sync_service| sync_service.get_sync_status())
         }
     }
 

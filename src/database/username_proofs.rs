@@ -1,5 +1,5 @@
 use super::Database;
-use crate::models::*;
+use crate::models::{UsernameType, UsernameProof};
 use crate::Result;
 
 impl Database {
@@ -14,7 +14,7 @@ impl Database {
         timestamp: i64,
     ) -> Result<UsernameProof> {
         let proof = sqlx::query_as::<_, UsernameProof>(
-            r#"
+            r"
             INSERT INTO username_proofs (fid, username, username_type, owner_address, signature, timestamp)
             VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (fid, username_type)
@@ -25,7 +25,7 @@ impl Database {
                 timestamp = EXCLUDED.timestamp,
                 created_at = NOW()
             RETURNING *
-            "#
+            "
         )
         .bind(fid)
         .bind(username)

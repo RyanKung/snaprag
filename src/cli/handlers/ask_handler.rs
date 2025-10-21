@@ -17,7 +17,7 @@ use crate::cli::handlers::ask::output::print_wrapped;
 use crate::cli::handlers::ask::retrieval::analyze_writing_style;
 use crate::cli::handlers::ask::retrieval::find_relevant_casts;
 use crate::cli::handlers::ask::retrieval::Spinner;
-use crate::cli::output::*;
+use crate::cli::output::{print_info, print_error, print_warning, print_success};
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::llm::LlmService;
@@ -109,32 +109,30 @@ async fn load_user_data(
     println!();
 
     // 1. Fetch user profile
-    print_info(&format!("📋 Step 1/3: Fetching profile for FID {}...", fid));
+    print_info(&format!("📋 Step 1/3: Fetching profile for FID {fid}..."));
     let profile = lazy_loader
         .get_user_profile_smart(fid as i64)
         .await?
-        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {} not found", fid)))?;
+        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {fid} not found")))?;
 
     let username = profile
         .username
-        .as_ref()
-        .map(|u| format!("@{}", u))
-        .unwrap_or_else(|| format!("FID {}", fid));
+        .as_ref().map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
-    println!("   ✅ Found: {} ({})", display_name, username);
+    println!("   ✅ Found: {display_name} ({username})");
     if let Some(bio) = &profile.bio {
         let bio_preview = if bio.len() > 100 {
             format!("{}...", &bio[..100])
         } else {
             bio.clone()
         };
-        println!("   📝 Bio: {}", bio_preview);
+        println!("   📝 Bio: {bio_preview}");
     }
     println!();
 
     // 2. Fetch and ensure embeddings for casts
-    print_info(&format!("📚 Step 2/3: Loading casts for {}...", username));
+    print_info(&format!("📚 Step 2/3: Loading casts for {username}..."));
     let mut casts = lazy_loader.get_user_casts_smart(fid as i64).await?;
 
     if casts.is_empty() && fetch_casts {
@@ -143,7 +141,7 @@ async fn load_user_data(
     }
 
     if casts.is_empty() {
-        print_error(&format!("No casts found for {}.", username));
+        print_error(&format!("No casts found for {username}."));
         return Err(crate::SnapRagError::Custom(
             "No casts available".to_string(),
         ));
@@ -157,8 +155,7 @@ async fn load_user_data(
         .filter(|c| {
             c.text
                 .as_ref()
-                .map(|t| !t.trim().is_empty())
-                .unwrap_or(false)
+                .is_some_and(|t| !t.trim().is_empty())
         })
         .map(|c| c.message_hash.clone())
         .collect();
@@ -181,7 +178,9 @@ async fn load_user_data(
     );
 
     // Generate missing embeddings
-    if !casts_without_embeddings.is_empty() {
+    if casts_without_embeddings.is_empty() {
+        print_info("Step 3/3: All casts have embeddings ✓");
+    } else {
         print_info(&format!(
             "🔮 Step 3/3: Generating embeddings for {} casts...",
             casts_without_embeddings.len()
@@ -222,8 +221,7 @@ async fn load_user_data(
                     let bar: String = "█".repeat(filled) + &"░".repeat(bar_width - filled);
 
                     print!(
-                        "\r   Progress: [{}] {}% ({}/{})",
-                        bar, percentage, processed, total
+                        "\r   Progress: [{bar}] {percentage}% ({processed}/{total})"
                     );
                     io::stdout().flush().ok();
                 }
@@ -231,9 +229,7 @@ async fn load_user_data(
         }
 
         println!();
-        println!("   ✅ Generated {} embeddings", success);
-    } else {
-        print_info("Step 3/3: All casts have embeddings ✓");
+        println!("   ✅ Generated {success} embeddings");
     }
     println!();
 
@@ -273,7 +269,7 @@ async fn answer_single_question(
     // Show writing style in verbose mode
     if verbose && !relevant_casts.is_empty() {
         let style = analyze_writing_style(&relevant_casts);
-        println!("   📝 Writing style: {}", style);
+        println!("   📝 Writing style: {style}");
     }
     println!();
 
@@ -308,16 +304,13 @@ async fn run_interactive_chat(
 ) -> Result<()> {
     let username = profile
         .username
-        .as_ref()
-        .map(|u| format!("@{}", u))
-        .unwrap_or_else(|| format!("FID {}", fid));
+        .as_ref().map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
     println!("╔════════════════════════════════════════════════════════════════╗");
     println!("║  💬 Interactive Chat Mode                                     ║");
     println!(
-        "║  Chatting with: {} ({})                      ",
-        display_name, username
+        "║  Chatting with: {display_name} ({username})                      "
     );
     if let Some(bio) = &profile.bio {
         let bio_preview = if bio.len() > 50 {
@@ -326,8 +319,7 @@ async fn run_interactive_chat(
             bio.clone()
         };
         println!(
-            "║  Bio: {}                                     ",
-            bio_preview
+            "║  Bio: {bio_preview}                                     "
         );
     }
     println!("║  Commands: 'exit', 'quit', 'style' (show style), Ctrl+C      ║");
@@ -389,7 +381,7 @@ async fn run_interactive_chat(
                 .collect();
 
             let style = analyze_writing_style(&sample_casts);
-            println!("📝 Writing style analysis: {}", style);
+            println!("📝 Writing style analysis: {style}");
             println!();
             println!("Sample posts:");
             for (idx, cast) in sample_casts.iter().take(5).enumerate() {
@@ -434,7 +426,7 @@ async fn run_interactive_chat(
 
         // Display response
         println!();
-        println!("{}:", display_name);
+        println!("{display_name}:");
         println!();
 
         // Word wrap the response

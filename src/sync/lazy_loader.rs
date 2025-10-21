@@ -37,6 +37,7 @@ pub struct LazyLoadCache {
 }
 
 impl LazyLoadCache {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             loading: Arc::new(Mutex::new(HashSet::new())),
@@ -92,8 +93,8 @@ impl LazyLoadCache {
         let mut reqs = self.rate_limiter.lock().await;
 
         // Clean up old requests (older than 1 minute)
-        let cutoff = Instant::now() - Duration::from_secs(60);
-        while reqs.front().map(|&t| t < cutoff).unwrap_or(false) {
+        let cutoff = Instant::now().checked_sub(Duration::from_secs(60)).unwrap();
+        while reqs.front().is_some_and(|&t| t < cutoff) {
             reqs.pop_front();
         }
 
@@ -135,8 +136,7 @@ impl LazyLoader {
         // Check if should load
         if !self.cache.should_load(fid).await {
             return Err(crate::errors::SnapRagError::Custom(format!(
-                "FID {} is being loaded or was recently loaded",
-                fid
+                "FID {fid} is being loaded or was recently loaded"
             )));
         }
 
@@ -183,8 +183,7 @@ impl LazyLoader {
 
         if user_data_response.messages.is_empty() {
             return Err(crate::errors::SnapRagError::Custom(format!(
-                "User {} not found on Snapchain",
-                fid
+                "User {fid} not found on Snapchain"
             )));
         }
 
@@ -221,7 +220,7 @@ impl LazyLoader {
                 if let Some(user_data_body) = body.get("user_data_body") {
                     let data_type = user_data_body
                         .get("type")
-                        .and_then(|v| v.as_i64())
+                        .and_then(serde_json::Value::as_i64)
                         .unwrap_or(0);
                     let value = user_data_body
                         .get("value")
@@ -360,7 +359,7 @@ impl LazyLoader {
             .get("castAddBody")
             .and_then(|cast_body| cast_body.get("text"))
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         let parent_hash = body
             .get("castAddBody")

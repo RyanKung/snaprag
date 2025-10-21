@@ -1,5 +1,5 @@
 use super::Database;
-use crate::models::*;
+use crate::models::{UserProfileSnapshot, UserProfile, ProfileSnapshotQuery};
 use crate::Result;
 
 impl Database {
@@ -38,7 +38,7 @@ impl Database {
         let snapshot_timestamp = profile.last_updated_timestamp + 1;
 
         let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
-            r#"
+            r"
             INSERT INTO user_profile_snapshots (
                 fid, snapshot_timestamp, message_hash, username, display_name, bio,
                 pfp_url, banner_url, location, website_url, twitter_username,
@@ -48,7 +48,7 @@ impl Database {
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
             )
             RETURNING *
-            "#,
+            ",
         )
         .bind(profile.fid)
         .bind(snapshot_timestamp)
@@ -81,7 +81,7 @@ impl Database {
     ) -> Result<Vec<UserProfileSnapshot>> {
         // Returns snapshots with pagination
         let snapshots = sqlx::query_as::<_, UserProfileSnapshot>(
-            r#"
+            r"
             SELECT 
                 id,
                 fid,
@@ -104,11 +104,11 @@ impl Database {
             ORDER BY snapshot_timestamp DESC
             LIMIT $2
             OFFSET $3
-            "#,
+            ",
         )
         .bind(query.fid)
-        .bind(query.limit.unwrap_or(100) as i64)
-        .bind(query.offset.unwrap_or(0) as i64)
+        .bind(query.limit.unwrap_or(100))
+        .bind(query.offset.unwrap_or(0))
         .fetch_all(&self.pool)
         .await?;
         Ok(snapshots)
@@ -121,12 +121,12 @@ impl Database {
         timestamp: i64,
     ) -> Result<Option<UserProfileSnapshot>> {
         let snapshot = sqlx::query_as::<_, UserProfileSnapshot>(
-            r#"
+            r"
             SELECT * FROM user_profile_snapshots
             WHERE fid = $1 AND snapshot_timestamp <= $2
             ORDER BY snapshot_timestamp DESC
             LIMIT 1
-            "#,
+            ",
         )
         .bind(fid)
         .bind(timestamp)

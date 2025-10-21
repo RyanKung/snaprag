@@ -23,13 +23,13 @@ impl Database {
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.flatten().map(|h| h as u64).unwrap_or(0))
+        Ok(row.flatten().map_or(0, |h| h as u64))
     }
 
     /// Update the last processed height for a shard
     pub async fn update_last_processed_height(&self, shard_id: u32, height: u64) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO sync_progress (shard_id, last_processed_height, status, updated_at)
             VALUES ($1, $2, 'syncing', NOW())
             ON CONFLICT (shard_id)
@@ -37,7 +37,7 @@ impl Database {
                 last_processed_height = EXCLUDED.last_processed_height,
                 status = 'syncing',
                 updated_at = NOW()
-            "#,
+            ",
         )
         .bind(shard_id as i32)
         .bind(height as i64)
@@ -55,7 +55,7 @@ impl Database {
         error_message: Option<&str>,
     ) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO sync_progress (shard_id, status, error_message, updated_at)
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (shard_id)
@@ -63,7 +63,7 @@ impl Database {
                 status = EXCLUDED.status,
                 error_message = EXCLUDED.error_message,
                 updated_at = NOW()
-            "#,
+            ",
         )
         .bind(shard_id as i32)
         .bind(status)
@@ -87,14 +87,14 @@ impl Database {
         content_hash: Option<Vec<u8>>,
     ) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO processed_messages (
                 message_hash, shard_id, block_height, transaction_fid,
                 message_type, fid, timestamp, content_hash
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (message_hash) DO NOTHING
-            "#,
+            ",
         )
         .bind(message_hash)
         .bind(shard_id as i32)
@@ -130,7 +130,7 @@ impl Database {
         total_blocks: u64,
     ) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO sync_stats (shard_id, total_messages, total_blocks, last_updated)
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (shard_id)
@@ -138,7 +138,7 @@ impl Database {
                 total_messages = EXCLUDED.total_messages,
                 total_blocks = EXCLUDED.total_blocks,
                 last_updated = NOW()
-            "#,
+            ",
         )
         .bind(shard_id as i32)
         .bind(total_messages as i64)
@@ -152,7 +152,7 @@ impl Database {
     /// Get sync statistics for all shards
     pub async fn get_sync_stats(&self) -> Result<Vec<SyncStats>> {
         let stats = sqlx::query_as::<_, SyncStats>(
-            r#"
+            r"
             SELECT 
                 sp.shard_id,
                 COALESCE(ss.total_messages, 0) as total_messages,
@@ -164,7 +164,7 @@ impl Database {
             FROM sync_progress sp
             LEFT JOIN sync_stats ss ON sp.shard_id = ss.shard_id
             ORDER BY sp.shard_id
-            "#,
+            ",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -182,11 +182,11 @@ impl Database {
         message_hash: Vec<u8>,
     ) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (message_hash) DO NOTHING
-            "#,
+            ",
         )
         .bind(fid)
         .bind(target_fid)
@@ -212,11 +212,11 @@ impl Database {
         mentions: Option<serde_json::Value>,
     ) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (message_hash) DO NOTHING
-            "#
+            "
         )
         .bind(fid)
         .bind(text)
@@ -242,11 +242,11 @@ impl Database {
         message_hash: Vec<u8>,
     ) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO user_data (fid, data_type, value, timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (message_hash) DO NOTHING
-            "#,
+            ",
         )
         .bind(fid)
         .bind(data_type)

@@ -1,13 +1,13 @@
 //! CLI output formatting utilities
 //!
-//! This module provides consistent output formatting for the SnapRAG CLI
+//! This module provides consistent output formatting for the `SnapRAG` CLI
 
-use crate::models::*;
+use crate::models::{UserProfile, Cast, Link, UserData, StatisticsResult};
 use crate::AppConfig;
 
 /// Print a list header
 pub fn print_list_header(data_type: &str, limit: u32) {
-    println!("📋 Listing {} (limit: {})", data_type, limit);
+    println!("📋 Listing {data_type} (limit: {limit})");
 }
 
 /// Print FID list
@@ -46,7 +46,7 @@ pub fn print_cast_list(casts: &[Cast]) {
             .take(100)
             .collect::<String>();
         let text_display = if text_preview.len() >= 100 {
-            format!("{}...", text_preview)
+            format!("{text_preview}...")
         } else {
             text_preview
         };
@@ -81,8 +81,8 @@ pub fn print_user_data_list(user_data: &[UserData]) {
 
 /// Print search header
 pub fn print_search_header(query: &str, fields: &str) {
-    println!("🔍 Searching profiles for: \"{}\"", query);
-    println!("Fields: {}", fields);
+    println!("🔍 Searching profiles for: \"{query}\"");
+    println!("Fields: {fields}");
     println!();
 }
 
@@ -94,22 +94,22 @@ pub fn print_search_results(profiles: &[UserProfile], limit: usize) {
         println!();
         println!("  🆔 FID: {}", profile.fid);
         if let Some(username) = &profile.username {
-            println!("  👤 Username: {}", username);
+            println!("  👤 Username: {username}");
         }
         if let Some(display_name) = &profile.display_name {
-            println!("  📝 Display Name: {}", display_name);
+            println!("  📝 Display Name: {display_name}");
         }
         if let Some(bio) = &profile.bio {
-            println!("  📄 Bio: {}", bio);
+            println!("  📄 Bio: {bio}");
         }
         if let Some(location) = &profile.location {
-            println!("  📍 Location: {}", location);
+            println!("  📍 Location: {location}");
         }
         if let Some(twitter) = &profile.twitter_username {
-            println!("  🐦 Twitter: @{}", twitter);
+            println!("  🐦 Twitter: @{twitter}");
         }
         if let Some(github) = &profile.github_username {
-            println!("  🐙 GitHub: @{}", github);
+            println!("  🐙 GitHub: @{github}");
         }
         println!(
             "  🕒 Last Updated: {}",
@@ -371,22 +371,22 @@ fn mask_database_url(url: &str) -> String {
 
 /// Print colored output functions
 pub fn print_info(msg: &str) {
-    println!("ℹ️  {}", msg);
+    println!("ℹ️  {msg}");
 }
 
 pub fn print_success(msg: &str) {
-    println!("✅ {}", msg);
+    println!("✅ {msg}");
 }
 
 pub fn print_warning(msg: &str) {
-    println!("⚠️  {}", msg);
+    println!("⚠️  {msg}");
 }
 
 pub fn print_error(msg: &str) {
-    println!("❌ {}", msg);
+    println!("❌ {msg}");
 }
 
 pub fn print_prompt(msg: &str) {
-    print!("{}", msg);
+    print!("{msg}");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
 }

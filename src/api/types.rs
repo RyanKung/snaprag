@@ -16,11 +16,11 @@ pub struct CreateChatRequest {
     pub temperature: f32,
 }
 
-fn default_context_limit() -> usize {
+const fn default_context_limit() -> usize {
     20
 }
 
-fn default_temperature() -> f32 {
+const fn default_temperature() -> f32 {
     0.7
 }
 
@@ -78,7 +78,7 @@ pub struct ApiResponse<T> {
 }
 
 impl<T> ApiResponse<T> {
-    pub fn success(data: T) -> Self {
+    pub const fn success(data: T) -> Self {
         Self {
             success: true,
             data: Some(data),
@@ -112,7 +112,7 @@ pub struct SearchQuery {
     pub threshold: Option<f32>,
 }
 
-fn default_limit() -> usize {
+const fn default_limit() -> usize {
     20
 }
 
@@ -136,7 +136,7 @@ pub struct CastSearchRequest {
     pub threshold: f32,
 }
 
-fn default_threshold() -> f32 {
+const fn default_threshold() -> f32 {
     0.5
 }
 
@@ -154,11 +154,11 @@ pub struct RagQueryRequest {
     pub max_tokens: usize,
 }
 
-fn default_rag_limit() -> usize {
+const fn default_rag_limit() -> usize {
     10
 }
 
-fn default_max_tokens() -> usize {
+const fn default_max_tokens() -> usize {
     2000
 }
 
@@ -206,7 +206,7 @@ pub struct FetchUserRequest {
     pub max_casts: usize,
 }
 
-fn default_max_casts() -> usize {
+const fn default_max_casts() -> usize {
     1000
 }
 

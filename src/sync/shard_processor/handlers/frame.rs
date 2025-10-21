@@ -1,11 +1,11 @@
-/// FrameAction message handler
+/// `FrameAction` message handler
 
 use crate::models::ShardBlockInfo;
 use crate::Result;
 
 use super::super::types::BatchedData;
 
-/// Handle FrameAction message (type 13)
+/// Handle `FrameAction` message (type 13)
 pub(super) fn handle_frame_action(
     body: &serde_json::Value,
     fid: i64,
@@ -23,7 +23,7 @@ pub(super) fn handle_frame_action(
         
         let button_index = frame_action_body
             .get("button_index")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .map(|v| v as i32);
         
         let (cast_hash, cast_fid) = if let Some(cast_id) = frame_action_body.get("cast_id") {
@@ -33,7 +33,7 @@ pub(super) fn handle_frame_action(
                 .and_then(|h| hex::decode(h).ok());
             let fid = cast_id
                 .get("fid")
-                .and_then(|v| v.as_i64());
+                .and_then(serde_json::Value::as_i64);
             (hash, fid)
         } else {
             (None, None)
@@ -42,7 +42,7 @@ pub(super) fn handle_frame_action(
         let input_text = frame_action_body
             .get("input_text")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
         
         let state = frame_action_body
             .get("state")

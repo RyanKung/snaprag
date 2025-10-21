@@ -27,7 +27,8 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(pool: PgPool) -> Self {
+    #[must_use] 
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
@@ -52,12 +53,13 @@ impl Database {
     /// Run database migrations
     /// Note: Migrations are currently managed manually via SQL files in /migrations
     /// Future enhancement: Could integrate with sqlx migrations or refinery
-    pub async fn migrate(&self) -> Result<()> {
+    pub const fn migrate(&self) -> Result<()> {
         Ok(())
     }
 
     /// Get a reference to the database pool for raw queries
-    pub fn pool(&self) -> &sqlx::PgPool {
+    #[must_use] 
+    pub const fn pool(&self) -> &sqlx::PgPool {
         &self.pool
     }
 }

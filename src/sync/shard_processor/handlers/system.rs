@@ -1,11 +1,11 @@
-/// System message handler (OnChain Events)
+/// System message handler (`OnChain` Events)
 
 use crate::models::ShardBlockInfo;
 use crate::Result;
 
 use super::super::types::BatchedData;
 
-/// Process system messages (OnChainEvents)
+/// Process system messages (`OnChainEvents`)
 pub(in crate::sync::shard_processor) async fn process_system_message(
     system_msg: &crate::sync::client::proto::ValidatorMessage,
     shard_block_info: &ShardBlockInfo,

@@ -20,7 +20,8 @@ pub struct Retriever {
 
 impl Retriever {
     /// Create a new retriever
-    pub fn new(database: Arc<Database>, embedding_service: Arc<EmbeddingService>) -> Self {
+    #[must_use] 
+    pub const fn new(database: Arc<Database>, embedding_service: Arc<EmbeddingService>) -> Self {
         Self {
             database,
             embedding_service,
@@ -170,6 +171,7 @@ pub struct Reranker;
 
 impl Reranker {
     /// Reciprocal Rank Fusion (RRF) for combining multiple result sets
+    #[must_use] 
     pub fn reciprocal_rank_fusion(
         results_sets: Vec<Vec<SearchResult>>,
         k: f32,
@@ -209,6 +211,7 @@ impl Reranker {
     }
 
     /// Simple score-based reranking
+    #[must_use] 
     pub fn rerank_by_score(mut results: Vec<SearchResult>) -> Vec<SearchResult> {
         // Sort by score descending, treating NaN as lowest value
         results.sort_by(|a, b| {

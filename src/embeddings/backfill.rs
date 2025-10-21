@@ -47,7 +47,7 @@ pub async fn backfill_embeddings(
         info!(
             "Processing batch {}/{} ({} profiles)",
             batch_idx + 1,
-            (profiles.len() + BATCH_SIZE - 1) / BATCH_SIZE,
+            profiles.len().div_ceil(BATCH_SIZE),
             chunk.len()
         );
 
@@ -71,7 +71,7 @@ pub async fn backfill_embeddings(
         }
 
         // Small delay between batches to avoid rate limiting
-        if batch_idx < (profiles.len() + BATCH_SIZE - 1) / BATCH_SIZE - 1 {
+        if batch_idx < profiles.len().div_ceil(BATCH_SIZE) - 1 {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     }
@@ -162,6 +162,7 @@ pub struct BackfillStats {
 }
 
 impl BackfillStats {
+    #[must_use] 
     pub fn success_rate(&self) -> f64 {
         if self.total_profiles == 0 {
             0.0

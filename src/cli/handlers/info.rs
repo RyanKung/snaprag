@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::*;
+use crate::cli::output::{print_statistics, print_success, print_info, print_config};
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -18,7 +18,7 @@ pub async fn handle_stats_command(
     if let Some(export_path) = export {
         let json = serde_json::to_string_pretty(&stats)?;
         std::fs::write(&export_path, json)?;
-        print_success(&format!("Statistics exported to: {}", export_path));
+        print_success(&format!("Statistics exported to: {export_path}"));
     }
 
     Ok(())
@@ -49,10 +49,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     let mut total_casts = 0i64;
 
     for (table, count) in large_table_stats {
-        match table.as_str() {
-            "casts" => total_casts = count,
-            _ => {}
-        }
+        if table.as_str() == "casts" { total_casts = count }
     }
 
     // Get profiles with username (fast partial index count)
@@ -184,7 +181,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                 } else {
                     0.0
                 };
-                format!(" [{:.1}%]", progress_pct)
+                format!(" [{progress_pct:.1}%]")
             } else {
                 String::new()
             };
@@ -220,7 +217,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                 let oldest_update = sync_info.iter()
                     .map(|(_, _, _, updated_at)| updated_at)
                     .min()
-                    .cloned();
+                    .copied();
                 
                 let sync_duration_secs = if let Some(start_time) = oldest_update {
                     chrono::Utc::now().signed_duration_since(start_time).num_seconds()
@@ -251,7 +248,19 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                 
                 // Try to calculate based on actual speed
                 let eta_str = if let Ok(hist) = historical_progress {
-                    if !hist.is_empty() {
+                    if hist.is_empty() {
+                        // No historical data, use fixed estimate
+                        let estimated_blocks_per_min = 500.0;
+                        let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
+                        
+                        if estimated_minutes < 60.0 {
+                            format!("~{estimated_minutes:.0} minutes (estimated)")
+                        } else if estimated_minutes < 1440.0 {
+                            format!("~{:.1} hours (estimated)", estimated_minutes / 60.0)
+                        } else {
+                            format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
+                        }
+                    } else {
                         let hist_avg: i64 = hist.iter().map(|(_, h)| h).sum::<i64>() / hist.len() as i64;
                         let blocks_in_5min = avg_height - hist_avg;
                         
@@ -260,10 +269,10 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                             let blocks_per_min = blocks_in_5min as f64 / 5.0;
                             let estimated_minutes = remaining_blocks as f64 / blocks_per_min;
                             
-                            let speed_info = format!(" @ {:.0} blocks/min", blocks_per_min);
+                            let speed_info = format!(" @ {blocks_per_min:.0} blocks/min");
                             
                             if estimated_minutes < 60.0 {
-                                format!("~{:.0} minutes{}", estimated_minutes, speed_info)
+                                format!("~{estimated_minutes:.0} minutes{speed_info}")
                             } else if estimated_minutes < 1440.0 {
                                 format!("~{:.1} hours{}", estimated_minutes / 60.0, speed_info)
                             } else {
@@ -275,24 +284,12 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                             let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
                             
                             if estimated_minutes < 60.0 {
-                                format!("~{:.0} minutes (estimated)", estimated_minutes)
+                                format!("~{estimated_minutes:.0} minutes (estimated)")
                             } else if estimated_minutes < 1440.0 {
                                 format!("~{:.1} hours (estimated)", estimated_minutes / 60.0)
                             } else {
                                 format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
                             }
-                        }
-                    } else {
-                        // No historical data, use fixed estimate
-                        let estimated_blocks_per_min = 500.0;
-                        let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
-                        
-                        if estimated_minutes < 60.0 {
-                            format!("~{:.0} minutes (estimated)", estimated_minutes)
-                        } else if estimated_minutes < 1440.0 {
-                            format!("~{:.1} hours (estimated)", estimated_minutes / 60.0)
-                        } else {
-                            format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
                         }
                     }
                 } else {
@@ -301,7 +298,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                     let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
                     
                     if estimated_minutes < 60.0 {
-                        format!("~{:.0} minutes (estimated)", estimated_minutes)
+                        format!("~{estimated_minutes:.0} minutes (estimated)")
                     } else if estimated_minutes < 1440.0 {
                         format!("~{:.1} hours (estimated)", estimated_minutes / 60.0)
                     } else {
@@ -309,7 +306,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                     }
                 };
                 
-                println!("  ETA: {}", eta_str);
+                println!("  ETA: {eta_str}");
             }
         } else {
             println!("  Avg Height: {}", format_number(avg_height));
@@ -324,7 +321,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 }
 
 /// Handle config command
-pub async fn handle_config_command(config: &AppConfig) -> Result<()> {
+pub fn handle_config_command(config: &AppConfig) -> Result<()> {
     print_config(config);
     Ok(())
 }
@@ -381,19 +378,18 @@ pub(crate) async fn print_sync_status(snaprag: &SnapRag) -> Result<()> {
                     range.from_block,
                     range
                         .to_block
-                        .map(|b| b.to_string())
-                        .unwrap_or("latest".to_string())
+                        .map_or("latest".to_string(), |b| b.to_string())
                 );
             }
 
             if let Some(error) = &lock.error_message {
-                println!("  - Error: {}", error);
+                println!("  - Error: {error}");
             }
 
             // Show latest synced message timestamp
             match get_latest_message_time(snaprag).await {
                 Ok(time_info) => {
-                    println!("  - Latest message time: {}", time_info);
+                    println!("  - Latest message time: {time_info}");
                 }
                 Err(e) => {
                     tracing::debug!("Failed to get latest message time: {}", e);

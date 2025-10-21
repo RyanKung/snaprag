@@ -5,7 +5,7 @@ use crate::Result;
 
 use super::super::types::BatchedData;
 
-/// Handle VerificationAdd message (type 7) - supports both ETH and Solana
+/// Handle `VerificationAdd` message (type 7) - supports both ETH and Solana
 pub(super) fn handle_verification_add(
     body: &serde_json::Value,
     fid: i64,
@@ -30,12 +30,12 @@ pub(super) fn handle_verification_add(
 
                 let verification_type = verification_body
                     .get("verification_type")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .map(|v| v as i16);
 
                 let chain_id = verification_body
                     .get("chain_id")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .map(|v| v as i32);
 
                 batched.verifications.push((
@@ -93,7 +93,7 @@ pub(super) fn handle_verification_add(
     }
 }
 
-/// Handle VerificationRemove message (type 8)
+/// Handle `VerificationRemove` message (type 8)
 pub(super) fn handle_verification_remove(
     body: &serde_json::Value,
     fid: i64,
