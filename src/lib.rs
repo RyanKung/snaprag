@@ -114,6 +114,9 @@ pub struct SnapRag {
 
 impl SnapRag {
     /// Create a new `SnapRAG` instance
+    ///
+    /// # Errors
+    /// Returns error if database connection fails or configuration is invalid
     pub async fn new(config: &AppConfig) -> Result<Self> {
         let database = Arc::new(Database::from_config(config).await?);
         Ok(Self {
@@ -125,6 +128,9 @@ impl SnapRag {
     }
 
     /// Create `SnapRAG` instance with lazy loading enabled
+    ///
+    /// # Errors
+    /// Returns error if database connection fails, gRPC client creation fails, or configuration is invalid
     pub async fn new_with_lazy_loading(config: &AppConfig) -> Result<Self> {
         let database = Arc::new(Database::from_config(config).await?);
         let snapchain_client = Arc::new(sync::SnapchainClient::from_config(config).await?);
@@ -142,6 +148,9 @@ impl SnapRag {
     }
 
     /// Initialize the database schema
+    ///
+    /// # Errors
+    /// Returns error if database schema initialization fails
     pub async fn init_database(&self) -> Result<()> {
         self.database.init_schema().await?;
         info!("Database schema initialized");
@@ -161,6 +170,9 @@ impl SnapRag {
     }
 
     /// Get user profile with automatic lazy loading
+    ///
+    /// # Errors
+    /// Returns error if database query fails or lazy loading from Snapchain fails
     pub async fn get_user_profile_smart(&self, fid: i64) -> Result<Option<UserProfile>> {
         // Try database first
         if let Some(profile) = self.database.get_user_profile(fid).await? {
@@ -182,6 +194,9 @@ impl SnapRag {
     }
 
     /// Get user casts with automatic lazy loading
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn get_user_casts_smart(&self, fid: i64, limit: Option<i64>) -> Result<Vec<Cast>> {
         // Try database first
         let existing_casts = self.database.get_casts_by_fid(fid, limit, Some(0)).await?;
@@ -212,6 +227,9 @@ impl SnapRag {
     }
 
     /// Override sync configuration from command-line arguments
+    ///
+    /// # Errors
+    /// Returns error if configuration values are invalid
     pub fn override_sync_config(
         &mut self,
         shard_ids: Vec<u32>,
@@ -231,6 +249,9 @@ impl SnapRag {
     }
 
     /// Start data synchronization
+    ///
+    /// # Errors
+    /// Returns error if sync service creation or startup fails
     pub async fn start_sync(&mut self) -> Result<()> {
         let sync_service = Arc::new(SyncService::new(&self.config, self.database.clone()).await?);
         sync_service.start().await?;
@@ -239,6 +260,9 @@ impl SnapRag {
     }
 
     /// Start synchronization with a specific block range
+    ///
+    /// # Errors
+    /// Returns error if sync service creation or range validation fails
     pub async fn start_sync_with_range(&mut self, from_block: u64, to_block: u64) -> Result<()> {
         let sync_service = Arc::new(SyncService::new(&self.config, self.database.clone()).await?);
         sync_service.start_with_range(from_block, to_block).await?;
@@ -247,6 +271,9 @@ impl SnapRag {
     }
 
     /// Start sync with custom workers per shard
+    ///
+    /// # Errors
+    /// Returns error if sync service creation fails or worker count is invalid
     pub async fn start_sync_with_range_and_workers(
         &mut self,
         from_block: u64,
@@ -262,6 +289,12 @@ impl SnapRag {
     }
 
     /// Stop synchronization
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Lock file cannot be read
+    /// - Process cannot be killed (permission denied)
+    /// - Lock file cannot be removed
     pub async fn stop_sync(&self, force: bool) -> Result<()> {
         use crate::sync::lock_file::SyncLockManager;
 
@@ -322,6 +355,9 @@ impl SnapRag {
     }
 
     /// Get sync status
+    ///
+    /// # Errors
+    /// Returns error if sync service fails to get status
     pub fn get_sync_status(&self) -> Result<Option<crate::sync::lock_file::SyncLockFile>> {
         // Always try to read from lock file first, regardless of whether this instance has a sync_service
         // This allows status commands to see sync processes started by other instances
@@ -342,6 +378,9 @@ impl SnapRag {
     }
 
     /// Search user profiles
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn search_profiles(&self, query: &str) -> Result<Vec<models::UserProfile>> {
         let search_query = models::UserProfileQuery {
             fid: None,
@@ -363,6 +402,9 @@ impl SnapRag {
     }
 
     /// Get user profile by FID
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn get_profile(&self, fid: i64) -> Result<Option<models::UserProfile>> {
         let query = models::UserProfileQuery {
             fid: Some(fid),
@@ -385,6 +427,9 @@ impl SnapRag {
     }
 
     /// Get statistics
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn get_statistics(&self) -> Result<models::StatisticsResult> {
         let stats_query = models::StatisticsQuery {
             start_date: None,
@@ -395,6 +440,9 @@ impl SnapRag {
     }
 
     /// List casts
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn list_casts(&self, limit: Option<i64>) -> Result<Vec<models::Cast>> {
         let cast_query = models::CastQuery {
             fid: None,
@@ -414,6 +462,9 @@ impl SnapRag {
     }
 
     /// List follows
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn list_follows(
         &self,
         fid: Option<i64>,
@@ -434,6 +485,9 @@ impl SnapRag {
     }
 
     /// Get user activity timeline
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn get_user_activity(
         &self,
         fid: i64,
@@ -447,21 +501,33 @@ impl SnapRag {
     }
 
     /// Create a RAG service for natural language queries
+    ///
+    /// # Errors
+    /// Returns error if RAG service creation fails (embedding/LLM service issues)
     pub async fn create_rag_service(&self) -> Result<RagService> {
         RagService::new(&self.config).await
     }
 
     /// Create an embedding service for vector generation
+    ///
+    /// # Errors
+    /// Returns error if embedding service configuration is invalid
     pub fn create_embedding_service(&self) -> Result<Arc<EmbeddingService>> {
         Ok(Arc::new(EmbeddingService::new(&self.config)?))
     }
 
     /// Create an LLM service for text generation
+    ///
+    /// # Errors
+    /// Returns error if LLM service configuration is invalid
     pub fn create_llm_service(&self) -> Result<Arc<LlmService>> {
         Ok(Arc::new(LlmService::new(&self.config)?))
     }
 
     /// Semantic search for profiles
+    ///
+    /// # Errors
+    /// Returns error if embedding generation or database query fails
     pub async fn semantic_search_profiles(
         &self,
         query: &str,
@@ -474,6 +540,9 @@ impl SnapRag {
     }
 
     /// Semantic search for casts
+    ///
+    /// # Errors
+    /// Returns error if embedding generation or database query fails
     pub async fn semantic_search_casts(
         &self,
         query: &str,
@@ -488,6 +557,9 @@ impl SnapRag {
     }
 
     /// Get cast thread (parent chain + root + children)
+    ///
+    /// # Errors
+    /// Returns error if database query fails
     pub async fn get_cast_thread(
         &self,
         message_hash: Vec<u8>,
@@ -497,6 +569,9 @@ impl SnapRag {
     }
 
     /// Backfill profile embeddings
+    ///
+    /// # Errors
+    /// Returns error if embedding generation or database update fails
     pub async fn backfill_profile_embeddings(
         &self,
         limit: Option<usize>,
@@ -506,6 +581,9 @@ impl SnapRag {
     }
 
     /// Backfill cast embeddings
+    ///
+    /// # Errors
+    /// Returns error if embedding generation or database update fails
     pub async fn backfill_cast_embeddings(
         &self,
         limit: Option<usize>,
