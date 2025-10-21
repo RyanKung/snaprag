@@ -98,7 +98,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     // 🚀 DROP all tables (complete reset)
     let tables = [
         "cast_embeddings", // Drop first due to FK constraint
-        "user_activity_timeline",
+        // "user_activity_timeline", // Removed: table dropped for performance
         "user_profiles",
         "user_profile_snapshots",
         "user_profile_trends",
@@ -106,6 +106,8 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         "user_data_changes",
         "casts",
         "links",
+        "reactions",
+        "verifications",
         "username_proofs",
         "user_activities",
         "processed_messages",
@@ -249,25 +251,9 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
 
     // Only create essential indexes for write-heavy workload
 
-    // 1. user_activity_timeline (most critical)
-    sqlx::query(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activity_fid_register 
-         ON user_activity_timeline(fid, activity_type) 
-         WHERE activity_type = 'id_register'",
-    )
-    .execute(pool)
-    .await
-    .ok();
-
-    sqlx::query(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activity_timeline_fid_timestamp 
-         ON user_activity_timeline(fid, timestamp DESC)",
-    )
-    .execute(pool)
-    .await
-    .ok();
-
-    // 2. casts (essential for message lookups)
+    // Note: user_activity_timeline table removed for performance
+    
+    // 1. casts (essential for message lookups)
     sqlx::query(
         "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_fid 
          ON casts(fid)",
@@ -286,15 +272,11 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
     .ok();
 
     // 4. Update statistics
-    sqlx::query("ANALYZE user_activity_timeline")
-        .execute(pool)
-        .await
-        .ok();
     sqlx::query("ANALYZE casts").execute(pool).await.ok();
-    sqlx::query("ANALYZE user_profiles")
-        .execute(pool)
-        .await
-        .ok();
+    sqlx::query("ANALYZE user_profiles").execute(pool).await.ok();
+    sqlx::query("ANALYZE links").execute(pool).await.ok();
+    sqlx::query("ANALYZE reactions").execute(pool).await.ok();
+    sqlx::query("ANALYZE verifications").execute(pool).await.ok();
 
     Ok(())
 }
