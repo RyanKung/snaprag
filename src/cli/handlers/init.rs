@@ -256,6 +256,7 @@ async fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
     let migrations = vec![
         ("006_add_reactions_and_verifications.sql", include_str!("../../../migrations/006_add_reactions_and_verifications.sql")),
         ("007_fix_composite_constraints.sql", include_str!("../../../migrations/007_fix_composite_constraints.sql")),
+        ("008_profiles_append_only.sql", include_str!("../../../migrations/008_profiles_append_only.sql")),
     ];
     
     // Get database connection info

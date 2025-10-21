@@ -23,6 +23,8 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
     let mut tx = database.pool().begin().await?;
 
     // Batch insert FIDs (split into chunks to avoid parameter limit)
+    // 🚀 APPEND-ONLY MODE: New table structure uses (fid, timestamp) as primary key
+    // This allows multiple rows per FID, eliminating lock contention from ON CONFLICT
     if !batched.fids_to_ensure.is_empty() {
         let now = chrono::Utc::now();
 
@@ -30,7 +32,7 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~21666 rows per chunk
 
-        // 🔧 Sort FIDs to ensure consistent lock acquisition order (reduce deadlocks)
+        // 🔧 Sort FIDs to ensure consistent insertion order
         let mut fids: Vec<i64> = batched.fids_to_ensure.iter().copied().collect();
         fids.sort_unstable();
 
@@ -50,7 +52,9 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!("(${}, ${}, ${})", base + 1, base + 2, base + 3));
             }
-            query.push_str(" ON CONFLICT (fid) DO NOTHING");
+            // 🚀 NO ON CONFLICT - append-only mode with (fid, timestamp) primary key
+            // Duplicates are handled by composite primary key constraint
+            query.push_str(" ON CONFLICT (fid, last_updated_timestamp) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for _fid in chunk {
@@ -313,16 +317,19 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
     // Activities tracking was removed for performance (356GB, WAL bottleneck)
     // All necessary data is already in specialized tables (casts, links, reactions, etc.)
 
-    // 🚀 OPTIMIZATION: Simplified profile updates using multiple simple UPDATEs
-    // Instead of complex CASE statements, use multiple targeted updates
-    // This is faster in Rust (less string allocation) and clearer
+    // 🚀 APPEND-ONLY MODE: Convert UPDATEs to INSERTs
+    // New table structure: (fid, timestamp) as primary key
+    // This eliminates UPDATE locks entirely - just append new rows!
     if !batched.profile_updates.is_empty() {
         tracing::trace!(
-            "Batch updating {} profile fields",
+            "Batch inserting {} profile updates (append-only)",
             batched.profile_updates.len()
         );
 
-        // Group updates by field name
+        const PARAMS_PER_ROW: usize = 4; // fid, field_value, timestamp, created_at
+        const MAX_PARAMS: usize = 65000;
+        
+        // Group updates by field name to batch insert per field type
         let mut updates_by_field: HashMap<String, Vec<(i64, Option<String>, i64)>> = HashMap::new();
 
         for (fid, field_name, value, timestamp) in batched.profile_updates {
@@ -334,48 +341,44 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
 
         let now = chrono::Utc::now();
 
-        // 🚀 Use unnest() for batch updates - much faster!
-        for (field_name, mut updates) in updates_by_field {
+        // Insert each field type as a batch
+        for (field_name, updates) in updates_by_field {
             if updates.is_empty() {
                 continue;
             }
 
-            // 🔧 Sort by FID to ensure consistent lock order (reduce deadlocks)
-            updates.sort_by_key(|(fid, _, _)| *fid);
+            let chunk_size = MAX_PARAMS / PARAMS_PER_ROW;
+            
+            for chunk in updates.chunks(chunk_size) {
+                let estimated_size = 200 + chunk.len() * 40;
+                let mut query = String::with_capacity(estimated_size);
+                query.push_str(&format!(
+                    "INSERT INTO user_profiles (fid, {}, last_updated_timestamp, last_updated_at) VALUES ",
+                    field_name
+                ));
 
-            let mut fids = Vec::with_capacity(updates.len());
-            let mut values = Vec::with_capacity(updates.len());
-            let mut timestamps = Vec::with_capacity(updates.len());
+                for i in 0..chunk.len() {
+                    if i > 0 {
+                        query.push_str(", ");
+                    }
+                    let base = i * PARAMS_PER_ROW;
+                    query.push_str(&format!(
+                        "(${}, ${}, ${}, ${})",
+                        base + 1, base + 2, base + 3, base + 4
+                    ));
+                }
+                
+                // 🚀 Append-only: Use composite primary key (fid, timestamp)
+                // No lock contention - just skip if exact same (fid, timestamp) exists
+                query.push_str(" ON CONFLICT (fid, last_updated_timestamp) DO NOTHING");
 
-            for (fid, value, timestamp) in updates {
-                fids.push(fid);
-                values.push(value);
-                timestamps.push(timestamp);
+                let mut q = sqlx::query(&query);
+                for (fid, value, timestamp) in chunk {
+                    q = q.bind(fid).bind(value).bind(timestamp).bind(now);
+                }
+
+                q.execute(&mut *tx).await?;
             }
-
-            // 🚀 CRITICAL FIX: Only update if timestamp is newer (skip re-sync duplicates)
-            // This prevents millions of unnecessary updates on re-sync
-            let sql = format!(
-                r#"
-                UPDATE user_profiles AS up
-                SET {} = data.value,
-                    last_updated_timestamp = data.timestamp,
-                    last_updated_at = $4
-                FROM unnest($1::bigint[], $2::text[], $3::bigint[]) 
-                    AS data(fid, value, timestamp)
-                WHERE up.fid = data.fid
-                  AND data.timestamp > up.last_updated_timestamp
-                "#,
-                field_name
-            );
-
-            sqlx::query(&sql)
-                .bind(&fids)
-                .bind(&values)
-                .bind(&timestamps)
-                .bind(now)
-                .execute(&mut *tx)
-                .await?;
         }
     }
 
