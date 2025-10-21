@@ -649,7 +649,7 @@ impl SnapchainClient {
                 }
 
                 // Check if there are more pages
-                page_token = response.next_page_token.clone();
+                page_token.clone_from(&response.next_page_token);
                 if page_token.is_none() {
                     break;
                 }

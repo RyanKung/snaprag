@@ -34,7 +34,7 @@ impl ProcessMonitor {
         );
 
         loop {
-            if let Err(e) = self.cleanup_stale_processes().await {
+            if let Err(e) = self.cleanup_stale_processes() {
                 error!("Error during process cleanup: {}", e);
             }
 
@@ -43,7 +43,7 @@ impl ProcessMonitor {
     }
 
     /// Clean up stale processes
-    pub async fn cleanup_stale_processes(&self) -> Result<()> {
+    pub fn cleanup_stale_processes(&self) -> Result<()> {
         let stale_processes = self.find_stale_processes()?;
 
         for pid in stale_processes {

@@ -18,6 +18,9 @@ Cargo.lock
 .idea/
 *.swp
 *.swo
+
+# Web client (development files, not part of Rust project)
+web-client/
 *~
 
 # OS generated files

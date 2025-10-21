@@ -286,7 +286,7 @@ impl SyncLockManager {
 
                     // Update global counters and metadata
                     merged.last_update = lock.last_update;
-                    merged.status = lock.status.clone();
+                    merged.status.clone_from(&lock.status);
                     merged.progress.total_blocks_processed = lock.progress.total_blocks_processed;
                     merged.progress.total_messages_processed =
                         lock.progress.total_messages_processed;
