@@ -93,7 +93,7 @@ impl LlmClient {
         match self.provider {
             LlmProvider::OpenAI => self.generate_openai(prompt, temperature, max_tokens).await,
             LlmProvider::Ollama => self.generate_ollama(prompt, temperature, max_tokens).await,
-            LlmProvider::Custom => self.generate_custom(prompt, temperature, max_tokens).await,
+            LlmProvider::Custom => self.generate_custom(prompt, temperature, max_tokens),
         }
     }
 
@@ -436,7 +436,7 @@ impl LlmClient {
     }
 
     /// Custom provider completion
-    async fn generate_custom(
+    fn generate_custom(
         &self,
         _prompt: &str,
         _temperature: f32,

@@ -24,7 +24,7 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
 
     // Run complete initialization SQL
     print_info("📋 Running complete initialization script...");
-    match run_complete_init(snaprag).await {
+    match run_complete_init(snaprag) {
         Ok(()) => {
             print_success("✅ All tables created");
             print_success("✅ Vector columns configured");
@@ -155,7 +155,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
 }
 
 /// Run complete database initialization from migration file
-async fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
+fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
     // Write SQL file to temp location
     let init_sql = include_str!("../../../migrations/000_complete_init.sql");
     let temp_sql_path = "/tmp/snaprag_init.sql";
@@ -257,7 +257,7 @@ async fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
 }
 
 /// Run schema migrations
-async fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
+fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
     // Run all migration files in order
     let migrations = vec![
         ("006_add_reactions_and_verifications.sql", include_str!("../../../migrations/006_add_reactions_and_verifications.sql")),

@@ -1,10 +1,25 @@
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use tracing::warn;
 
 use super::types::BatchedData;
 use crate::database::Database;
 use crate::Result;
+
+// PostgreSQL parameter limits for bulk inserts
+const MAX_PARAMS: usize = 65000;
+
+// Batch sizes for different entity types
+const PROFILE_PARAMS_PER_ROW: usize = 5; // fid, field_name, field_value, timestamp, message_hash
+const ONCHAIN_PARAMS_PER_ROW: usize = 9; // fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data
+const USERNAME_PARAMS_PER_ROW: usize = 10; // fid, username, owner, signature, username_type, timestamp, message_hash, shard_id, block_height, transaction_fid
+const FRAME_PARAMS_PER_ROW: usize = 13; // fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_id, block_height, transaction_fid
+
+const PROFILE_CHUNK_SIZE: usize = MAX_PARAMS / PROFILE_PARAMS_PER_ROW;
+const ONCHAIN_CHUNK_SIZE: usize = MAX_PARAMS / ONCHAIN_PARAMS_PER_ROW;
+const USERNAME_CHUNK_SIZE: usize = MAX_PARAMS / USERNAME_PARAMS_PER_ROW;
+const FRAME_CHUNK_SIZE: usize = MAX_PARAMS / FRAME_PARAMS_PER_ROW;
 
 /// Flush batched data to database
 /// Public for testing, but re-exported through mod.rs
@@ -336,14 +351,10 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
         );
 
         // Each update is independent - no grouping needed
-        const PARAMS_PER_ROW: usize = 5; // fid, field_name, field_value, timestamp, message_hash
-        const MAX_PARAMS: usize = 65000;
-        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
-
         // Convert to list for chunking
         let updates_list: Vec<_> = batched.profile_updates.into_iter().collect();
         
-        for chunk in updates_list.chunks(CHUNK_SIZE) {
+        for chunk in updates_list.chunks(PROFILE_CHUNK_SIZE) {
             let estimated_size = 200 + chunk.len() * 50;
             let mut query = String::with_capacity(estimated_size);
             query.push_str("INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) VALUES ");
@@ -352,11 +363,12 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 if i > 0 {
                     query.push_str(", ");
                 }
-                let base = i * PARAMS_PER_ROW;
-                query.push_str(&format!(
+                let base = i * PROFILE_PARAMS_PER_ROW;
+                write!(
+                    &mut query,
                     "(${}, ${}, ${}, ${}, ${})",
                     base + 1, base + 2, base + 3, base + 4, base + 5
-                ));
+                ).expect("write! to String should not fail");
             }
             
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
@@ -381,11 +393,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     if !batched.onchain_events.is_empty() {
         tracing::info!("⛓️  Batch inserting {} onchain events", batched.onchain_events.len());
 
-        const PARAMS_PER_ROW: usize = 9; // fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data
-        const MAX_PARAMS: usize = 65000;
-        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
-
-        for chunk in batched.onchain_events.chunks(CHUNK_SIZE) {
+        for chunk in batched.onchain_events.chunks(ONCHAIN_CHUNK_SIZE) {
             let estimated_size = 250 + chunk.len() * 70;
             let mut query = String::with_capacity(estimated_size);
             query.push_str("INSERT INTO onchain_events (fid, event_type, chain_id, block_number, block_hash, block_timestamp, transaction_hash, log_index, event_data) VALUES ");
@@ -394,12 +402,13 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 if i > 0 {
                     query.push_str(", ");
                 }
-                let base = i * PARAMS_PER_ROW;
-                query.push_str(&format!(
+                let base = i * ONCHAIN_PARAMS_PER_ROW;
+                write!(
+                    &mut query,
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1, base + 2, base + 3, base + 4, base + 5,
                     base + 6, base + 7, base + 8, base + 9
-                ));
+                ).expect("write! to String should not fail");
             }
 
             query.push_str(" ON CONFLICT (transaction_hash, log_index) DO NOTHING");
@@ -479,12 +488,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     // Batch insert username proofs
     if !batched.username_proofs.is_empty() {
         tracing::info!("👤 Batch inserting {} username proofs", batched.username_proofs.len());
-        
-        const PARAMS_PER_ROW: usize = 10; // fid, username, owner, signature, username_type, timestamp, message_hash, shard_id, block_height, transaction_fid
-        const MAX_PARAMS: usize = 65000;
-        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
-        for chunk in batched.username_proofs.chunks(CHUNK_SIZE) {
+        for chunk in batched.username_proofs.chunks(USERNAME_CHUNK_SIZE) {
             let estimated_size = 300 + chunk.len() * 80;
             let mut query = String::with_capacity(estimated_size);
             query.push_str("INSERT INTO username_proofs (fid, username, owner, signature, username_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
@@ -493,12 +498,13 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 if i > 0 {
                     query.push_str(", ");
                 }
-                let base = i * PARAMS_PER_ROW;
-                query.push_str(&format!(
+                let base = i * USERNAME_PARAMS_PER_ROW;
+                write!(
+                    &mut query,
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1, base + 2, base + 3, base + 4, base + 5,
                     base + 6, base + 7, base + 8, base + 9, base + 10
-                ));
+                ).expect("write! to String should not fail");
             }
 
             query.push_str(" ON CONFLICT (fid) DO UPDATE SET username = EXCLUDED.username, owner = EXCLUDED.owner, signature = EXCLUDED.signature, username_type = EXCLUDED.username_type, timestamp = EXCLUDED.timestamp, message_hash = EXCLUDED.message_hash, shard_id = EXCLUDED.shard_id, block_height = EXCLUDED.block_height, transaction_fid = EXCLUDED.transaction_fid");
@@ -525,12 +531,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     // Batch insert frame actions
     if !batched.frame_actions.is_empty() {
         tracing::info!("🖼️  Batch inserting {} frame actions", batched.frame_actions.len());
-        
-        const PARAMS_PER_ROW: usize = 13; // fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_id, block_height, transaction_fid
-        const MAX_PARAMS: usize = 65000;
-        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
-        for chunk in batched.frame_actions.chunks(CHUNK_SIZE) {
+        for chunk in batched.frame_actions.chunks(FRAME_CHUNK_SIZE) {
             let estimated_size = 400 + chunk.len() * 100;
             let mut query = String::with_capacity(estimated_size);
             query.push_str("INSERT INTO frame_actions (fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
@@ -539,13 +541,14 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 if i > 0 {
                     query.push_str(", ");
                 }
-                let base = i * PARAMS_PER_ROW;
-                query.push_str(&format!(
+                let base = i * FRAME_PARAMS_PER_ROW;
+                write!(
+                    &mut query,
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1, base + 2, base + 3, base + 4, base + 5,
                     base + 6, base + 7, base + 8, base + 9, base + 10,
                     base + 11, base + 12, base + 13
-                ));
+                ).expect("write! to String should not fail");
             }
 
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");

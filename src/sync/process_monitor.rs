@@ -62,7 +62,7 @@ impl ProcessMonitor {
         let pids = self.get_snaprag_processes()?;
 
         for pid in pids {
-            if self.is_process_stale(pid).await? {
+            if self.is_process_stale(pid)? {
                 stale_pids.push(pid);
             }
         }
@@ -91,7 +91,7 @@ impl ProcessMonitor {
     }
 
     /// Check if a process is stale
-    async fn is_process_stale(&self, pid: u32) -> Result<bool> {
+    fn is_process_stale(&self, pid: u32) -> Result<bool> {
         // Check if process is still running
         if !self.is_process_running(pid) {
             return Ok(false);

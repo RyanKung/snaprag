@@ -303,7 +303,7 @@ impl LazyLoader {
 
             // Parse and save casts
             for message in casts_response.messages {
-                if let Some(cast) = self.parse_cast_message(&message).await? {
+                if let Some(cast) = self.parse_cast_message(&message)? {
                     // Save cast to database (upsert)
                     if let Err(e) = self
                         .database
@@ -340,7 +340,7 @@ impl LazyLoader {
     }
 
     /// Parse cast message from Snapchain response
-    async fn parse_cast_message(
+    fn parse_cast_message(
         &self,
         message: &crate::sync::client::FarcasterMessage,
     ) -> Result<Option<Cast>> {
