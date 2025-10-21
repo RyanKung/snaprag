@@ -100,11 +100,22 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         print_info("No lock file found");
     }
 
-    // 🚀 DROP all tables (complete reset)
+    let pool = snaprag.database().pool();
+
+    // 🚀 DROP all views and tables (complete reset)
+    // Drop views first
+    for view_name in ["user_profiles", "user_profiles_with_embeddings"] {
+        sqlx::query(&format!("DROP VIEW IF EXISTS {} CASCADE", view_name))
+            .execute(pool)
+            .await
+            .ok();
+    }
+    
+    // Then drop tables
     let tables = [
         "cast_embeddings", // Drop first due to FK constraint
-        // "user_activity_timeline", // Removed: table dropped for performance
-        "user_profiles",
+        "user_profile_changes", // Event-sourcing table
+        "profile_embeddings",   // Embeddings table
         "user_profile_snapshots",
         "user_profile_trends",
         "user_data",
@@ -345,7 +356,8 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
 
     // 4. Update statistics
     sqlx::query("ANALYZE casts").execute(pool).await.ok();
-    sqlx::query("ANALYZE user_profiles").execute(pool).await.ok();
+    sqlx::query("ANALYZE user_profile_changes").execute(pool).await.ok();
+    sqlx::query("ANALYZE profile_embeddings").execute(pool).await.ok();
     sqlx::query("ANALYZE links").execute(pool).await.ok();
     sqlx::query("ANALYZE reactions").execute(pool).await.ok();
     sqlx::query("ANALYZE verifications").execute(pool).await.ok();

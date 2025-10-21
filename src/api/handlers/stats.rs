@@ -14,7 +14,7 @@ pub async fn get_stats(
     info!("GET /api/stats");
 
     // Get basic counts
-    let total_profiles = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_profiles")
+    let total_profiles = sqlx::query_scalar::<_, i64>("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
         .fetch_one(state.database.pool())
         .await
         .unwrap_or(0);
@@ -25,7 +25,7 @@ pub async fn get_stats(
         .unwrap_or(0);
 
     let profiles_with_embeddings = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM user_profiles WHERE profile_embedding IS NOT NULL",
+        "SELECT COUNT(*) FROM profile_embeddings WHERE profile_embedding IS NOT NULL",
     )
     .fetch_one(state.database.pool())
     .await
