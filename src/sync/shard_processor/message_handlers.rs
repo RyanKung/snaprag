@@ -75,6 +75,7 @@ pub(super) async fn collect_message_data(
                         .and_then(|v| v.as_i64())
                         .unwrap_or(1) as i16; // 1=like, 2=recast
 
+                    // Handle target_cast_id (reaction to a cast)
                     if let Some(target) = reaction_body.get("target_cast_id") {
                         let target_fid = target.get("fid").and_then(|v| v.as_i64());
 
@@ -95,13 +96,37 @@ pub(super) async fn collect_message_data(
                                     fid,
                                     reaction_type
                                 );
+                            } else {
+                                tracing::warn!("Failed to decode reaction target hash for FID {}", fid);
                             }
                         }
+                    } 
+                    // Handle target_url (reaction to external URL)
+                    else if let Some(target_url) = reaction_body.get("target_url").and_then(|v| v.as_str()) {
+                        // For URL reactions, use URL hash as target_cast_hash
+                        let url_hash = format!("url_{}", target_url).as_bytes().to_vec();
+                        
+                        batched.reactions.push((
+                            fid,
+                            url_hash,
+                            None, // No target_fid for URLs
+                            reaction_type,
+                            timestamp,
+                            message_hash.to_vec(),
+                            shard_block_info.clone(),
+                        ));
+
+                        tracing::debug!(
+                            "Collected URL reaction: FID {} -> {} (type: {})",
+                            fid,
+                            target_url,
+                            reaction_type
+                        );
+                    } else {
+                        tracing::warn!("ReactionAdd for FID {} has no target_cast_id or target_url", fid);
                     }
                 }
             }
-
-            // Also collect activity
         }
         4 => {
             // ReactionRemove - collect activity
@@ -205,15 +230,25 @@ pub(super) async fn collect_message_data(
                 if let Some(user_data_body) = body.get("user_data_body") {
                     if let Some(data_type) = user_data_body.get("type").and_then(|v| v.as_i64()) {
                         if let Some(value) = user_data_body.get("value").and_then(|v| v.as_str()) {
-                            // Map Farcaster UserDataType to field name
-                            // 1=PFP, 2=DISPLAY_NAME, 3=BIO, 5=URL, 6=USERNAME
+                            // Map Farcaster UserDataType to field name (complete mapping)
+                            // See: https://docs.farcaster.xyz/reference/contracts/reference/id-registry
                             let field_name = match data_type {
                                 1 => Some("pfp_url"),
                                 2 => Some("display_name"),
                                 3 => Some("bio"),
                                 5 => Some("website_url"),
                                 6 => Some("username"),
-                                _ => None,
+                                7 => Some("location"),
+                                8 => Some("twitter_username"),
+                                9 => Some("github_username"),
+                                10 => Some("banner_url"),
+                                11 => Some("primary_address_ethereum"),
+                                12 => Some("primary_address_solana"),
+                                13 => Some("profile_token"),
+                                _ => {
+                                    tracing::warn!("Unknown UserDataType {} for FID {}", data_type, fid);
+                                    None
+                                }
                             };
 
                             if let Some(field) = field_name {
@@ -222,6 +257,7 @@ pub(super) async fn collect_message_data(
                                     field.to_string(),
                                     Some(value.to_string()),
                                     timestamp,
+                                    message_hash.to_vec(),
                                 ));
                                 tracing::debug!(
                                     "Collected profile update: FID {} {} = {}",

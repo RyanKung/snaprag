@@ -47,8 +47,8 @@ pub struct BatchedData {
     )>,
     // ❌ Removed: activities field (user_activity_timeline table dropped for performance)
     pub fids_to_ensure: HashSet<i64>,
-    // Profile field updates: (fid, field_name, value, timestamp)
-    pub profile_updates: Vec<(i64, String, Option<String>, i64)>,
+    // Profile field updates: (fid, field_name, value, timestamp, message_hash)
+    pub profile_updates: Vec<(i64, String, Option<String>, i64, Vec<u8>)>,
 }
 
 impl BatchedData {

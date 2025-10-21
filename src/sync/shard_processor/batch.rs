@@ -354,21 +354,9 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, field_name, value, timestamp) in chunk {
-                // Generate unique message_hash using a simple encoding
-                // Format: "profile_{field}_{fid}_{timestamp}_{value_hash}"
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-                let mut hasher = DefaultHasher::new();
-                field_name.hash(&mut hasher);
-                fid.hash(&mut hasher);
-                timestamp.hash(&mut hasher);
-                if let Some(ref v) = value {
-                    v.hash(&mut hasher);
-                }
-                let hash_value = hasher.finish();
-                let message_hash = format!("profile_{}_{}", field_name, hash_value).as_bytes().to_vec();
-                
+            for (fid, field_name, value, timestamp, message_hash) in chunk {
+                // Use the actual message_hash from Farcaster (passed from message_handlers)
+                // This ensures deduplication works correctly across re-syncs
                 q = q
                     .bind(fid)
                     .bind(field_name)
