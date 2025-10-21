@@ -47,18 +47,30 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     // Drop non-essential indexes (keep primary keys and unique constraints)
     let indexes_to_drop = vec![
+        // Casts
         "idx_casts_fid",
         "idx_casts_timestamp",
+        // User profiles
         "idx_user_profiles_username",
         "idx_user_profiles_display_name",
+        // Links
         "idx_links_source_fid",
         "idx_links_target_fid",
         "idx_links_timestamp",
+        // Reactions - 删除所有非唯一约束索引
         "idx_reactions_fid",
         "idx_reactions_target_cast_hash",
         "idx_reactions_timestamp",
+        "idx_reactions_engagement",
+        "idx_reactions_shard_block",
+        "idx_reactions_target_cast",
+        "idx_reactions_target_fid",
+        "idx_reactions_type",
+        "idx_reactions_user_cast",
+        // Verifications
         "idx_verifications_fid",
         "idx_verifications_timestamp",
+        // User data
         "idx_user_data_fid",
         "idx_user_data_type",
     ];
@@ -132,18 +144,30 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     // Recreate indexes with CONCURRENTLY (won't block writes)
     let indexes_to_create = vec![
+        // Casts
         ("idx_casts_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_fid ON casts(fid)"),
         ("idx_casts_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_timestamp ON casts(timestamp DESC)"),
+        // User profiles
         ("idx_user_profiles_username", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)"),
         ("idx_user_profiles_display_name", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_display_name ON user_profiles(display_name)"),
-        ("idx_links_source_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_source_fid ON links(source_fid)"),
+        // Links
+        ("idx_links_source_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_source_fid ON links(fid)"),
         ("idx_links_target_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_target_fid ON links(target_fid)"),
         ("idx_links_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_timestamp ON links(timestamp DESC)"),
+        // Reactions - 恢复所有索引
         ("idx_reactions_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_fid ON reactions(fid)"),
         ("idx_reactions_target_cast_hash", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_target_cast_hash ON reactions(target_cast_hash)"),
         ("idx_reactions_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_timestamp ON reactions(timestamp DESC)"),
+        ("idx_reactions_engagement", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_engagement ON reactions(target_cast_hash, reaction_type)"),
+        ("idx_reactions_shard_block", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_shard_block ON reactions(shard_id, block_height)"),
+        ("idx_reactions_target_cast", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_target_cast ON reactions(target_cast_hash)"),
+        ("idx_reactions_target_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_target_fid ON reactions(target_fid)"),
+        ("idx_reactions_type", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_type ON reactions(reaction_type)"),
+        ("idx_reactions_user_cast", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_user_cast ON reactions(fid, target_cast_hash)"),
+        // Verifications
         ("idx_verifications_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_fid ON verifications(fid)"),
         ("idx_verifications_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_verifications_timestamp ON verifications(timestamp DESC)"),
+        // User data
         ("idx_user_data_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_data_fid ON user_data(fid)"),
         ("idx_user_data_type", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_data_type ON user_data(data_type)"),
     ];
@@ -223,6 +247,12 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         "idx_reactions_fid",
         "idx_reactions_target_cast_hash",
         "idx_reactions_timestamp",
+        "idx_reactions_engagement",
+        "idx_reactions_shard_block",
+        "idx_reactions_target_cast",
+        "idx_reactions_target_fid",
+        "idx_reactions_type",
+        "idx_reactions_user_cast",
         "idx_verifications_fid",
         "idx_verifications_timestamp",
         "idx_user_data_fid",
