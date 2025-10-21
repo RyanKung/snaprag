@@ -3,6 +3,7 @@ pub mod deterministic_blocks_test;
 pub mod event_sourcing_test;
 pub mod grpc_shard_chunks_test;
 pub mod integration_sync_test;
+pub mod message_types_test;
 pub mod rag_integration_test;
 pub mod strict_test_config;
 pub mod strict_test_runner;
