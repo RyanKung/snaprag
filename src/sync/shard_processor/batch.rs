@@ -150,7 +150,7 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
 
     // Batch insert links (split into chunks to avoid parameter limit)
     if !batched.links.is_empty() {
-        tracing::trace!("Batch inserting {} links", batched.links.len());
+        tracing::info!("📎 Batch inserting {} links", batched.links.len());
 
         const PARAMS_PER_ROW: usize = 7; // fid, target_fid, link_type, timestamp, message_hash, shard_id, block_height
         const MAX_PARAMS: usize = 65000;
@@ -195,7 +195,7 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
 
     // Batch insert reactions (split into chunks to avoid parameter limit)
     if !batched.reactions.is_empty() {
-        tracing::trace!("Batch inserting {} reactions", batched.reactions.len());
+        tracing::info!("❤️  Batch inserting {} reactions", batched.reactions.len());
 
         const PARAMS_PER_ROW: usize = 9; // fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid
         const MAX_PARAMS: usize = 65000;
@@ -251,8 +251,8 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
 
     // Batch insert verifications (split into chunks to avoid parameter limit)
     if !batched.verifications.is_empty() {
-        tracing::trace!(
-            "Batch inserting {} verifications",
+        tracing::info!(
+            "✅ Batch inserting {} verifications",
             batched.verifications.len()
         );
 

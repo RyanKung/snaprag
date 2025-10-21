@@ -108,7 +108,9 @@ pub(super) async fn collect_message_data(
         }
         5 => {
             // LinkAdd - collect link data
+            tracing::trace!("Processing LinkAdd message for FID {}, body present: {}", fid, data.body.is_some());
             if let Some(body) = &data.body {
+                tracing::trace!("Body keys: {:?}", body.as_object().map(|o| o.keys().collect::<Vec<_>>()));
                 if let Some(link_body) = body.get("link_body") {
                     let link_type = link_body
                         .get("type")
