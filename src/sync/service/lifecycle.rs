@@ -470,7 +470,7 @@ impl LifecycleManager {
                     let task = tokio::spawn(async move {
                         let _permit = permit; // Hold permit until task completes
 
-                        const MAX_RETRIES: u32 = 3;
+                        const MAX_RETRIES: u32 = 5;  // Increased from 3 to 5
                         let mut attempt = 0;
 
                         loop {
@@ -539,18 +539,49 @@ impl LifecycleManager {
                                                 ));
                                             }
                                             Err(e) if attempt < MAX_RETRIES => {
+                                                // Exponential backoff: 2^attempt seconds (2s, 4s, 8s, 16s, 32s)
+                                                let backoff_secs = 2u64.pow(attempt - 1).min(30);
+                                                let error_msg = e.to_string();
+                                                let error_type = if error_msg.contains("Database") || error_msg.contains("Sqlx") {
+                                                    "💾 Database Error"
+                                                } else if error_msg.contains("timeout") {
+                                                    "⏱️  Processing Timeout"
+                                                } else {
+                                                    "❌ Processing Error"
+                                                };
+                                                
                                                 warn!(
-                                                    "Batch {}-{} processing failed (attempt {}/{}): {}, retrying...",
-                                                    batch_start, batch_end, attempt, MAX_RETRIES, e
+                                                    "{} - Shard {} batch {}-{} (attempt {}/{}): {}\n   Retrying in {}s...",
+                                                    error_type, shard_id, batch_start, batch_end, attempt, MAX_RETRIES, error_msg, backoff_secs
                                                 );
-                                                tokio::time::sleep(tokio::time::Duration::from_secs(attempt as u64)).await;
+                                                tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
                                                 continue; // Retry
                                             }
                                             Err(e) => {
+                                                let error_msg = e.to_string();
+                                                let error_debug = format!("{:?}", e);
+                                                
                                                 error!(
-                                                    "🔴 Batch {}-{} failed after {} attempts: {}",
-                                                    batch_start, batch_end, MAX_RETRIES, e
+                                                    "🔴 CRITICAL: Shard {} batch {}-{} processing FAILED after {} attempts\n\
+                                                     ├─ Error Type: {}\n\
+                                                     ├─ Error Message: {}\n\
+                                                     ├─ Error Debug: {}\n\
+                                                     ├─ Shard ID: {}\n\
+                                                     ├─ Batch Range: {}-{}\n\
+                                                     ├─ Total Attempts: {}\n\
+                                                     └─ Action: Stopping all workers to prevent data holes",
+                                                    shard_id, batch_start, batch_end, MAX_RETRIES,
+                                                    if error_msg.contains("Database") || error_msg.contains("Sqlx") { "Database" }
+                                                    else if error_msg.contains("timeout") { "Timeout" }
+                                                    else { "Processing" },
+                                                    error_msg,
+                                                    error_debug,
+                                                    shard_id,
+                                                    batch_start,
+                                                    batch_end,
+                                                    MAX_RETRIES
                                                 );
+                                                
                                                 // Signal all workers to stop
                                                 should_stop_shared.store(true, Ordering::SeqCst);
                                                 return Err(e);
@@ -564,19 +595,57 @@ impl LifecycleManager {
                                     return Ok((0, 0)); // Skip empty batches
                                 }
                                 Err(e) if attempt < MAX_RETRIES => {
+                                    // Exponential backoff: 2^attempt seconds (2s, 4s, 8s, 16s, 32s)
+                                    let backoff_secs = 2u64.pow(attempt - 1).min(30);
+                                    let error_msg = e.to_string();
+                                    let error_type = if error_msg.contains("transport error") {
+                                        "🌐 Network Transport Error"
+                                    } else if error_msg.contains("connection refused") {
+                                        "🔌 Connection Refused"
+                                    } else if error_msg.contains("connection reset") {
+                                        "🔄 Connection Reset"
+                                    } else if error_msg.contains("timed out") {
+                                        "⏱️  Request Timeout"
+                                    } else if error_msg.contains("broken pipe") {
+                                        "📡 Broken Pipe"
+                                    } else {
+                                        "❌ gRPC Error"
+                                    };
+                                    
                                     warn!(
-                                        "Batch {}-{} fetch failed (attempt {}/{}): {}, retrying...",
-                                        batch_start, batch_end, attempt, MAX_RETRIES, e
+                                        "{} - Shard {} batch {}-{} (attempt {}/{}): {}\n   Retrying in {}s...",
+                                        error_type, shard_id, batch_start, batch_end, attempt, MAX_RETRIES, error_msg, backoff_secs
                                     );
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(attempt as u64)).await;
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
                                     continue; // Retry
                                 }
                                 Err(e) => {
+                                    let error_msg = e.to_string();
+                                    let error_debug = format!("{:?}", e);
+                                    
                                     error!(
-                                        "🔴 Batch {}-{} fetch failed after {} attempts: {}",
-                                        batch_start, batch_end, MAX_RETRIES, e
+                                        "🔴 CRITICAL: Shard {} batch {}-{} fetch FAILED after {} attempts\n\
+                                         ├─ Error Type: {}\n\
+                                         ├─ Error Message: {}\n\
+                                         ├─ Error Debug: {}\n\
+                                         ├─ Shard ID: {}\n\
+                                         ├─ Batch Range: {}-{}\n\
+                                         ├─ Total Attempts: {}\n\
+                                         └─ Action: Stopping all workers to prevent data holes",
+                                        shard_id, batch_start, batch_end, MAX_RETRIES,
+                                        if error_msg.contains("transport") { "Network/Transport" } 
+                                        else if error_msg.contains("connection") { "Connection" }
+                                        else if error_msg.contains("timeout") { "Timeout" }
+                                        else { "Unknown" },
+                                        error_msg,
+                                        error_debug,
+                                        shard_id,
+                                        batch_start,
+                                        batch_end,
+                                        MAX_RETRIES
                                     );
-                                    // Signal all workers to stop
+                                    
+                                    // Signal all workers to stop (fail-fast to avoid holes)
                                     should_stop_shared.store(true, Ordering::SeqCst);
                                     return Err(e);
                                 }
