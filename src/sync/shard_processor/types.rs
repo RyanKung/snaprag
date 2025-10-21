@@ -58,6 +58,10 @@ pub struct BatchedData {
     pub link_removes: Vec<(i64, i64, i64, Vec<u8>)>,
     pub reaction_removes: Vec<(i64, Vec<u8>, i64, Vec<u8>)>,
     pub verification_removes: Vec<(i64, Vec<u8>, i64, Vec<u8>)>,
+    // Username proofs: (fid, username, owner, signature, username_type, timestamp, message_hash, shard_block_info)
+    pub username_proofs: Vec<(i64, String, Vec<u8>, Vec<u8>, i16, i64, Vec<u8>, crate::models::ShardBlockInfo)>,
+    // Frame actions: (fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_block_info)
+    pub frame_actions: Vec<(i64, String, Option<i32>, Option<Vec<u8>>, Option<i64>, Option<String>, Option<Vec<u8>>, Option<Vec<u8>>, i64, Vec<u8>, crate::models::ShardBlockInfo)>,
 }
 
 impl BatchedData {
@@ -73,6 +77,8 @@ impl BatchedData {
             link_removes: Vec::new(),
             reaction_removes: Vec::new(),
             verification_removes: Vec::new(),
+            username_proofs: Vec::new(),
+            frame_actions: Vec::new(),
         }
     }
 }

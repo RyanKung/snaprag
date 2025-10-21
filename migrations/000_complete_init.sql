@@ -221,6 +221,49 @@ CREATE INDEX IF NOT EXISTS idx_verifications_fid ON verifications(fid);
 CREATE INDEX IF NOT EXISTS idx_verifications_address ON verifications(address);
 CREATE INDEX IF NOT EXISTS idx_verifications_timestamp ON verifications(timestamp DESC);
 
+CREATE TABLE IF NOT EXISTS username_proofs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    fid BIGINT NOT NULL,
+    username TEXT NOT NULL,
+    owner BYTEA NOT NULL,
+    signature BYTEA NOT NULL,
+    timestamp BIGINT NOT NULL,
+    username_type SMALLINT NOT NULL,  -- 1=FNAME, 2=ENS
+    message_hash BYTEA UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    shard_id INTEGER,
+    block_height BIGINT,
+    transaction_fid BIGINT,
+    UNIQUE(fid)  -- One username per FID (latest proof)
+);
+
+CREATE INDEX IF NOT EXISTS idx_username_proofs_fid ON username_proofs(fid);
+CREATE INDEX IF NOT EXISTS idx_username_proofs_username ON username_proofs(username);
+CREATE INDEX IF NOT EXISTS idx_username_proofs_timestamp ON username_proofs(timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS frame_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    fid BIGINT NOT NULL,
+    url TEXT NOT NULL,
+    button_index INTEGER,
+    cast_hash BYTEA,
+    cast_fid BIGINT,
+    input_text TEXT,
+    state BYTEA,
+    transaction_id BYTEA,
+    timestamp BIGINT NOT NULL,
+    message_hash BYTEA UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    shard_id INTEGER,
+    block_height BIGINT,
+    transaction_fid BIGINT
+);
+
+CREATE INDEX IF NOT EXISTS idx_frame_actions_fid ON frame_actions(fid);
+CREATE INDEX IF NOT EXISTS idx_frame_actions_url ON frame_actions(url);
+CREATE INDEX IF NOT EXISTS idx_frame_actions_cast_hash ON frame_actions(cast_hash);
+CREATE INDEX IF NOT EXISTS idx_frame_actions_timestamp ON frame_actions(timestamp DESC);
+
 -- ==============================================================================
 -- 5. EMBEDDINGS
 -- ==============================================================================

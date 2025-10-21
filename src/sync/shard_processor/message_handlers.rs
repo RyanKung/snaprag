@@ -409,6 +409,123 @@ pub(super) async fn collect_message_data(
                 }
             }
         }
+        12 => {
+            // USERNAME_PROOF - collect username proof data
+            if let Some(body) = &data.body {
+                if let Some(username_proof_body) = body.get("username_proof_body") {
+                    let username = username_proof_body
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    
+                    if let Some(owner_str) = username_proof_body.get("owner").and_then(|v| v.as_str()) {
+                        if let Ok(owner) = hex::decode(owner_str) {
+                            let signature = username_proof_body
+                                .get("signature")
+                                .and_then(|v| v.as_str())
+                                .and_then(|s| hex::decode(s).ok())
+                                .unwrap_or_default();
+                            
+                            let username_type = username_proof_body
+                                .get("type")
+                                .and_then(|v| v.as_i64())
+                                .map(|v| v as i16)
+                                .unwrap_or(1); // Default to FNAME
+                            
+                            batched.username_proofs.push((
+                                fid,
+                                username,
+                                owner,
+                                signature,
+                                username_type,
+                                timestamp,
+                                message_hash.to_vec(),
+                                shard_block_info.clone(),
+                            ));
+                            
+                            tracing::debug!(
+                                "Collected username proof: FID {} -> @{}",
+                                fid,
+                                username_proof_body.get("name").and_then(|v| v.as_str()).unwrap_or("")
+                            );
+                        } else {
+                            tracing::warn!("Failed to decode owner address for USERNAME_PROOF FID {}", fid);
+                        }
+                    }
+                }
+            }
+        }
+        13 => {
+            // FRAME_ACTION - collect frame interaction data
+            if let Some(body) = &data.body {
+                if let Some(frame_action_body) = body.get("frame_action_body") {
+                    let url = frame_action_body
+                        .get("url")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    
+                    let button_index = frame_action_body
+                        .get("button_index")
+                        .and_then(|v| v.as_i64())
+                        .map(|v| v as i32);
+                    
+                    let (cast_hash, cast_fid) = if let Some(cast_id) = frame_action_body.get("cast_id") {
+                        let hash = cast_id
+                            .get("hash")
+                            .and_then(|v| v.as_str())
+                            .and_then(|h| hex::decode(h).ok());
+                        let fid = cast_id
+                            .get("fid")
+                            .and_then(|v| v.as_i64());
+                        (hash, fid)
+                    } else {
+                        (None, None)
+                    };
+                    
+                    let input_text = frame_action_body
+                        .get("input_text")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    
+                    let state = frame_action_body
+                        .get("state")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| hex::decode(s).ok());
+                    
+                    let transaction_id = frame_action_body
+                        .get("transaction_id")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| hex::decode(s).ok());
+                    
+                    batched.frame_actions.push((
+                        fid,
+                        url.clone(),
+                        button_index,
+                        cast_hash,
+                        cast_fid,
+                        input_text,
+                        state,
+                        transaction_id,
+                        timestamp,
+                        message_hash.to_vec(),
+                        shard_block_info.clone(),
+                    ));
+                    
+                    tracing::debug!(
+                        "Collected frame action: FID {} -> {} (button: {:?})",
+                        fid,
+                        url,
+                        button_index
+                    );
+                }
+            }
+        }
+        14 | 15 => {
+            // LINK_COMPACT_STATE (14) and LEND_STORAGE (15) - low priority, log only
+            tracing::debug!("Received message type {} for FID {} - not stored", message_type, fid);
+        }
         _ => {
             tracing::debug!("Unknown message type {} for FID {}", message_type, fid);
         }

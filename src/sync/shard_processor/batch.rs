@@ -10,7 +10,7 @@ use crate::Result;
 pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
-        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events, {} removes ({}L/{}R/{}V)",
+        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events, {} removes ({}L/{}R/{}V), {} username proofs, {} frame actions",
         batched.fids_to_ensure.len(),
         batched.casts.len(),
         batched.links.len(),
@@ -21,7 +21,9 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
         batched.link_removes.len() + batched.reaction_removes.len() + batched.verification_removes.len(),
         batched.link_removes.len(),
         batched.reaction_removes.len(),
-        batched.verification_removes.len()
+        batched.verification_removes.len(),
+        batched.username_proofs.len(),
+        batched.frame_actions.len()
     );
 
     // Start a transaction for the entire batch
@@ -470,6 +472,102 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
             .bind(address)
             .execute(&mut *tx)
             .await?;
+        }
+    }
+
+    // Batch insert username proofs
+    if !batched.username_proofs.is_empty() {
+        tracing::info!("👤 Batch inserting {} username proofs", batched.username_proofs.len());
+        
+        const PARAMS_PER_ROW: usize = 10; // fid, username, owner, signature, username_type, timestamp, message_hash, shard_id, block_height, transaction_fid
+        const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
+
+        for chunk in batched.username_proofs.chunks(CHUNK_SIZE) {
+            let estimated_size = 300 + chunk.len() * 80;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO username_proofs (fid, username, owner, signature, username_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
+
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5,
+                    base + 6, base + 7, base + 8, base + 9, base + 10
+                ));
+            }
+
+            query.push_str(" ON CONFLICT (fid) DO UPDATE SET username = EXCLUDED.username, owner = EXCLUDED.owner, signature = EXCLUDED.signature, username_type = EXCLUDED.username_type, timestamp = EXCLUDED.timestamp, message_hash = EXCLUDED.message_hash, shard_id = EXCLUDED.shard_id, block_height = EXCLUDED.block_height, transaction_fid = EXCLUDED.transaction_fid");
+
+            let mut q = sqlx::query(&query);
+            for (fid, username, owner, signature, username_type, timestamp, message_hash, shard_block_info) in chunk {
+                q = q
+                    .bind(fid)
+                    .bind(username)
+                    .bind(owner)
+                    .bind(signature)
+                    .bind(username_type)
+                    .bind(timestamp)
+                    .bind(message_hash)
+                    .bind(shard_block_info.shard_id as i32)
+                    .bind(shard_block_info.block_height as i64)
+                    .bind(shard_block_info.transaction_fid as i64);
+            }
+
+            q.execute(&mut *tx).await?;
+        }
+    }
+
+    // Batch insert frame actions
+    if !batched.frame_actions.is_empty() {
+        tracing::info!("🖼️  Batch inserting {} frame actions", batched.frame_actions.len());
+        
+        const PARAMS_PER_ROW: usize = 13; // fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_id, block_height, transaction_fid
+        const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
+
+        for chunk in batched.frame_actions.chunks(CHUNK_SIZE) {
+            let estimated_size = 400 + chunk.len() * 100;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO frame_actions (fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
+
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5,
+                    base + 6, base + 7, base + 8, base + 9, base + 10,
+                    base + 11, base + 12, base + 13
+                ));
+            }
+
+            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+
+            let mut q = sqlx::query(&query);
+            for (fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_block_info) in chunk {
+                q = q
+                    .bind(fid)
+                    .bind(url)
+                    .bind(button_index)
+                    .bind(cast_hash)
+                    .bind(cast_fid)
+                    .bind(input_text)
+                    .bind(state)
+                    .bind(transaction_id)
+                    .bind(timestamp)
+                    .bind(message_hash)
+                    .bind(shard_block_info.shard_id as i32)
+                    .bind(shard_block_info.block_height as i64)
+                    .bind(shard_block_info.transaction_fid as i64);
+            }
+
+            q.execute(&mut *tx).await?;
         }
     }
 
