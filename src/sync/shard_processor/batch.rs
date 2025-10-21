@@ -7,7 +7,19 @@ use crate::database::Database;
 use crate::Result;
 
 /// Flush batched data to database
+#[cfg(test)]
+pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
+    flush_batched_data_impl(database, batched).await
+}
+
+/// Flush batched data to database (internal implementation)
+#[cfg(not(test))]
 pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
+    flush_batched_data_impl(database, batched).await
+}
+
+/// Flush batched data to database (shared implementation)
+async fn flush_batched_data_impl(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
         "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events, {} removes ({}L/{}R/{}V), {} username proofs, {} frame actions",

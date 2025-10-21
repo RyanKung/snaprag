@@ -11,15 +11,13 @@
 #[cfg(test)]
 mod message_types_tests {
     use crate::database::Database;
-    use crate::sync::shard_processor::types::BatchedData;
-    use crate::sync::shard_processor::batch::flush_batched_data;
+    use crate::sync::shard_processor::{BatchedData, flush_batched_data};
     use crate::models::ShardBlockInfo;
-    use std::collections::HashSet;
 
     /// Helper to create test database
     async fn setup_test_db() -> Database {
-        let config = crate::config::Config::load().expect("Failed to load config");
-        Database::new(&config.database)
+        let config = crate::config::AppConfig::load().expect("Failed to load config");
+        Database::from_config(&config)
             .await
             .expect("Failed to create database")
     }

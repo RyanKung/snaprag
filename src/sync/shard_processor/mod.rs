@@ -13,8 +13,11 @@ mod message_handlers;
 mod types;
 mod utils;
 
-// Re-export types
+// Re-export types and functions for testing
 pub use types::BatchedData;
+
+#[cfg(test)]
+pub use batch::flush_batched_data;
 
 /// Processor for handling shard chunks and extracting user data
 pub struct ShardProcessor {
