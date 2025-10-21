@@ -185,12 +185,7 @@ impl Database {
             r#"
             INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (message_hash)
-            DO UPDATE SET
-                fid = EXCLUDED.fid,
-                target_fid = EXCLUDED.target_fid,
-                link_type = EXCLUDED.link_type,
-                timestamp = EXCLUDED.timestamp
+            ON CONFLICT (message_hash) DO NOTHING
             "#,
         )
         .bind(fid)
@@ -220,15 +215,7 @@ impl Database {
             r#"
             INSERT INTO casts (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (message_hash)
-            DO UPDATE SET
-                fid = EXCLUDED.fid,
-                text = EXCLUDED.text,
-                timestamp = EXCLUDED.timestamp,
-                parent_hash = EXCLUDED.parent_hash,
-                root_hash = EXCLUDED.root_hash,
-                embeds = EXCLUDED.embeds,
-                mentions = EXCLUDED.mentions
+            ON CONFLICT (message_hash) DO NOTHING
             "#
         )
         .bind(fid)
@@ -258,12 +245,7 @@ impl Database {
             r#"
             INSERT INTO user_data (fid, data_type, value, timestamp, message_hash)
             VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (message_hash)
-            DO UPDATE SET
-                fid = EXCLUDED.fid,
-                data_type = EXCLUDED.data_type,
-                value = EXCLUDED.value,
-                timestamp = EXCLUDED.timestamp
+            ON CONFLICT (message_hash) DO NOTHING
             "#,
         )
         .bind(fid)
