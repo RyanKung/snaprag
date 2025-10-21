@@ -13,10 +13,10 @@ mod message_handlers;
 mod types;
 mod utils;
 
-// Re-export types and functions for testing
+// Re-export types
 pub use types::BatchedData;
 
-#[cfg(test)]
+// Re-export batch function for testing (both unit and integration tests)
 pub use batch::flush_batched_data;
 
 /// Processor for handling shard chunks and extracting user data
