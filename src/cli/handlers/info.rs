@@ -214,20 +214,40 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
             // Calculate ETA based on actual sync speed from database
             if overall_progress < 99.9 && sync_info.iter().any(|(_, _, status, _)| status == "syncing") {
-                // Get historical progress to calculate actual speed
-                // Query progress from 5 minutes ago
-                let five_min_ago = chrono::Utc::now() - chrono::Duration::minutes(5);
-                
-                let historical_progress: std::result::Result<Vec<(i32, i64)>, sqlx::Error> = sqlx::query_as(
-                    "SELECT shard_id, last_processed_height 
-                     FROM sync_progress 
-                     WHERE updated_at < $1"
-                )
-                .bind(five_min_ago)
-                .fetch_all(snaprag.database.pool())
-                .await;
-
                 let remaining_blocks = avg_max_height as i64 - avg_height;
+                
+                // Check how long sync has been running
+                let oldest_update = sync_info.iter()
+                    .map(|(_, _, _, updated_at)| updated_at)
+                    .min()
+                    .cloned();
+                
+                let sync_duration_secs = if let Some(start_time) = oldest_update {
+                    chrono::Utc::now().signed_duration_since(start_time).num_seconds()
+                } else {
+                    0
+                };
+                
+                // Only calculate real-time ETA if syncing for at least 60 seconds
+                let use_realtime_calculation = sync_duration_secs >= 60;
+                
+                // Get historical progress to calculate actual speed
+                let historical_progress: std::result::Result<Vec<(i32, i64)>, sqlx::Error> = if use_realtime_calculation {
+                    // Query progress from 2-5 minutes ago (adaptive based on duration)
+                    let lookback_minutes = if sync_duration_secs < 300 { 1 } else { 5 };
+                    let lookback_time = chrono::Utc::now() - chrono::Duration::minutes(lookback_minutes);
+                    
+                    sqlx::query_as(
+                        "SELECT shard_id, last_processed_height 
+                         FROM sync_progress 
+                         WHERE updated_at < $1"
+                    )
+                    .bind(lookback_time)
+                    .fetch_all(snaprag.database.pool())
+                    .await
+                } else {
+                    Err(sqlx::Error::RowNotFound) // Skip calculation
+                };
                 
                 // Try to calculate based on actual speed
                 let eta_str = if let Ok(hist) = historical_progress {
