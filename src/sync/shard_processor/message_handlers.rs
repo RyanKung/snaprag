@@ -593,3 +593,8 @@ pub(super) async fn process_system_message(
     
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "message_handlers_test.rs"]
+mod tests;
+
