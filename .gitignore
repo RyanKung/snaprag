@@ -97,45 +97,26 @@ coverage/
 .local/
 local/
 
-# Temporary documentation and analysis files
+# All markdown files except essential docs
 *.md
 !README.md
-!readme.md
-*.txt
-*.json
-
-# Temporary scripts and analysis files
-temp_*.sh
-temp_*.py
-temp_*.js
-temp_*.ts
-debug_*.sh
-debug_*.py
-test_*.sh
-test_*.py
-analysis_*.md
-analysis_*.txt
-timeline_*.md
-timeline_*.txt
-summary_*.md
-summary_*.txt
 
 # All bash scripts (temporary helper scripts)
 *.sh
 !scripts/*.sh
 
-# PostgreSQL optimization and analysis files
-POSTGRES_*.sql
-POSTGRES_*.md
-*_OPTIMIZATION*.sql
-*_OPTIMIZATION*.md
-*_ANALYSIS.md
+# All SQL files (temporary optimization files)
+*.sql
+!migrations/*.sql
 
-# AI-generated temporary files
-ai_*.md
-ai_*.txt
-assistant_*.md
-assistant_*.txt
+# All text files (temporary analysis)
+*.txt
+
+# All JSON files (temporary state/config)
+*.json
+!package*.json
+!tsconfig*.json
+!Cargo.lock
 
 # Submodules (should not be managed by git)
 snapchain/
@@ -148,28 +129,5 @@ snaprag_sync_state.json
 !Cargo.lock
 .env.compile
 
-# Demo videos (keep only quick_demo.gif in root)
+# Demo videos
 demo/
-
-# Generated documentation files (keep only essential docs)
-*.md
-!README.md
-!CHANGELOG.md
-!LICENSE.md
-!CONTRIBUTING.md
-!CODE_OF_CONDUCT.md
-
-# Temporary analysis and design docs
-*_SUMMARY.md
-*_GUIDE.md
-*_DESIGN.md
-*_USAGE.md
-*_COMMANDS.md
-*_LOGIC.md
-*_TUNING.md
-*_TRACKING.md
-*_ENDPOINTS.md
-*_EXAMPLES.md
-*_QUERIES.md
-SYNC_PERFORMANCE_ANALYSIS.md
-*.md
