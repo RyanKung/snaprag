@@ -252,15 +252,33 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
     // Batch insert verifications (split into chunks to avoid parameter limit)
     if !batched.verifications.is_empty() {
         tracing::info!(
-            "✅ Batch inserting {} verifications",
+            "✅ Batch inserting {} verifications (before dedup)",
             batched.verifications.len()
         );
+
+        // 🚀 Deduplicate by (fid, address) to avoid unique constraint violation
+        // Keep the latest verification for each (fid, address) pair
+        let mut verifications_map: HashMap<(i64, Vec<u8>), _> = HashMap::new();
+        for verification in &batched.verifications {
+            let key = (verification.0, verification.1.clone()); // (fid, address)
+            verifications_map.insert(key, verification.clone());
+        }
+        let deduped_verifications: Vec<_> = verifications_map.into_values().collect();
+        
+        if deduped_verifications.len() < batched.verifications.len() {
+            tracing::debug!(
+                "Deduplicated verifications: {} -> {} ({} duplicates)",
+                batched.verifications.len(),
+                deduped_verifications.len(),
+                batched.verifications.len() - deduped_verifications.len()
+            );
+        }
 
         const PARAMS_PER_ROW: usize = 11; // fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_id, block_height, transaction_fid
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
-        for chunk in batched.verifications.chunks(CHUNK_SIZE) {
+        for chunk in deduped_verifications.chunks(CHUNK_SIZE) {
             // 🚀 Pre-allocate
             let estimated_size = 250 + chunk.len() * 70;
             let mut query = String::with_capacity(estimated_size);
@@ -279,7 +297,10 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                 ));
             }
 
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // 🚀 FIX: Handle both unique constraints properly
+            // Table has: UNIQUE(message_hash) and UNIQUE(fid, address)
+            // Strategy: Keep only the first one (DO NOTHING on both)
+            query.push_str(" ON CONFLICT (fid, address) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (
