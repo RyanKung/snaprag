@@ -22,50 +22,51 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
     // Start a transaction for the entire batch
     let mut tx = database.pool().begin().await?;
 
-    // Batch insert FIDs (split into chunks to avoid parameter limit)
-    // 🚀 APPEND-ONLY MODE: New table structure uses (fid, timestamp) as primary key
-    // This allows multiple rows per FID, eliminating lock contention from ON CONFLICT
+    // Batch insert FIDs to user_profile_changes (event-sourcing table)
+    // 🚀 EVENT-SOURCING MODE: Each FID creates a synthetic "fid_created" event
+    // Pure append-only, zero locks
     if !batched.fids_to_ensure.is_empty() {
         let now = chrono::Utc::now();
 
-        const PARAMS_PER_ROW: usize = 3;
-        const MAX_PARAMS: usize = 65000; // Keep below u16::MAX (65535)
-        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW; // ~21666 rows per chunk
+        const PARAMS_PER_ROW: usize = 5; // fid, field_name, field_value, timestamp, message_hash
+        const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
-        // 🔧 Sort FIDs to ensure consistent insertion order
         let mut fids: Vec<i64> = batched.fids_to_ensure.iter().copied().collect();
         fids.sort_unstable();
 
-        // Split FIDs into chunks
         for chunk in fids.chunks(CHUNK_SIZE) {
-            // Build dynamic query for batch insert
-            // 🚀 Pre-allocate capacity to reduce allocations
-            let estimated_size = 100 + chunk.len() * 20; // Rough estimate
+            let estimated_size = 150 + chunk.len() * 40;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO user_profiles (fid, last_updated_timestamp, last_updated_at) VALUES ");
+            query.push_str("INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) VALUES ");
 
-            // 🚀 Use direct string building instead of collecting Vec<String>
             for i in 0..chunk.len() {
                 if i > 0 {
                     query.push_str(", ");
                 }
                 let base = i * PARAMS_PER_ROW;
-                query.push_str(&format!("(${}, ${}, ${})", base + 1, base + 2, base + 3));
+                query.push_str(&format!(
+                    "(${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5
+                ));
             }
-            // 🚀 NO ON CONFLICT - append-only mode with (fid, timestamp) primary key
-            // Duplicates are handled by composite primary key constraint
-            query.push_str(" ON CONFLICT (fid, last_updated_timestamp) DO NOTHING");
+            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for _fid in chunk {
-                q = q.bind(_fid).bind(0i64).bind(now);
+            for fid in chunk {
+                // Create synthetic message_hash for fid_created event
+                let synthetic_hash = format!("fid_created_{}", fid).as_bytes().to_vec();
+                q = q
+                    .bind(fid)
+                    .bind("fid_created")
+                    .bind::<Option<String>>(None) // No value for fid_created event
+                    .bind(0i64)
+                    .bind(synthetic_hash);
             }
 
             let result = q.execute(&mut *tx).await?;
-            let profiles_created = result.rows_affected();
-
-            if profiles_created > 0 {
-                tracing::debug!("Created {} new profiles", profiles_created);
+            if result.rows_affected() > 0 {
+                tracing::debug!("Created {} FID events", result.rows_affected());
             }
         }
     }
@@ -317,68 +318,66 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
     // Activities tracking was removed for performance (356GB, WAL bottleneck)
     // All necessary data is already in specialized tables (casts, links, reactions, etc.)
 
-    // 🚀 APPEND-ONLY MODE: Convert UPDATEs to INSERTs
-    // New table structure: (fid, timestamp) as primary key
-    // This eliminates UPDATE locks entirely - just append new rows!
+    // 🚀 EVENT-SOURCING MODE: Insert individual field changes
+    // Each update = one row in user_profile_changes table
+    // Pure append-only, zero locks!
     if !batched.profile_updates.is_empty() {
         tracing::trace!(
-            "Batch inserting {} profile updates (append-only)",
+            "Batch inserting {} profile field changes",
             batched.profile_updates.len()
         );
 
-        const PARAMS_PER_ROW: usize = 4; // fid, field_value, timestamp, created_at
+        // Each update is independent - no grouping needed
+        const PARAMS_PER_ROW: usize = 5; // fid, field_name, field_value, timestamp, message_hash
         const MAX_PARAMS: usize = 65000;
+        const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
+
+        // Convert to list for chunking
+        let updates_list: Vec<_> = batched.profile_updates.into_iter().collect();
         
-        // Group updates by field name to batch insert per field type
-        let mut updates_by_field: HashMap<String, Vec<(i64, Option<String>, i64)>> = HashMap::new();
+        for chunk in updates_list.chunks(CHUNK_SIZE) {
+            let estimated_size = 200 + chunk.len() * 50;
+            let mut query = String::with_capacity(estimated_size);
+            query.push_str("INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) VALUES ");
 
-        for (fid, field_name, value, timestamp) in batched.profile_updates {
-            updates_by_field
-                .entry(field_name)
-                .or_insert_with(Vec::new)
-                .push((fid, value, timestamp));
-        }
-
-        let now = chrono::Utc::now();
-
-        // Insert each field type as a batch
-        for (field_name, updates) in updates_by_field {
-            if updates.is_empty() {
-                continue;
-            }
-
-            let chunk_size = MAX_PARAMS / PARAMS_PER_ROW;
-            
-            for chunk in updates.chunks(chunk_size) {
-                let estimated_size = 200 + chunk.len() * 40;
-                let mut query = String::with_capacity(estimated_size);
+            for i in 0..chunk.len() {
+                if i > 0 {
+                    query.push_str(", ");
+                }
+                let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "INSERT INTO user_profiles (fid, {}, last_updated_timestamp, last_updated_at) VALUES ",
-                    field_name
+                    "(${}, ${}, ${}, ${}, ${})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5
                 ));
-
-                for i in 0..chunk.len() {
-                    if i > 0 {
-                        query.push_str(", ");
-                    }
-                    let base = i * PARAMS_PER_ROW;
-                    query.push_str(&format!(
-                        "(${}, ${}, ${}, ${})",
-                        base + 1, base + 2, base + 3, base + 4
-                    ));
-                }
-                
-                // 🚀 Append-only: Use composite primary key (fid, timestamp)
-                // No lock contention - just skip if exact same (fid, timestamp) exists
-                query.push_str(" ON CONFLICT (fid, last_updated_timestamp) DO NOTHING");
-
-                let mut q = sqlx::query(&query);
-                for (fid, value, timestamp) in chunk {
-                    q = q.bind(fid).bind(value).bind(timestamp).bind(now);
-                }
-
-                q.execute(&mut *tx).await?;
             }
+            
+            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+
+            let mut q = sqlx::query(&query);
+            for (fid, field_name, value, timestamp) in chunk {
+                // Generate unique message_hash using a simple encoding
+                // Format: "profile_{field}_{fid}_{timestamp}_{value_hash}"
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                field_name.hash(&mut hasher);
+                fid.hash(&mut hasher);
+                timestamp.hash(&mut hasher);
+                if let Some(ref v) = value {
+                    v.hash(&mut hasher);
+                }
+                let hash_value = hasher.finish();
+                let message_hash = format!("profile_{}_{}", field_name, hash_value).as_bytes().to_vec();
+                
+                q = q
+                    .bind(fid)
+                    .bind(field_name)
+                    .bind(value)
+                    .bind(timestamp)
+                    .bind(message_hash);
+            }
+
+            q.execute(&mut *tx).await?;
         }
     }
 
