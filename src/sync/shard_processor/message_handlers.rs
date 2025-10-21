@@ -172,8 +172,9 @@ pub(super) async fn collect_message_data(
             // LinkRemove - collect activity (we don't remove from links table, just log)
         }
         7 => {
-            // VerificationAddEthAddress - collect verification data
+            // VerificationAdd - collect verification data (ETH or Solana)
             if let Some(body) = &data.body {
+                // Try ETH address verification
                 if let Some(verification_body) = body.get("verification_add_eth_address_body") {
                     if let Some(address_str) =
                         verification_body.get("address").and_then(|v| v.as_str())
@@ -211,13 +212,50 @@ pub(super) async fn collect_message_data(
                                 shard_block_info.clone(),
                             ));
 
-                            tracing::debug!("Collected verification: FID {} verified address", fid);
+                            tracing::debug!("Collected ETH verification: FID {} verified address", fid);
+                        } else {
+                            tracing::warn!("Failed to decode ETH address for FID {}", fid);
                         }
                     }
                 }
-            }
+                // Try Solana address verification
+                else if let Some(verification_body) = body.get("verification_add_solana_address_body") {
+                    if let Some(address_str) =
+                        verification_body.get("address").and_then(|v| v.as_str())
+                    {
+                        // Solana addresses are base58 encoded, store as-is
+                        let address = address_str.as_bytes().to_vec();
+                        
+                        let claim_signature = verification_body
+                            .get("claim_signature")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| hex::decode(s).ok());
 
-            // Also collect activity
+                        let block_hash = verification_body
+                            .get("block_hash")
+                            .and_then(|v| v.as_str())
+                            .and_then(|h| hex::decode(h).ok());
+
+                        batched.verifications.push((
+                            fid,
+                            address,
+                            claim_signature,
+                            block_hash,
+                            Some(2), // verification_type=2 for Solana
+                            Some(900), // chain_id=900 for Solana (standard)
+                            timestamp,
+                            message_hash.to_vec(),
+                            shard_block_info.clone(),
+                        ));
+
+                        tracing::debug!("Collected Solana verification: FID {} verified address {}", fid, address_str);
+                    } else {
+                        tracing::warn!("Solana verification missing address for FID {}", fid);
+                    }
+                } else {
+                    tracing::warn!("VerificationAdd for FID {} has unknown verification body type", fid);
+                }
+            }
         }
         8 => {
             // VerificationRemove - collect activity
