@@ -156,7 +156,7 @@ impl ProcessMonitor {
     }
 
     /// Check if process is idle based on last activity
-    fn is_process_idle(&self, _pid: u32) -> Result<bool> {
+    const fn is_process_idle(&self, _pid: u32) -> Result<bool> {
         // Process idle detection via last activity time
         // In a full implementation, could track per-process activity timestamps
         // For now, use the max_idle_time threshold
