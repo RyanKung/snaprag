@@ -46,6 +46,11 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
         }
     }
 
+    // Run schema fixes and migrations
+    print_info("🔧 Applying schema migrations...");
+    run_schema_migrations(snaprag).await?;
+    print_success("✅ Schema migrations applied");
+
     if !skip_indexes {
         print_info("📊 Creating performance-optimized indexes...");
         create_optimized_indexes(snaprag).await?;
@@ -242,6 +247,27 @@ async fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
     }
 
     tracing::info!("✅ Successfully executed initialization SQL");
+    Ok(())
+}
+
+/// Run schema migrations
+async fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
+    let pool = snaprag.database().pool();
+    
+    // Migration 007: Remove problematic composite unique constraints
+    // These constraints prevent recording event history (like -> unlike -> like)
+    sqlx::query("ALTER TABLE reactions DROP CONSTRAINT IF EXISTS reactions_fid_target_cast_hash_reaction_type_key")
+        .execute(pool)
+        .await
+        .ok();
+    
+    sqlx::query("ALTER TABLE verifications DROP CONSTRAINT IF EXISTS verifications_fid_address_key")
+        .execute(pool)
+        .await
+        .ok();
+    
+    tracing::info!("Removed composite unique constraints from reactions and verifications");
+    
     Ok(())
 }
 
