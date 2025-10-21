@@ -220,6 +220,18 @@ impl SocialGraphAnalyzer {
         Ok(links)
     }
 
+    /// Count following for a user (optimized - only returns count, not data)
+    pub async fn count_following(&self, fid: i64) -> Result<usize> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM links WHERE fid = $1 AND link_type = 'follow' AND removed_at IS NULL"
+        )
+        .bind(fid)
+        .fetch_one(self.database.pool())
+        .await?;
+        
+        Ok(count as usize)
+    }
+
     /// Get list of users who follow this FID (with lazy loading from Snapchain)
     async fn get_followers(&self, fid: i64) -> Result<Vec<i64>> {
         // Try database first
@@ -265,6 +277,18 @@ impl SocialGraphAnalyzer {
         }
 
         Ok(followers)
+    }
+
+    /// Count followers for a user (optimized - only returns count, not data)
+    pub async fn count_followers(&self, fid: i64) -> Result<usize> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM links WHERE target_fid = $1 AND link_type = 'follow' AND removed_at IS NULL"
+        )
+        .bind(fid)
+        .fetch_one(self.database.pool())
+        .await?;
+        
+        Ok(count as usize)
     }
 
     /// Lazy load following list from Snapchain and insert into database
@@ -798,25 +822,22 @@ impl SocialGraphAnalyzer {
 
     /// Analyze user's interaction style
     async fn analyze_interaction_style(&self, fid: i64) -> Result<InteractionStyle> {
-        // Count replies (casts with parent_hash)
-        let total_casts = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts WHERE fid = $1")
-            .bind(fid)
-            .fetch_one(self.database.pool())
-            .await?;
-
-        let reply_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM casts WHERE fid = $1 AND parent_hash IS NOT NULL",
+        // Optimized: Single query with FILTER instead of 3 separate COUNT queries
+        let counts: (i64, i64, i64) = sqlx::query_as(
+            r#"
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE parent_hash IS NOT NULL) as replies,
+                COUNT(*) FILTER (WHERE mentions IS NOT NULL) as mentions
+            FROM casts 
+            WHERE fid = $1
+            "#
         )
         .bind(fid)
         .fetch_one(self.database.pool())
         .await?;
-
-        let mention_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM casts WHERE fid = $1 AND mentions IS NOT NULL",
-        )
-        .bind(fid)
-        .fetch_one(self.database.pool())
-        .await?;
+        
+        let (total_casts, reply_count, mention_count) = counts;
 
         let reply_frequency = if total_casts > 0 {
             reply_count as f32 / total_casts as f32
@@ -830,9 +851,9 @@ impl SocialGraphAnalyzer {
             0.0
         };
 
-        // Determine community role
-        let following_count = self.get_following(fid).await?.len();
-        let followers_count = self.get_followers(fid).await?.len();
+        // Determine community role (optimized - use count methods instead of fetching all data)
+        let following_count = self.count_following(fid).await?;
+        let followers_count = self.count_followers(fid).await?;
 
         let community_role = if followers_count > 1000 && reply_frequency > 0.3 {
             "leader".to_string()
