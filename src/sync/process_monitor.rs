@@ -44,18 +44,18 @@ impl ProcessMonitor {
 
     /// Clean up stale processes
     pub async fn cleanup_stale_processes(&self) -> Result<()> {
-        let stale_processes = self.find_stale_processes().await?;
+        let stale_processes = self.find_stale_processes()?;
 
         for pid in stale_processes {
             warn!("Cleaning up stale process PID: {}", pid);
-            self.force_kill_process(pid)?;
+            self.force_kill_process(pid);
         }
 
         Ok(())
     }
 
     /// Find stale processes
-    async fn find_stale_processes(&self) -> Result<Vec<u32>> {
+    fn find_stale_processes(&self) -> Result<Vec<u32>> {
         let mut stale_pids = Vec::new();
 
         // Get all snaprag processes
@@ -108,7 +108,7 @@ impl ProcessMonitor {
         }
 
         // Check if process has been idle (no CPU usage)
-        if self.is_process_idle(pid)? {
+        if self.is_process_idle(pid) {
             return Ok(true);
         }
 
@@ -156,18 +156,18 @@ impl ProcessMonitor {
     }
 
     /// Check if process is idle based on last activity
-    const fn is_process_idle(&self, _pid: u32) -> Result<bool> {
+    const fn is_process_idle(&self, _pid: u32) -> bool {
         // Process idle detection via last activity time
         // In a full implementation, could track per-process activity timestamps
         // For now, use the max_idle_time threshold
 
         // Conservative approach: assume process is not idle unless explicitly proven
         // This prevents premature process termination
-        Ok(false)
+        false
     }
 
     /// Force kill a process
-    fn force_kill_process(&self, pid: u32) -> Result<()> {
+    fn force_kill_process(&self, pid: u32) {
         // Try graceful shutdown first
         unsafe {
             libc::kill(pid as i32, libc::SIGTERM);
@@ -182,8 +182,6 @@ impl ProcessMonitor {
                 libc::kill(pid as i32, libc::SIGKILL);
             }
         }
-
-        Ok(())
     }
 }
 

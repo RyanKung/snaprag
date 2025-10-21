@@ -61,7 +61,7 @@ impl LifecycleManager {
         // Then start real-time sync for new data
         if self.config.enable_realtime_sync {
             info!("Starting real-time sync for new data...");
-            self.start_full_realtime_sync()?;
+            self.start_full_realtime_sync();
         }
 
         Ok(())
@@ -325,10 +325,9 @@ impl LifecycleManager {
         Ok(())
     }
 
-    fn start_full_realtime_sync(&self) -> Result<()> {
+    fn start_full_realtime_sync(&self) {
         info!("Real-time sync not yet implemented in refactored service");
         warn!("Use 'snaprag sync start --from-block <last_block>' for now");
-        Ok(())
     }
 
     /// Start sync with parallel workers per shard (fail-fast strategy)

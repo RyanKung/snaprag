@@ -92,10 +92,39 @@ all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
+
 # Allow some specific warnings that are common in test code
 unused_io_amount = "allow"
 unused_self = "allow"
-# Allow warnings in generated protobuf code
-unused_variables = "allow"
-unused_imports = "allow"
+
+
+# Allow specific pedantic lints after careful review
+# These are intentional design decisions:
+
+# Type conversions: Farcaster protocol uses u64/u32, PostgreSQL uses i64/i32
+# All conversions are within safe ranges for Farcaster data
+cast_precision_loss = "allow"  # u64 → f64 for statistics/calculations (values < 2^53)
+cast_possible_wrap = "allow"   # u64 → i64, u32 → i32 (Farcaster IDs are < i64::MAX)
+cast_sign_loss = "allow"       # i64 → u64 for protocol interop (values always positive)
+cast_possible_truncation = "allow"  # Controlled truncation for enum types
+
+# Code organization: Some const definitions are intentionally local to functions
+items_after_statements = "allow"  # Module-level consts already extracted for key ones
+
+# Documentation: Internal implementation details don't need exhaustive docs
+missing_errors_doc = "allow"   # Public APIs have docs; internal functions are self-documenting
+missing_panics_doc = "allow"   # Panics are intentional (unreachable, expect)
+
+# Performance: format! is more readable in some contexts vs write! micro-optimization
+format_push_string = "allow"   # Hot paths already use write!; readability > micro-opt elsewhere
+
+# Style: These are style preferences, not correctness issues
+too_many_lines = "allow"       # Some complex functions need length (with good comments)
+option_if_let_else = "allow"   # if let is often clearer than map_or_else
+type_complexity = "allow"      # Complex tuples documented and will be refactored later
+significant_drop_tightening = "allow"  # Drop order is intentional
+empty_line_after_doc_comments = "allow"  # Formatting preference
+
+# External dependencies
+multiple_crate_versions = "allow"  # Transitive dependencies, not under our control
 

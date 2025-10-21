@@ -54,7 +54,6 @@ impl RealtimeMonitor {
                 shard_id,
                 start_block_number: last_processed_height,
                 stop_block_number: Some(last_processed_height + 10), // Small batch for real-time
-                ..Default::default()
             };
 
             match self.client.get_shard_chunks(request).await {
@@ -72,10 +71,10 @@ impl RealtimeMonitor {
                         if stats.blocks_processed > 0 {
                             let next_height = stats
                                 .last_block_number
-                                .map(|block| block.saturating_add(1))
-                                .unwrap_or_else(|| {
-                                    last_processed_height.saturating_add(stats.blocks_processed)
-                                });
+                                .map_or_else(
+                                    || last_processed_height.saturating_add(stats.blocks_processed),
+                                    |block| block.saturating_add(1)
+                                );
 
                             {
                                 let mut sm = self.state_manager.write().await;
