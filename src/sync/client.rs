@@ -701,6 +701,19 @@ fn convert_grpc_message_body(body: &message_data::Body) -> Value {
             );
             Value::Object(root)
         }
+        message_data::Body::LinkBody(link_body) => {
+            let mut root = Map::new();
+            root.insert("link_body".to_string(), link_body_to_json(link_body));
+            Value::Object(root)
+        }
+        message_data::Body::VerificationAddAddressBody(verification) => {
+            let mut root = Map::new();
+            root.insert(
+                "verification_add_eth_address_body".to_string(),
+                verification_add_body_to_json(verification),
+            );
+            Value::Object(root)
+        }
         _ => Value::Null,
     }
 }
@@ -789,6 +802,35 @@ fn user_data_body_to_json(user_data: &grpc_proto::UserDataBody) -> Value {
     let mut obj = Map::new();
     obj.insert("type".to_string(), json!(user_data.r#type));
     obj.insert("value".to_string(), json!(user_data.value.clone()));
+    Value::Object(obj)
+}
+
+fn link_body_to_json(link_body: &grpc_proto::LinkBody) -> Value {
+    use crate::generated::grpc_client::link_body::Target;
+    
+    let mut obj = Map::new();
+    obj.insert("type".to_string(), json!(link_body.r#type.clone()));
+    
+    // Extract target_fid from the target oneof
+    if let Some(target) = &link_body.target {
+        match target {
+            Target::TargetFid(target_fid) => {
+                obj.insert("target_fid".to_string(), json!(target_fid));
+            }
+        }
+    }
+    
+    Value::Object(obj)
+}
+
+fn verification_add_body_to_json(verification: &grpc_proto::VerificationAddAddressBody) -> Value {
+    let mut obj = Map::new();
+    obj.insert("address".to_string(), json!(hex::encode(&verification.address)));
+    obj.insert("claim_signature".to_string(), json!(hex::encode(&verification.claim_signature)));
+    obj.insert("block_hash".to_string(), json!(hex::encode(&verification.block_hash)));
+    obj.insert("verification_type".to_string(), json!(verification.verification_type));
+    obj.insert("chain_id".to_string(), json!(verification.chain_id));
+    obj.insert("protocol".to_string(), json!(verification.protocol));
     Value::Object(obj)
 }
 
