@@ -50,8 +50,7 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!("(${}, ${}, ${})", base + 1, base + 2, base + 3));
             }
-            // 🚀 NO ON CONFLICT - assumes no duplicates within batch
-            // FIDs are collected in a HashSet before batching, so no duplicates expected
+            query.push_str(" ON CONFLICT (fid) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for _fid in chunk {
