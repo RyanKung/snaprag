@@ -21,11 +21,6 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
 
     // Start a transaction for the entire batch
     let mut tx = database.pool().begin().await?;
-    
-    // 🔧 Set statement timeout to prevent long-running transactions from blocking
-    sqlx::query("SET LOCAL statement_timeout = '30s'")
-        .execute(&mut *tx)
-        .await?;
 
     // Batch insert FIDs (split into chunks to avoid parameter limit)
     if !batched.fids_to_ensure.is_empty() {
