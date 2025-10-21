@@ -129,7 +129,53 @@ pub(super) async fn collect_message_data(
             }
         }
         4 => {
-            // ReactionRemove - collect activity
+            // ReactionRemove - mark reaction as removed (soft delete via event sourcing)
+            if let Some(body) = &data.body {
+                if let Some(reaction_body) = body.get("reaction_body") {
+                    let reaction_type = reaction_body
+                        .get("type")
+                        .and_then(|v| v.as_i64())
+                        .map(|v| v as i16)
+                        .unwrap_or(1);
+
+                    // Try to get target cast hash
+                    if let Some(target_cast_id) = reaction_body.get("target_cast_id") {
+                        if let Some(target_hash_str) = target_cast_id.get("hash").and_then(|v| v.as_str()) {
+                            if let Ok(target_hash) = hex::decode(target_hash_str) {
+                                // The batch processor will UPDATE reactions WHERE fid=X AND target_cast_hash=Y
+                                batched.reaction_removes.push((
+                                    fid,
+                                    target_hash,
+                                    timestamp,
+                                    message_hash.to_vec(),
+                                ));
+
+                                tracing::debug!(
+                                    "Collected reaction remove: FID {} unliked cast (type: {})",
+                                    fid,
+                                    reaction_type
+                                );
+                            }
+                        }
+                    }
+                    // Handle target_url removes
+                    else if let Some(target_url) = reaction_body.get("target_url").and_then(|v| v.as_str()) {
+                        let url_hash = format!("url_{}", target_url).as_bytes().to_vec();
+                        batched.reaction_removes.push((
+                            fid,
+                            url_hash,
+                            timestamp,
+                            message_hash.to_vec(),
+                        ));
+                        tracing::debug!(
+                            "Collected URL reaction remove: FID {} unliked URL {} (type: {})",
+                            fid,
+                            target_url,
+                            reaction_type
+                        );
+                    }
+                }
+            }
         }
         5 => {
             // LinkAdd - collect link data
@@ -169,7 +215,36 @@ pub(super) async fn collect_message_data(
             // Also collect activity
         }
         6 => {
-            // LinkRemove - collect activity (we don't remove from links table, just log)
+            // LinkRemove - mark link as removed (soft delete via event sourcing)
+            if let Some(body) = &data.body {
+                if let Some(link_body) = body.get("link_body") {
+                    let link_type = link_body
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("follow");
+                    let target_fid = link_body
+                        .get("target_fid")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+
+                    if target_fid > 0 {
+                        // The batch processor will UPDATE links WHERE fid=X AND target_fid=Y
+                        batched.link_removes.push((
+                            fid,
+                            target_fid,
+                            timestamp,
+                            message_hash.to_vec(),
+                        ));
+
+                        tracing::debug!(
+                            "Collected link remove: FID {} unfollowed {} ({})",
+                            fid,
+                            target_fid,
+                            link_type
+                        );
+                    }
+                }
+            }
         }
         7 => {
             // VerificationAdd - collect verification data (ETH or Solana)
@@ -258,7 +333,32 @@ pub(super) async fn collect_message_data(
             }
         }
         8 => {
-            // VerificationRemove - collect activity
+            // VerificationRemove - mark verification as removed (soft delete)
+            if let Some(body) = &data.body {
+                if let Some(verification_body) = body.get("verification_remove_body") {
+                    if let Some(address_str) = verification_body.get("address").and_then(|v| v.as_str()) {
+                        // Try hex decode first (ETH address)
+                        let address = hex::decode(address_str)
+                            .unwrap_or_else(|_| address_str.as_bytes().to_vec());
+
+                        batched.verification_removes.push((
+                            fid,
+                            address,
+                            timestamp,
+                            message_hash.to_vec(),
+                        ));
+
+                        tracing::debug!(
+                            "Collected verification remove: FID {} removed address",
+                            fid
+                        );
+                    } else {
+                        tracing::warn!("VerificationRemove for FID {} missing address", fid);
+                    }
+                } else {
+                    tracing::warn!("VerificationRemove for FID {} has no verification_remove_body", fid);
+                }
+            }
         }
         11 => {
             // UserDataAdd - collect activity and profile updates

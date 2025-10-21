@@ -51,6 +51,13 @@ pub struct BatchedData {
     pub profile_updates: Vec<(i64, String, Option<String>, i64, Vec<u8>)>,
     // Onchain events: (fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data)
     pub onchain_events: Vec<(i64, i32, i32, i32, Option<Vec<u8>>, i64, Option<Vec<u8>>, Option<i32>, serde_json::Value)>,
+    // Remove events: (fid, identifier, removed_at, removed_message_hash)
+    // For links: identifier = target_fid (as i64)
+    // For reactions: identifier = target_cast_hash (as Vec<u8>)  
+    // For verifications: identifier = address (as Vec<u8>)
+    pub link_removes: Vec<(i64, i64, i64, Vec<u8>)>,
+    pub reaction_removes: Vec<(i64, Vec<u8>, i64, Vec<u8>)>,
+    pub verification_removes: Vec<(i64, Vec<u8>, i64, Vec<u8>)>,
 }
 
 impl BatchedData {
@@ -63,6 +70,9 @@ impl BatchedData {
             fids_to_ensure: HashSet::new(),
             profile_updates: Vec::new(),
             onchain_events: Vec::new(),
+            link_removes: Vec::new(),
+            reaction_removes: Vec::new(),
+            verification_removes: Vec::new(),
         }
     }
 }

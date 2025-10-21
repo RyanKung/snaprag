@@ -145,7 +145,9 @@ CREATE TABLE IF NOT EXISTS links (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     shard_id INTEGER,
     block_height BIGINT,
-    transaction_fid BIGINT
+    transaction_fid BIGINT,
+    removed_at BIGINT,  -- Timestamp when link was removed
+    removed_message_hash BYTEA  -- Message hash of LinkRemove event
 );
 
 -- Add tracking columns if they don't exist
@@ -172,7 +174,55 @@ ALTER TABLE user_data ADD COLUMN IF NOT EXISTS block_height BIGINT;
 ALTER TABLE user_data ADD COLUMN IF NOT EXISTS transaction_fid BIGINT;
 
 -- ==============================================================================
--- 4. EMBEDDINGS
+-- 4. REACTIONS AND VERIFICATIONS
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS reactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    fid BIGINT NOT NULL,
+    target_cast_hash BYTEA NOT NULL,
+    target_fid BIGINT,
+    reaction_type SMALLINT NOT NULL,  -- 1=like, 2=recast
+    timestamp BIGINT NOT NULL,
+    message_hash BYTEA UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    shard_id INTEGER,
+    block_height BIGINT,
+    transaction_fid BIGINT,
+    removed_at BIGINT,  -- Timestamp when reaction was removed (ReactionRemove)
+    removed_message_hash BYTEA  -- Message hash of ReactionRemove event
+);
+
+CREATE INDEX IF NOT EXISTS idx_reactions_fid ON reactions(fid);
+CREATE INDEX IF NOT EXISTS idx_reactions_target_cast ON reactions(target_cast_hash);
+CREATE INDEX IF NOT EXISTS idx_reactions_target_fid ON reactions(target_fid);
+CREATE INDEX IF NOT EXISTS idx_reactions_type ON reactions(reaction_type);
+CREATE INDEX IF NOT EXISTS idx_reactions_timestamp ON reactions(timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    fid BIGINT NOT NULL,
+    address BYTEA NOT NULL,
+    claim_signature BYTEA,
+    block_hash BYTEA,
+    verification_type SMALLINT DEFAULT 0,
+    chain_id INTEGER,
+    timestamp BIGINT NOT NULL,
+    message_hash BYTEA UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    shard_id INTEGER,
+    block_height BIGINT,
+    transaction_fid BIGINT,
+    removed_at BIGINT,  -- Timestamp when verification was removed (VerificationRemove)
+    removed_message_hash BYTEA  -- Message hash of VerificationRemove event
+);
+
+CREATE INDEX IF NOT EXISTS idx_verifications_fid ON verifications(fid);
+CREATE INDEX IF NOT EXISTS idx_verifications_address ON verifications(address);
+CREATE INDEX IF NOT EXISTS idx_verifications_timestamp ON verifications(timestamp DESC);
+
+-- ==============================================================================
+-- 5. EMBEDDINGS
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS cast_embeddings (

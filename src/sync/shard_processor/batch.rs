@@ -10,14 +10,18 @@ use crate::Result;
 pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
-        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events",
+        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events, {} removes ({}L/{}R/{}V)",
         batched.fids_to_ensure.len(),
         batched.casts.len(),
         batched.links.len(),
         batched.reactions.len(),
         batched.verifications.len(),
         batched.profile_updates.len(),
-        batched.onchain_events.len()
+        batched.onchain_events.len(),
+        batched.link_removes.len() + batched.reaction_removes.len() + batched.verification_removes.len(),
+        batched.link_removes.len(),
+        batched.reaction_removes.len(),
+        batched.verification_removes.len()
     );
 
     // Start a transaction for the entire batch
@@ -412,6 +416,60 @@ pub(super) async fn flush_batched_data(database: &Database, batched: BatchedData
             }
 
             q.execute(&mut *tx).await?;
+        }
+    }
+
+    // Process link removes (soft delete via UPDATE)
+    if !batched.link_removes.is_empty() {
+        tracing::info!("🔗❌ Processing {} link removes", batched.link_removes.len());
+        
+        for (fid, target_fid, removed_at, removed_message_hash) in batched.link_removes {
+            sqlx::query(
+                "UPDATE links SET removed_at = $1, removed_message_hash = $2 
+                 WHERE fid = $3 AND target_fid = $4 AND removed_at IS NULL"
+            )
+            .bind(removed_at)
+            .bind(removed_message_hash)
+            .bind(fid)
+            .bind(target_fid)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // Process reaction removes (soft delete via UPDATE)
+    if !batched.reaction_removes.is_empty() {
+        tracing::info!("❤️❌ Processing {} reaction removes", batched.reaction_removes.len());
+        
+        for (fid, target_cast_hash, removed_at, removed_message_hash) in batched.reaction_removes {
+            sqlx::query(
+                "UPDATE reactions SET removed_at = $1, removed_message_hash = $2 
+                 WHERE fid = $3 AND target_cast_hash = $4 AND removed_at IS NULL"
+            )
+            .bind(removed_at)
+            .bind(removed_message_hash)
+            .bind(fid)
+            .bind(target_cast_hash)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    // Process verification removes (soft delete via UPDATE)
+    if !batched.verification_removes.is_empty() {
+        tracing::info!("✅❌ Processing {} verification removes", batched.verification_removes.len());
+        
+        for (fid, address, removed_at, removed_message_hash) in batched.verification_removes {
+            sqlx::query(
+                "UPDATE verifications SET removed_at = $1, removed_message_hash = $2 
+                 WHERE fid = $3 AND address = $4 AND removed_at IS NULL"
+            )
+            .bind(removed_at)
+            .bind(removed_message_hash)
+            .bind(fid)
+            .bind(address)
+            .execute(&mut *tx)
+            .await?;
         }
     }
 
