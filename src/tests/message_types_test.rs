@@ -5,6 +5,8 @@
 /// 2. Stored in appropriate tables
 /// 3. Retrieved accurately
 /// 4. Handle edge cases (removes, updates, etc.)
+/// 
+/// Each test cleans up its data after execution to ensure test isolation.
 
 #[cfg(test)]
 mod message_types_tests {
@@ -22,6 +24,36 @@ mod message_types_tests {
             .expect("Failed to create database")
     }
 
+    /// Helper to cleanup test data by message_hash (SAFE - only deletes specific test records)
+    /// This approach ensures we only delete data we created in tests, not real user data
+    async fn cleanup_by_message_hash(db: &Database, message_hash: &[u8]) {
+        let cleanup_queries = vec![
+            "DELETE FROM casts WHERE message_hash = $1",
+            "DELETE FROM links WHERE message_hash = $1",
+            "DELETE FROM reactions WHERE message_hash = $1",
+            "DELETE FROM verifications WHERE message_hash = $1",
+            "DELETE FROM user_profile_changes WHERE message_hash = $1",
+            "DELETE FROM username_proofs WHERE message_hash = $1",
+            "DELETE FROM frame_actions WHERE message_hash = $1",
+        ];
+
+        for query in cleanup_queries {
+            sqlx::query(query)
+                .bind(message_hash)
+                .execute(db.pool())
+                .await
+                .ok(); // Ignore errors (table might not have the hash)
+        }
+    }
+
+    /// Generate unique test message hash with prefix to avoid conflicts
+    /// Format: [0xFE, 0xFE, test_id byte 1, test_id byte 2, ...]
+    fn test_message_hash(test_id: u32) -> Vec<u8> {
+        let mut hash = vec![0xFE, 0xFE]; // Test marker prefix
+        hash.extend_from_slice(&test_id.to_be_bytes());
+        hash
+    }
+
     /// Helper to create shard block info
     fn test_shard_info() -> ShardBlockInfo {
         ShardBlockInfo {
@@ -33,7 +65,6 @@ mod message_types_tests {
     }
 
     #[tokio::test]
-    #[ignore] // Run with: cargo test message_types_tests -- --ignored
     async fn test_all_message_types_coverage() {
         let db = setup_test_db().await;
         
@@ -70,10 +101,13 @@ mod message_types_tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_cast_add_type_1() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(1); // Unique test hash
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         let mut batched = BatchedData::new();
         
@@ -82,7 +116,7 @@ mod message_types_tests {
             99, // fid
             Some("Test cast message".to_string()), // text
             1698765432, // timestamp
-            vec![1, 2, 3, 4], // message_hash
+            test_hash.clone(), // message_hash
             None, // parent_hash
             None, // root_hash
             None, // embeds
@@ -95,21 +129,27 @@ mod message_types_tests {
 
         // Verify insertion
         let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
-            .bind(&vec![1u8, 2, 3, 4])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Cast should be inserted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Type 1 (CastAdd) test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_reaction_add_type_3() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(3); // Unique test hash
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         let mut batched = BatchedData::new();
         
@@ -120,28 +160,34 @@ mod message_types_tests {
             Some(100), // target_fid
             1, // reaction_type (like)
             1698765432, // timestamp
-            vec![9, 10, 11, 12], // message_hash
+            test_hash.clone(), // message_hash
             shard_info.clone(),
         ));
 
         flush_batched_data(&db, batched).await.expect("Failed to flush");
 
         let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM reactions WHERE message_hash = $1")
-            .bind(&vec![9u8, 10, 11, 12])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Reaction should be inserted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Type 3 (ReactionAdd) test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_link_add_type_5() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(5); // Unique test hash
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         let mut batched = BatchedData::new();
         
@@ -151,28 +197,34 @@ mod message_types_tests {
             100, // target_fid
             "follow".to_string(), // link_type
             1698765432, // timestamp
-            vec![13, 14, 15, 16], // message_hash
+            test_hash.clone(), // message_hash
             shard_info.clone(),
         ));
 
         flush_batched_data(&db, batched).await.expect("Failed to flush");
 
         let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM links WHERE message_hash = $1")
-            .bind(&vec![13u8, 14, 15, 16])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Link should be inserted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Type 5 (LinkAdd) test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_verification_add_type_7() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(7); // Unique test hash
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         let mut batched = BatchedData::new();
         
@@ -185,28 +237,34 @@ mod message_types_tests {
             Some(0), // verification_type (EOA)
             Some(1), // chain_id (Ethereum mainnet)
             1698765432, // timestamp
-            vec![17, 18, 19, 20], // message_hash
+            test_hash.clone(), // message_hash
             shard_info.clone(),
         ));
 
         flush_batched_data(&db, batched).await.expect("Failed to flush");
 
         let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM verifications WHERE message_hash = $1")
-            .bind(&vec![17u8, 18, 19, 20])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Verification should be inserted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Type 7 (VerificationAdd) test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_user_data_add_type_11() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(11); // Unique test hash
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         let mut batched = BatchedData::new();
         
@@ -219,7 +277,7 @@ mod message_types_tests {
             "username".to_string(), // field_name
             Some("testuser".to_string()), // value
             1698765432, // timestamp
-            vec![21, 22, 23, 24], // message_hash
+            test_hash.clone(), // message_hash
         ));
 
         flush_batched_data(&db, batched).await.expect("Failed to flush");
@@ -227,21 +285,27 @@ mod message_types_tests {
         let result: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM user_profile_changes WHERE message_hash = $1"
         )
-            .bind(&vec![21u8, 22, 23, 24])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Profile update should be inserted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Type 11 (UserDataAdd) test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_username_proof_type_12() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(12); // Unique test hash
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         let mut batched = BatchedData::new();
         
@@ -253,7 +317,7 @@ mod message_types_tests {
             vec![0x34; 65], // signature
             1, // username_type (FNAME)
             1698765432, // timestamp
-            vec![25, 26, 27, 28], // message_hash
+            test_hash.clone(), // message_hash
             shard_info.clone(),
         ));
 
@@ -262,21 +326,27 @@ mod message_types_tests {
         let result: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM username_proofs WHERE message_hash = $1"
         )
-            .bind(&vec![25u8, 26, 27, 28])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Username proof should be inserted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Type 12 (UsernameProof) test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_frame_action_type_13() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(13); // Unique test hash
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         let mut batched = BatchedData::new();
         
@@ -291,7 +361,7 @@ mod message_types_tests {
             None, // state
             None, // transaction_id
             1698765432, // timestamp
-            vec![29, 30, 31, 32], // message_hash
+            test_hash.clone(), // message_hash
             shard_info.clone(),
         ));
 
@@ -300,21 +370,29 @@ mod message_types_tests {
         let result: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM frame_actions WHERE message_hash = $1"
         )
-            .bind(&vec![29u8, 30, 31, 32])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Frame action should be inserted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Type 13 (FrameAction) test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_remove_events_soft_delete() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash_add = test_message_hash(6001); // Unique hash for add
+        let test_hash_remove = test_message_hash(6002); // Unique hash for remove
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash_add).await;
+        cleanup_by_message_hash(&db, &test_hash_remove).await;
         
         // First, insert a link
         let mut batched_add = BatchedData::new();
@@ -323,7 +401,7 @@ mod message_types_tests {
             100,
             "follow".to_string(),
             1698765432,
-            vec![33, 34, 35, 36],
+            test_hash_add.clone(),
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched_add).await.expect("Failed to flush add");
@@ -334,7 +412,7 @@ mod message_types_tests {
             99, // fid
             100, // target_fid
             1698765500, // removed_at
-            vec![37, 38, 39, 40], // removed_message_hash
+            test_hash_remove.clone(), // removed_message_hash
         ));
         flush_batched_data(&db, batched_remove).await.expect("Failed to flush remove");
 
@@ -342,21 +420,28 @@ mod message_types_tests {
         let result: (Option<i64>,) = sqlx::query_as(
             "SELECT removed_at FROM links WHERE message_hash = $1"
         )
-            .bind(&vec![33u8, 34, 35, 36])
+            .bind(&test_hash_add)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, Some(1698765500), "Link should be soft deleted");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash_add).await;
+        cleanup_by_message_hash(&db, &test_hash_remove).await;
+        
         println!("✅ Type 6 (LinkRemove) soft delete test passed");
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_idempotency_all_types() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
+        let test_hash = test_message_hash(9999); // Unique test hash for idempotency test
+        
+        // Cleanup before test
+        cleanup_by_message_hash(&db, &test_hash).await;
         
         // Test that inserting the same message twice doesn't fail
         let mut batched1 = BatchedData::new();
@@ -364,7 +449,7 @@ mod message_types_tests {
             99,
             Some("Idempotency test".to_string()),
             1698765432,
-            vec![41, 42, 43, 44],
+            test_hash.clone(),
             None,
             None,
             None,
@@ -380,7 +465,7 @@ mod message_types_tests {
             99,
             Some("Idempotency test DUPLICATE".to_string()), // Different text
             1698765432,
-            vec![41, 42, 43, 44], // SAME hash
+            test_hash.clone(), // SAME hash
             None,
             None,
             None,
@@ -394,40 +479,41 @@ mod message_types_tests {
         let result: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM casts WHERE message_hash = $1"
         )
-            .bind(&vec![41u8, 42, 43, 44])
+            .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
         assert_eq!(result.0, 1, "Should have exactly one cast (idempotent)");
         
+        // Cleanup after test
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
         println!("✅ Idempotency test passed for all types");
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_cleanup_test_data() {
-        let db = setup_test_db().await;
+    async fn test_cleanup_safety() {
+        // This test verifies that our cleanup approach is safe and doesn't
+        // accidentally delete real user data
         
-        // Clean up test data
-        let cleanup_queries = vec![
-            "DELETE FROM casts WHERE fid = 99",
-            "DELETE FROM links WHERE fid = 99",
-            "DELETE FROM reactions WHERE fid = 99",
-            "DELETE FROM verifications WHERE fid = 99",
-            "DELETE FROM user_profile_changes WHERE fid = 99",
-            "DELETE FROM username_proofs WHERE fid = 99",
-            "DELETE FROM frame_actions WHERE fid = 99",
-        ];
-
-        for query in cleanup_queries {
-            sqlx::query(query)
-                .execute(db.pool())
-                .await
-                .expect("Failed to cleanup");
-        }
-
-        println!("✅ Test data cleanup completed");
+        let test_hash_1 = test_message_hash(1);
+        let test_hash_2 = test_message_hash(2);
+        
+        // Verify test hashes have the 0xFEFE prefix
+        assert_eq!(test_hash_1[0], 0xFE, "Test hash should have 0xFE prefix");
+        assert_eq!(test_hash_1[1], 0xFE, "Test hash should have 0xFE prefix");
+        
+        // Verify different test IDs produce different hashes
+        assert_ne!(test_hash_1, test_hash_2, "Different test IDs should produce different hashes");
+        
+        // Real Farcaster message hashes are Blake3 hashes (32 bytes)
+        // and would never start with 0xFEFE in practice
+        // Our test hashes are 6 bytes: [0xFE, 0xFE, id_byte1, id_byte2, id_byte3, id_byte4]
+        
+        println!("✅ Test cleanup safety verified");
+        println!("   Test hashes use 0xFEFE prefix to avoid real data conflicts");
+        println!("   Each test uses unique message_hash for isolation");
     }
 }
 
