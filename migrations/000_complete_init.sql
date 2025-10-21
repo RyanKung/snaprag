@@ -7,82 +7,87 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ==============================================================================
--- 1. USER PROFILES
+-- 1. USER PROFILES (Event-Sourcing Architecture)
 -- ==============================================================================
 
-CREATE TABLE IF NOT EXISTS user_profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    fid BIGINT UNIQUE NOT NULL,
-    username VARCHAR(255),
-    display_name VARCHAR(255),
-    bio TEXT,
-    pfp_url TEXT,
-    banner_url TEXT,
-    location VARCHAR(255),
-    website_url TEXT,
-    twitter_username VARCHAR(255),
-    github_username VARCHAR(255),
-    primary_address_ethereum VARCHAR(42),
-    primary_address_solana VARCHAR(44),
-    profile_token VARCHAR(255),
-    profile_embedding VECTOR(768),
-    bio_embedding VECTOR(768),
-    interests_embedding VECTOR(768),
-    last_updated_timestamp BIGINT NOT NULL,
-    last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    shard_id INTEGER,
-    block_height BIGINT,
-    transaction_fid BIGINT
+-- Event-sourcing table: stores individual field changes
+CREATE TABLE IF NOT EXISTS user_profile_changes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    fid bigint NOT NULL,
+    field_name varchar(50) NOT NULL,
+    field_value text,
+    timestamp bigint NOT NULL,
+    message_hash bytea NOT NULL UNIQUE,
+    shard_id integer,
+    block_height bigint,
+    transaction_fid bigint,
+    created_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS user_profile_snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    fid BIGINT NOT NULL,
-    snapshot_timestamp BIGINT NOT NULL,
-    message_hash BYTEA NOT NULL,
-    username VARCHAR(255),
-    display_name VARCHAR(255),
-    bio TEXT,
-    pfp_url TEXT,
-    banner_url TEXT,
-    location VARCHAR(255),
-    website_url TEXT,
-    twitter_username VARCHAR(255),
-    github_username VARCHAR(255),
-    primary_address_ethereum VARCHAR(42),
-    primary_address_solana VARCHAR(44),
-    profile_token VARCHAR(255),
-    profile_embedding VECTOR(768),
-    bio_embedding VECTOR(768),
-    interests_embedding VECTOR(768),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    shard_id INTEGER,
-    block_height BIGINT,
-    transaction_fid BIGINT,
-    UNIQUE(fid, snapshot_timestamp)
+CREATE INDEX IF NOT EXISTS idx_profile_changes_fid_field_ts 
+    ON user_profile_changes(fid, field_name, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_profile_changes_message_hash 
+    ON user_profile_changes(message_hash);
+
+-- Reconstructed view: merges field changes into complete profiles
+CREATE OR REPLACE VIEW user_profiles AS
+WITH latest_changes AS (
+    SELECT DISTINCT ON (fid, field_name)
+        fid,
+        field_name,
+        field_value,
+        timestamp
+    FROM user_profile_changes
+    ORDER BY fid, field_name, timestamp DESC
+)
+SELECT 
+    gen_random_uuid() as id,
+    fid,
+    MAX(CASE WHEN field_name = 'username' THEN field_value END) as username,
+    MAX(CASE WHEN field_name = 'display_name' THEN field_value END) as display_name,
+    MAX(CASE WHEN field_name = 'bio' THEN field_value END) as bio,
+    MAX(CASE WHEN field_name = 'pfp_url' THEN field_value END) as pfp_url,
+    MAX(CASE WHEN field_name = 'banner_url' THEN field_value END) as banner_url,
+    MAX(CASE WHEN field_name = 'location' THEN field_value END) as location,
+    MAX(CASE WHEN field_name = 'website_url' THEN field_value END) as website_url,
+    MAX(CASE WHEN field_name = 'twitter_username' THEN field_value END) as twitter_username,
+    MAX(CASE WHEN field_name = 'github_username' THEN field_value END) as github_username,
+    MAX(CASE WHEN field_name = 'primary_address_ethereum' THEN field_value END) as primary_address_ethereum,
+    MAX(CASE WHEN field_name = 'primary_address_solana' THEN field_value END) as primary_address_solana,
+    NULL::varchar(255) as profile_token,
+    NULL::vector(768) as profile_embedding,
+    NULL::vector(768) as bio_embedding,
+    NULL::vector(768) as interests_embedding,
+    MAX(timestamp) as last_updated_timestamp,
+    NOW() as last_updated_at,
+    NULL::integer as shard_id,
+    NULL::bigint as block_height,
+    NULL::bigint as transaction_fid
+FROM latest_changes
+GROUP BY fid;
+
+-- Profile Embeddings (separate table for UPDATE support)
+CREATE TABLE IF NOT EXISTS profile_embeddings (
+    fid bigint PRIMARY KEY,
+    profile_embedding vector(768),
+    bio_embedding vector(768),
+    interests_embedding vector(768),
+    updated_at timestamp with time zone DEFAULT now()
 );
+
+-- Enhanced view with embeddings
+CREATE OR REPLACE VIEW user_profiles_with_embeddings AS
+SELECT 
+    p.*,
+    COALESCE(e.profile_embedding, NULL::vector(768)) as profile_embedding_vec,
+    COALESCE(e.bio_embedding, NULL::vector(768)) as bio_embedding_vec,
+    COALESCE(e.interests_embedding, NULL::vector(768)) as interests_embedding_vec
+FROM user_profiles p
+LEFT JOIN profile_embeddings e ON p.fid = e.fid;
 
 -- ==============================================================================
--- 2. ACTIVITY AND CHANGES
+-- 2. USER DATA CHANGES
 -- ==============================================================================
-
-CREATE TABLE IF NOT EXISTS user_activity_timeline (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    fid BIGINT NOT NULL,
-    activity_type VARCHAR(50) NOT NULL,
-    activity_data JSONB,
-    timestamp BIGINT NOT NULL,
-    message_hash BYTEA,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    shard_id INTEGER,
-    block_height BIGINT,
-    transaction_fid BIGINT
-);
-
--- Add tracking columns if they don't exist (for existing tables)
-ALTER TABLE user_activity_timeline ADD COLUMN IF NOT EXISTS shard_id INTEGER;
-ALTER TABLE user_activity_timeline ADD COLUMN IF NOT EXISTS block_height BIGINT;
-ALTER TABLE user_activity_timeline ADD COLUMN IF NOT EXISTS transaction_fid BIGINT;
 
 CREATE TABLE IF NOT EXISTS user_data_changes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

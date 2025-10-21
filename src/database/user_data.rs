@@ -110,28 +110,34 @@ impl Database {
         interests_embedding: Option<Vec<f32>>,
     ) -> Result<()> {
         // Build dynamic query based on which embeddings are provided
-        let mut updates = Vec::new();
+        let mut field_names = Vec::new();
         let mut param_num = 2; // $1 is fid
 
         if profile_embedding.is_some() {
-            updates.push(format!("profile_embedding = ${}", param_num));
+            field_names.push("profile_embedding");
             param_num += 1;
         }
         if bio_embedding.is_some() {
-            updates.push(format!("bio_embedding = ${}", param_num));
+            field_names.push("bio_embedding");
             param_num += 1;
         }
         if interests_embedding.is_some() {
-            updates.push(format!("interests_embedding = ${}", param_num));
+            field_names.push("interests_embedding");
         }
 
-        if updates.is_empty() {
+        if field_names.is_empty() {
             return Ok(()); // Nothing to update
         }
 
+        // Insert or update profile_embeddings table (separate from event-sourcing)
+        let field_list = field_names.join(", ");
+        let placeholders = (2..=field_names.len()+1).map(|n| format!("${}", n)).collect::<Vec<_>>().join(", ");
+        let updates_clause = field_names.iter().map(|f| format!("{} = EXCLUDED.{}", f, f)).collect::<Vec<_>>().join(", ");
+        
         let query_str = format!(
-            "UPDATE user_profiles SET {} WHERE fid = $1",
-            updates.join(", ")
+            "INSERT INTO profile_embeddings (fid, {}) VALUES ($1, {})
+             ON CONFLICT (fid) DO UPDATE SET {}",
+            field_list, placeholders, updates_clause
         );
 
         let mut query = sqlx::query(&query_str).bind(fid);
@@ -159,13 +165,14 @@ impl Database {
     ) -> Result<Vec<UserProfile>> {
         let threshold = similarity_threshold.unwrap_or(0.8);
 
-        let profiles = sqlx::query_as::<_, UserProfile>(
+        let profiles = sqlx::query_as(
             r#"
-            SELECT *
-            FROM user_profiles
-            WHERE profile_embedding IS NOT NULL
-                AND (profile_embedding <=> $1::vector) < $2
-            ORDER BY profile_embedding <=> $1::vector
+            SELECT p.*
+            FROM user_profiles p
+            JOIN profile_embeddings e ON p.fid = e.fid
+            WHERE e.profile_embedding IS NOT NULL
+                AND (e.profile_embedding <=> $1::vector) < $2
+            ORDER BY e.profile_embedding <=> $1::vector
             LIMIT $3
             "#,
         )
@@ -187,13 +194,14 @@ impl Database {
     ) -> Result<Vec<UserProfile>> {
         let threshold = similarity_threshold.unwrap_or(0.8);
 
-        let profiles = sqlx::query_as::<_, UserProfile>(
+        let profiles = sqlx::query_as(
             r#"
-            SELECT *
-            FROM user_profiles
-            WHERE bio_embedding IS NOT NULL
-                AND (bio_embedding <=> $1::vector) < $2
-            ORDER BY bio_embedding <=> $1::vector
+            SELECT p.*
+            FROM user_profiles p
+            JOIN profile_embeddings e ON p.fid = e.fid
+            WHERE e.bio_embedding IS NOT NULL
+                AND (e.bio_embedding <=> $1::vector) < $2
+            ORDER BY e.bio_embedding <=> $1::vector
             LIMIT $3
             "#,
         )

@@ -34,7 +34,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
     // For small tables (user_profiles), use exact COUNT for accuracy
     // For large tables (casts, activities), use PostgreSQL statistics for speed
-    let total_profiles: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profiles")
+    let total_profiles: i64 = sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
         .fetch_one(pool)
         .await?;
 
@@ -64,7 +64,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
     // Get embeddings count
     let profiles_with_embeddings: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM user_profiles WHERE profile_embedding IS NOT NULL",
+        "SELECT COUNT(*) FROM profile_embeddings WHERE profile_embedding IS NOT NULL",
     )
     .fetch_one(pool)
     .await?;

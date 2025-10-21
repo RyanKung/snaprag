@@ -291,34 +291,34 @@ pub async fn handle_embeddings_stats(config: &AppConfig) -> Result<()> {
     println!("⏳ Querying database...\n");
 
     // Count total profiles
-    let total: i64 = sqlx::query("SELECT COUNT(*) as count FROM user_profiles")
+    let total: i64 = sqlx::query("SELECT COUNT(DISTINCT fid) as count FROM user_profile_changes")
         .fetch_one(database.pool())
         .await?
         .try_get("count")?;
 
     // Count profiles with embeddings
     let with_profile_emb: i64 = sqlx::query(
-        "SELECT COUNT(*) as count FROM user_profiles WHERE profile_embedding IS NOT NULL",
+        "SELECT COUNT(*) as count FROM profile_embeddings WHERE profile_embedding IS NOT NULL",
     )
     .fetch_one(database.pool())
     .await?
     .try_get("count")?;
 
     let with_bio_emb: i64 =
-        sqlx::query("SELECT COUNT(*) as count FROM user_profiles WHERE bio_embedding IS NOT NULL")
+        sqlx::query("SELECT COUNT(*) as count FROM profile_embeddings WHERE bio_embedding IS NOT NULL")
             .fetch_one(database.pool())
             .await?
             .try_get("count")?;
 
     let with_interests_emb: i64 = sqlx::query(
-        "SELECT COUNT(*) as count FROM user_profiles WHERE interests_embedding IS NOT NULL",
+        "SELECT COUNT(*) as count FROM profile_embeddings WHERE interests_embedding IS NOT NULL",
     )
     .fetch_one(database.pool())
     .await?
     .try_get("count")?;
 
     let with_all_emb: i64 = sqlx::query(
-        "SELECT COUNT(*) as count FROM user_profiles 
+        "SELECT COUNT(*) as count FROM profile_embeddings 
          WHERE profile_embedding IS NOT NULL 
            AND bio_embedding IS NOT NULL 
            AND interests_embedding IS NOT NULL",
