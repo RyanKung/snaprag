@@ -252,21 +252,66 @@ async fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
 
 /// Run schema migrations
 async fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
-    let pool = snaprag.database().pool();
+    // Run all migration files in order
+    let migrations = vec![
+        ("006_add_reactions_and_verifications.sql", include_str!("../../../migrations/006_add_reactions_and_verifications.sql")),
+        ("007_fix_composite_constraints.sql", include_str!("../../../migrations/007_fix_composite_constraints.sql")),
+    ];
     
-    // Migration 007: Remove problematic composite unique constraints
-    // These constraints prevent recording event history (like -> unlike -> like)
-    sqlx::query("ALTER TABLE reactions DROP CONSTRAINT IF EXISTS reactions_fid_target_cast_hash_reaction_type_key")
-        .execute(pool)
-        .await
-        .ok();
+    // Get database connection info
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        std::fs::read_to_string("config.toml")
+            .ok()
+            .and_then(|content| {
+                content
+                    .lines()
+                    .find(|line| line.contains("url =") && line.contains("postgresql"))
+                    .and_then(|line| line.split('"').nth(1))
+                    .map(String::from)
+            })
+            .unwrap_or_else(|| {
+                "postgresql://snaprag:hackinthebox_24601@192.168.1.192/snaprag".to_string()
+            })
+    });
     
-    sqlx::query("ALTER TABLE verifications DROP CONSTRAINT IF EXISTS verifications_fid_address_key")
-        .execute(pool)
-        .await
-        .ok();
+    let url_without_scheme = db_url
+        .strip_prefix("postgresql://")
+        .or_else(|| db_url.strip_prefix("postgres://"))
+        .ok_or_else(|| crate::SnapRagError::Custom("Invalid database URL".to_string()))?;
     
-    tracing::info!("Removed composite unique constraints from reactions and verifications");
+    let (user_pass, host_db) = url_without_scheme
+        .split_once('@')
+        .ok_or_else(|| crate::SnapRagError::Custom("Invalid database URL".to_string()))?;
+    
+    let (user, password) = user_pass.split_once(':').unwrap_or((user_pass, ""));
+    let (host_port, database) = host_db.split_once('/').unwrap_or((host_db, "snaprag"));
+    let (host, port) = host_port.split_once(':').unwrap_or((host_port, "5432"));
+    
+    // Run each migration
+    for (name, sql) in migrations {
+        let temp_path = format!("/tmp/snaprag_{}", name);
+        std::fs::write(&temp_path, sql)?;
+        
+        tracing::info!("Running migration: {}", name);
+        
+        let output = std::process::Command::new("psql")
+            .env("PGPASSWORD", password)
+            .arg("-h").arg(host)
+            .arg("-p").arg(port)
+            .arg("-U").arg(user)
+            .arg("-d").arg(database)
+            .arg("-f").arg(&temp_path)
+            .arg("-v").arg("ON_ERROR_STOP=0")
+            .output()?;
+        
+        std::fs::remove_file(&temp_path).ok();
+        
+        if !output.status.success() {
+            tracing::warn!("Migration {} had warnings: {}", name, String::from_utf8_lossy(&output.stderr));
+        } else {
+            tracing::info!("Migration {} completed", name);
+        }
+    }
     
     Ok(())
 }
