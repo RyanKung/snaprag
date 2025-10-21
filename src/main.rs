@@ -92,6 +92,9 @@ async fn main() -> Result<()> {
         Commands::Reset { force } => {
             snaprag::cli::handle_reset_command(&snaprag, force).await?;
         }
+        Commands::Index(index_command) => {
+            snaprag::cli::handle_index_command(&snaprag, &index_command).await?;
+        }
         Commands::Sync(sync_command) => {
             snaprag::cli::handle_sync_command(snaprag, sync_command).await?;
         }

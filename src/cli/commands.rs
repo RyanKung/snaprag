@@ -82,6 +82,9 @@ pub enum Commands {
         #[arg(short, long)]
         force: bool,
     },
+    /// Manage database indexes and autovacuum for bulk operations
+    #[command(subcommand)]
+    Index(IndexCommands),
     /// Synchronization commands
     #[command(subcommand)]
     Sync(SyncCommands),
@@ -269,6 +272,24 @@ pub enum SyncCommands {
         #[arg(short, long)]
         force: bool,
     },
+}
+
+#[derive(Subcommand)]
+pub enum IndexCommands {
+    /// Disable non-essential indexes and autovacuum for bulk sync (faster writes)
+    Unset {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// Re-enable indexes and autovacuum after bulk sync (slower but normal operation)
+    Set {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// Show current index and autovacuum status
+    Status,
 }
 
 #[derive(Subcommand)]

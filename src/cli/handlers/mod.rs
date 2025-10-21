@@ -11,6 +11,7 @@
 //! - serve: API server
 //! - info: Information display (stats, dashboard, config)
 //! - ask: AI role-playing as a specific user
+//! - index: Database index and autovacuum management
 
 pub mod ask;
 pub mod ask_handler;
@@ -18,6 +19,7 @@ pub mod cast;
 pub mod data;
 pub mod embeddings;
 pub mod fetch;
+pub mod index;
 pub mod info;
 pub mod init;
 pub mod rag;
@@ -32,6 +34,7 @@ pub use cast::*;
 pub use data::*;
 pub use embeddings::*;
 pub use fetch::*;
+pub use index::*;
 pub use info::*;
 pub use init::*;
 pub use rag::*;
