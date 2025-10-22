@@ -36,6 +36,8 @@ pub(super) fn handle_link_add(
                 link_type.to_string(),
                 timestamp,
                 message_hash.to_vec(),
+                None,  // removed_at (None for LinkAdd)
+                None,  // removed_message_hash
                 shard_block_info.clone(),
             ));
 
@@ -49,12 +51,13 @@ pub(super) fn handle_link_add(
     }
 }
 
-/// Handle `LinkRemove` message (type 6)
+/// Handle `LinkRemove` message (type 6) - INSERT mode (not UPDATE)
 pub(super) fn handle_link_remove(
     body: &serde_json::Value,
     fid: i64,
     timestamp: i64,
     message_hash: &[u8],
+    shard_block_info: &crate::models::ShardBlockInfo,
     batched: &mut BatchedData,
 ) {
     if let Some(link_body) = body.get("link_body") {
@@ -69,15 +72,21 @@ pub(super) fn handle_link_remove(
             .unwrap_or(0);
 
         if target_fid > 0 {
-            batched.link_removes.push((
+            // 🚀 Pure INSERT mode: Record remove as a new link event with removed_at set
+            // This is append-only, no UPDATE needed
+            batched.links.push((
                 fid,
                 target_fid,
+                link_type.to_string(),
                 timestamp,
                 message_hash.to_vec(),
+                Some(timestamp),           // removed_at (set for LinkRemove)
+                Some(message_hash.to_vec()), // removed_message_hash
+                shard_block_info.clone(),
             ));
 
             tracing::debug!(
-                "Collected link remove: FID {} unfollowed {} ({})",
+                "Collected link remove as INSERT: FID {} unfollowed {} ({})",
                 fid,
                 target_fid,
                 link_type

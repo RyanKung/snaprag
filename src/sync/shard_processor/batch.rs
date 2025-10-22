@@ -175,15 +175,15 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     if !batched.links.is_empty() {
         tracing::info!("📎 Batch inserting {} links", batched.links.len());
 
-        const PARAMS_PER_ROW: usize = 7; // fid, target_fid, link_type, timestamp, message_hash, shard_id, block_height
+        const PARAMS_PER_ROW: usize = 9; // fid, target_fid, link_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
         for chunk in batched.links.chunks(CHUNK_SIZE) {
             // 🚀 Pre-allocate
-            let estimated_size = 150 + chunk.len() * 45;
+            let estimated_size = 150 + chunk.len() * 60;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash, shard_id, block_height) VALUES ");
+            query.push_str("INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height) VALUES ");
 
             // 🚀 Direct building
             for i in 0..chunk.len() {
@@ -192,22 +192,24 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 }
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1, base + 2, base + 3, base + 4,
-                    base + 5, base + 6, base + 7
+                    base + 5, base + 6, base + 7, base + 8, base + 9
                 ));
             }
 
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, target_fid, link_type, timestamp, message_hash, shard_block_info) in chunk {
+            for (fid, target_fid, link_type, timestamp, message_hash, removed_at, removed_message_hash, shard_block_info) in chunk {
                 q = q
                     .bind(fid)
                     .bind(target_fid)
                     .bind(link_type)
                     .bind(timestamp)
                     .bind(message_hash)
+                    .bind(removed_at)
+                    .bind(removed_message_hash)
                     .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0));
             }
@@ -220,15 +222,15 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     if !batched.reactions.is_empty() {
         tracing::info!("❤️  Batch inserting {} reactions", batched.reactions.len());
 
-        const PARAMS_PER_ROW: usize = 9; // fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid
+        const PARAMS_PER_ROW: usize = 11; // fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
         for chunk in batched.reactions.chunks(CHUNK_SIZE) {
             // 🚀 Pre-allocate
-            let estimated_size = 200 + chunk.len() * 60;
+            let estimated_size = 200 + chunk.len() * 75;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO reactions (fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
+            query.push_str("INSERT INTO reactions (fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid) VALUES ");
 
             // 🚀 Direct building
             for i in 0..chunk.len() {
@@ -237,9 +239,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 }
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1, base + 2, base + 3, base + 4, base + 5,
-                    base + 6, base + 7, base + 8, base + 9
+                    base + 6, base + 7, base + 8, base + 9, base + 10, base + 11
                 ));
             }
 
@@ -254,6 +256,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 reaction_type,
                 timestamp,
                 message_hash,
+                removed_at,
+                removed_message_hash,
                 shard_block_info,
             ) in chunk
             {
@@ -264,6 +268,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(reaction_type)
                     .bind(timestamp)
                     .bind(message_hash)
+                    .bind(removed_at)
+                    .bind(removed_message_hash)
                     .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
@@ -280,15 +286,15 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             batched.verifications.len()
         );
 
-        const PARAMS_PER_ROW: usize = 11; // fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_id, block_height, transaction_fid
+        const PARAMS_PER_ROW: usize = 13; // fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
         for chunk in batched.verifications.chunks(CHUNK_SIZE) {
             // 🚀 Pre-allocate
-            let estimated_size = 250 + chunk.len() * 70;
+            let estimated_size = 250 + chunk.len() * 85;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO verifications (fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
+            query.push_str("INSERT INTO verifications (fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid) VALUES ");
 
             // 🚀 Direct building
             for i in 0..chunk.len() {
@@ -297,9 +303,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 }
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1, base + 2, base + 3, base + 4, base + 5, base + 6,
-                    base + 7, base + 8, base + 9, base + 10, base + 11
+                    base + 7, base + 8, base + 9, base + 10, base + 11, base + 12, base + 13
                 ));
             }
 
@@ -316,6 +322,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 chain_id,
                 timestamp,
                 message_hash,
+                removed_at,
+                removed_message_hash,
                 shard_block_info,
             ) in chunk
             {
@@ -328,6 +336,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(chain_id)
                     .bind(timestamp)
                     .bind(message_hash)
+                    .bind(removed_at)
+                    .bind(removed_message_hash)
                     .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
@@ -468,58 +478,21 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
         }
     }
 
-    // Process link removes (soft delete via UPDATE)
+    // 🚀 REMOVED: Link removes now handled as INSERT events (append-only mode)
+    // Soft delete is recorded by inserting a new row with removed_at timestamp
+    // This follows event-sourcing principles and avoids UPDATE locks entirely
     if !batched.link_removes.is_empty() {
-        tracing::info!("🔗❌ Processing {} link removes", batched.link_removes.len());
-        
-        for (fid, target_fid, removed_at, removed_message_hash) in batched.link_removes {
-            sqlx::query(
-                "UPDATE links SET removed_at = $1, removed_message_hash = $2 
-                 WHERE fid = $3 AND target_fid = $4 AND removed_at IS NULL"
-            )
-            .bind(removed_at)
-            .bind(removed_message_hash)
-            .bind(fid)
-            .bind(target_fid)
-            .execute(&mut *tx)
-            .await?;
-        }
+        tracing::debug!("🔗❌ Skipping {} link removes (handled as INSERT events in link handler)", batched.link_removes.len());
     }
 
-    // Process reaction removes (soft delete via UPDATE)
+    // 🚀 REMOVED: Reaction removes now handled as INSERT events (append-only mode)
     if !batched.reaction_removes.is_empty() {
-        tracing::info!("❤️❌ Processing {} reaction removes", batched.reaction_removes.len());
-        
-        for (fid, target_cast_hash, removed_at, removed_message_hash) in batched.reaction_removes {
-            sqlx::query(
-                "UPDATE reactions SET removed_at = $1, removed_message_hash = $2 
-                 WHERE fid = $3 AND target_cast_hash = $4 AND removed_at IS NULL"
-            )
-            .bind(removed_at)
-            .bind(removed_message_hash)
-            .bind(fid)
-            .bind(target_cast_hash)
-            .execute(&mut *tx)
-            .await?;
-        }
+        tracing::debug!("❤️❌ Skipping {} reaction removes (handled as INSERT events)", batched.reaction_removes.len());
     }
 
-    // Process verification removes (soft delete via UPDATE)
+    // 🚀 REMOVED: Verification removes now handled as INSERT events (append-only mode)
     if !batched.verification_removes.is_empty() {
-        tracing::info!("✅❌ Processing {} verification removes", batched.verification_removes.len());
-        
-        for (fid, address, removed_at, removed_message_hash) in batched.verification_removes {
-            sqlx::query(
-                "UPDATE verifications SET removed_at = $1, removed_message_hash = $2 
-                 WHERE fid = $3 AND address = $4 AND removed_at IS NULL"
-            )
-            .bind(removed_at)
-            .bind(removed_message_hash)
-            .bind(fid)
-            .bind(address)
-            .execute(&mut *tx)
-            .await?;
-        }
+        tracing::debug!("✅❌ Skipping {} verification removes (handled as INSERT events)", batched.verification_removes.len());
     }
 
     // Batch insert username proofs
@@ -543,7 +516,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 ).expect("write! to String should not fail");
             }
 
-            query.push_str(" ON CONFLICT (fid, username_type) DO UPDATE SET username = EXCLUDED.username, owner_address = EXCLUDED.owner_address, signature = EXCLUDED.signature, timestamp = EXCLUDED.timestamp");
+            // 🚀 Pure INSERT mode - no UPDATE operations allowed
+            // If username changes, new row will be inserted (event-sourcing style)
+            query.push_str(" ON CONFLICT (fid, username_type) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (fid, username, owner, signature, username_type, timestamp, _message_hash, _shard_block_info) in chunk {

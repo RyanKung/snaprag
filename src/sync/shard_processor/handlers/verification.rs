@@ -47,6 +47,8 @@ pub(super) fn handle_verification_add(
                     chain_id,
                     timestamp,
                     message_hash.to_vec(),
+                    None,  // removed_at (None for Add)
+                    None,  // removed_message_hash
                     shard_block_info.clone(),
                 ));
 
@@ -81,6 +83,8 @@ pub(super) fn handle_verification_add(
                 Some(900), // chain_id=900 for Solana (standard)
                 timestamp,
                 message_hash.to_vec(),
+                None,  // removed_at (None for Add)
+                None,  // removed_message_hash
                 shard_block_info.clone(),
             ));
 

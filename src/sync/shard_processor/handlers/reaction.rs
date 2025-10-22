@@ -35,6 +35,8 @@ pub(super) fn handle_reaction_add(
                         reaction_type,
                         timestamp,
                         message_hash.to_vec(),
+                        None,  // removed_at (None for Add)
+                        None,  // removed_message_hash
                         shard_block_info.clone(),
                     ));
 
@@ -59,6 +61,8 @@ pub(super) fn handle_reaction_add(
                 reaction_type,
                 timestamp,
                 message_hash.to_vec(),
+                None,  // removed_at (None for Add)
+                None,  // removed_message_hash
                 shard_block_info.clone(),
             ));
 

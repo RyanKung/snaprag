@@ -106,7 +106,7 @@ pub(super) async fn collect_message_data(
         6 => {
             // LinkRemove
             if let Some(body) = &data.body {
-                link::handle_link_remove(body, fid, timestamp, &message_hash, batched);
+                link::handle_link_remove(body, fid, timestamp, &message_hash, shard_block_info, batched);
             }
         }
         7 => {
