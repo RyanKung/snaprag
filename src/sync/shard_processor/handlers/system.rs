@@ -13,11 +13,11 @@ pub(in crate::sync::shard_processor) async fn process_system_message(
 ) -> Result<()> {
     // System messages contain OnChainEvents (id_register, storage_rent, etc.)
     if let Some(onchain_event) = &system_msg.on_chain_event {
-        let fid = onchain_event.fid as i64;
+        let fid = i64::try_from(onchain_event.fid).unwrap_or(0);
         let event_type = onchain_event.r#type;
-        let chain_id = onchain_event.chain_id as i32;
-        let block_number = onchain_event.block_number as i32;
-        let block_timestamp = onchain_event.block_timestamp as i64;
+        let chain_id = i32::try_from(onchain_event.chain_id).unwrap_or(0);
+        let block_number = i32::try_from(onchain_event.block_number).unwrap_or(0);
+        let block_timestamp = i64::try_from(onchain_event.block_timestamp).unwrap_or(0);
         let block_hash = if onchain_event.block_hash.is_empty() {
             None
         } else {
@@ -29,7 +29,7 @@ pub(in crate::sync::shard_processor) async fn process_system_message(
             Some(onchain_event.transaction_hash.clone())
         };
         let log_index = if onchain_event.log_index > 0 {
-            Some(onchain_event.log_index as i32)
+            Some(i32::try_from(onchain_event.log_index).unwrap_or(0))
         } else {
             None
         };
