@@ -346,13 +346,28 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     // Pure append-only, zero locks!
     if !batched.profile_updates.is_empty() {
         tracing::trace!(
-            "Batch inserting {} profile field changes",
+            "Batch inserting {} profile field changes (before dedup)",
             batched.profile_updates.len()
         );
 
-        // Each update is independent - no grouping needed
-        // Convert to list for chunking
-        let updates_list: Vec<_> = batched.profile_updates.into_iter().collect();
+        // 🚀 CRITICAL: Deduplicate by message_hash in memory to avoid lock contention
+        // Multiple workers may try to insert the same message_hash simultaneously
+        let mut updates_map: HashMap<Vec<u8>, _> = HashMap::new();
+        let original_count = batched.profile_updates.len();
+        for update in batched.profile_updates {
+            let hash = update.4.clone(); // message_hash
+            updates_map.insert(hash, update);
+        }
+        let updates_list: Vec<_> = updates_map.into_values().collect();
+        let deduped_count = updates_list.len();
+        if original_count != deduped_count {
+            tracing::debug!(
+                "Deduplicated profile updates: {} -> {} ({} duplicates removed)",
+                original_count,
+                deduped_count,
+                original_count - deduped_count
+            );
+        }
         
         for chunk in updates_list.chunks(PROFILE_CHUNK_SIZE) {
             let estimated_size = 200 + chunk.len() * 50;

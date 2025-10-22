@@ -99,3 +99,6 @@ cargo = { level = "warn", priority = -1 }
 # External dependencies - truly cannot control without breaking changes
 multiple_crate_versions = "allow"  # Requires dependency upgrades (ethers crate conflicts)
 
+# Temporarily allow type_complexity (requires massive refactoring to fix ~10 complex tuple types)
+type_complexity = "allow"
+
