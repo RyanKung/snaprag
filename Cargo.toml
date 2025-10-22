@@ -93,6 +93,9 @@ pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
 
-# Only allow warnings for generated protobuf code
+# Only allow warnings for generated protobuf code and external dependencies
 # All other code must pass strict clippy checks
+
+# External dependencies - truly cannot control without breaking changes
+multiple_crate_versions = "allow"  # Requires dependency upgrades (ethers crate conflicts)
 
