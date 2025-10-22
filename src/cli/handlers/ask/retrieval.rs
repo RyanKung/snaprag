@@ -1,7 +1,7 @@
 use std::io::Write;
 
 /// Retrieval and ranking pipeline for ask
-use crate::cli::output::*;
+use crate::cli::output::truncate_str;
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::Result;
