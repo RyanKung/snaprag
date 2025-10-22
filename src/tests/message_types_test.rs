@@ -1346,4 +1346,257 @@ mod message_types_tests {
         println!("   Test hashes use 0xFEFE prefix to avoid real data conflicts");
         println!("   Each test uses unique message_hash for isolation");
     }
+
+    #[tokio::test]
+    async fn test_user_profile_changes_aggregation() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+        
+        println!("🧪 Testing user_profile_changes event-sourcing aggregation...");
+        
+        let test_fid = 999999_i64;
+        let hash_username = test_message_hash(10001);
+        let hash_display = test_message_hash(10002);
+        let hash_bio = test_message_hash(10003);
+        let hash_pfp = test_message_hash(10004);
+        let hash_fname = test_message_hash(10005);
+        
+        // Cleanup
+        for hash in [&hash_username, &hash_display, &hash_bio, &hash_pfp, &hash_fname] {
+            cleanup_by_message_hash(&db, hash).await;
+        }
+        sqlx::query("DELETE FROM username_proofs WHERE fid = $1").bind(test_fid).execute(db.pool()).await.ok();
+        
+        // Setup: Insert profile changes + username proof
+        let mut batched = BatchedData::new();
+        batched.fids_to_ensure.insert(test_fid);
+        
+        // Profile fields
+        batched.profile_updates.push((test_fid, "username".to_string(), Some("testuser".to_string()), 1698765432, hash_username.clone()));
+        batched.profile_updates.push((test_fid, "display_name".to_string(), Some("Test User".to_string()), 1698765433, hash_display.clone()));
+        batched.profile_updates.push((test_fid, "bio".to_string(), Some("Test bio".to_string()), 1698765434, hash_bio.clone()));
+        batched.profile_updates.push((test_fid, "pfp_url".to_string(), Some("https://example.com/pfp.png".to_string()), 1698765435, hash_pfp.clone()));
+        
+        // FNAME proof
+        batched.username_proofs.push((
+            test_fid,
+            "testuser".to_string(),
+            vec![0x11; 20],
+            vec![0x22; 65],
+            1, // FNAME
+            1698765436,
+            hash_fname.clone(),
+            shard_info.clone(),
+        ));
+        
+        flush_batched_data(&db, batched).await.expect("Failed to flush");
+        
+        // 🎯 CRITICAL TEST: Verify event-sourcing works - query latest values
+        // Test each field individually (event-sourcing aggregation)
+        
+        let display_name: Option<(Option<String>,)> = sqlx::query_as(
+            "SELECT field_value FROM user_profile_changes 
+             WHERE fid = $1 AND field_name = 'display_name' 
+             ORDER BY timestamp DESC LIMIT 1"
+        )
+            .bind(test_fid)
+            .fetch_optional(db.pool())
+            .await
+            .expect("Failed to query display_name");
+        
+        assert_eq!(display_name.map(|r| r.0), Some(Some("Test User".to_string())), "Display name should be retrievable from event log");
+        
+        let bio: Option<(Option<String>,)> = sqlx::query_as(
+            "SELECT field_value FROM user_profile_changes 
+             WHERE fid = $1 AND field_name = 'bio' 
+             ORDER BY timestamp DESC LIMIT 1"
+        )
+            .bind(test_fid)
+            .fetch_optional(db.pool())
+            .await
+            .expect("Failed to query bio");
+        
+        assert_eq!(bio.map(|r| r.0), Some(Some("Test bio".to_string())), "Bio should be retrievable");
+        
+        // Verify username_proofs record
+        let username_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM username_proofs WHERE fid = $1"
+        )
+            .bind(test_fid)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to count username_proofs");
+        
+        assert_eq!(username_count.0, 1, "Should have 1 username_proof (FNAME)");
+        
+        // Test: Insert another display_name with later timestamp (should be the latest)
+        let hash_display2 = test_message_hash(10007);
+        let mut batched = BatchedData::new();
+        batched.profile_updates.push((
+            test_fid,
+            "display_name".to_string(),
+            Some("Updated Display Name".to_string()),
+            1698765999, // Later timestamp
+            hash_display2.clone(),
+        ));
+        flush_batched_data(&db, batched).await.expect("Failed to flush update");
+        
+        // Verify latest display_name
+        let latest_display: Option<(Option<String>,)> = sqlx::query_as(
+            "SELECT field_value FROM user_profile_changes 
+             WHERE fid = $1 AND field_name = 'display_name' 
+             ORDER BY timestamp DESC LIMIT 1"
+        )
+            .bind(test_fid)
+            .fetch_optional(db.pool())
+            .await
+            .expect("Failed to query latest display_name");
+        
+        assert_eq!(latest_display.map(|r| r.0), Some(Some("Updated Display Name".to_string())), "Should get LATEST display_name by timestamp");
+        
+        println!("     ✅ Event-sourcing aggregation: Latest value by timestamp works correctly");
+        
+        // Cleanup
+        for hash in [&hash_username, &hash_display, &hash_bio, &hash_pfp, &hash_fname, &hash_display2] {
+            cleanup_by_message_hash(&db, hash).await;
+        }
+        sqlx::query("DELETE FROM username_proofs WHERE fid = $1").bind(test_fid).execute(db.pool()).await.ok();
+        
+        println!("✅ user_profile_changes event-sourcing aggregation verified");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_message_hash_inserts() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+        
+        println!("🧪 Testing concurrent inserts with same message_hash...");
+        
+        let test_hash = test_message_hash(11001);
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
+        // Spawn 5 concurrent tasks trying to insert the SAME message_hash
+        let mut handles = vec![];
+        
+        for i in 0..5 {
+            let db_clone = db.clone();
+            let hash_clone = test_hash.clone();
+            let shard_clone = shard_info.clone();
+            
+            let handle = tokio::spawn(async move {
+                let mut batched = BatchedData::new();
+                batched.casts.push((
+                    99,
+                    Some(format!("Concurrent insert {}", i)),
+                    1698765432 + i as i64,
+                    hash_clone,
+                    None, None, None, None,
+                    shard_clone,
+                ));
+                
+                flush_batched_data(&db_clone, batched).await
+            });
+            
+            handles.push(handle);
+        }
+        
+        // Wait for all tasks
+        let mut success_count = 0;
+        for handle in handles {
+            if handle.await.is_ok() {
+                success_count += 1;
+            }
+        }
+        
+        println!("  {}/5 concurrent inserts succeeded", success_count);
+        
+        // Verify only ONE record exists (ON CONFLICT DO NOTHING works under concurrency)
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
+            .bind(&test_hash)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to query");
+        
+        assert_eq!(count.0, 1, "Should have exactly 1 record despite concurrent inserts");
+        
+        cleanup_by_message_hash(&db, &test_hash).await;
+        
+        println!("✅ Concurrent insert safety verified (ON CONFLICT protects against race conditions)");
+    }
+
+    #[tokio::test]
+    async fn test_error_handling_invalid_data() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+        
+        println!("🧪 Testing error handling for invalid data...");
+        
+        // Test 1: Very large FID (should still work, i64 supports it)
+        println!("  1. Testing very large FID");
+        let hash1 = test_message_hash(12001);
+        cleanup_by_message_hash(&db, &hash1).await;
+        
+        let huge_fid = i64::MAX - 1000;
+        let mut batched = BatchedData::new();
+        batched.fids_to_ensure.insert(huge_fid);
+        batched.casts.push((
+            huge_fid,
+            Some("Large FID test".to_string()),
+            1698765432,
+            hash1.clone(),
+            None, None, None, None,
+            shard_info.clone(),
+        ));
+        
+        let result = flush_batched_data(&db, batched).await;
+        assert!(result.is_ok(), "Large FID should be accepted");
+        
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
+            .bind(&hash1)
+            .fetch_one(db.pool())
+            .await
+            .unwrap();
+        assert_eq!(count.0, 1, "Cast with large FID should be inserted");
+        
+        cleanup_by_message_hash(&db, &hash1).await;
+        println!("     ✅ Large FID handled correctly");
+        
+        // Test 2: Empty message_hash (should fail or be rejected by type system)
+        println!("  2. Testing empty message_hash");
+        let empty_hash = vec![];
+        let mut batched = BatchedData::new();
+        batched.casts.push((
+            99,
+            Some("Empty hash test".to_string()),
+            1698765432,
+            empty_hash.clone(),
+            None, None, None, None,
+            shard_info.clone(),
+        ));
+        
+        // This should either fail gracefully or be prevented by validation
+        let result = flush_batched_data(&db, batched).await;
+        
+        if result.is_ok() {
+            // If it succeeds, verify it was stored
+            let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
+                .bind(&empty_hash)
+                .fetch_one(db.pool())
+                .await
+                .unwrap_or((0,));
+            println!("     ℹ️  Empty hash: {} records created", count.0);
+            if count.0 > 0 {
+                sqlx::query("DELETE FROM casts WHERE message_hash = $1")
+                    .bind(&empty_hash)
+                    .execute(db.pool())
+                    .await
+                    .ok();
+            }
+        } else {
+            println!("     ✅ Empty hash rejected as expected");
+        }
+        
+        println!("✅ Error handling tests completed");
+    }
 }
+
