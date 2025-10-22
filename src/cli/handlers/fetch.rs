@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::{print_info, print_success, print_error, truncate_str};
+use crate::cli::output::print_error;
+use crate::cli::output::print_info;
+use crate::cli::output::print_success;
+use crate::cli::output::truncate_str;
 use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
@@ -86,11 +89,7 @@ pub async fn handle_fetch_user(
                 // Collect message hashes from casts with text
                 let message_hashes: Vec<Vec<u8>> = casts
                     .iter()
-                    .filter(|c| {
-                        c.text
-                            .as_ref()
-                            .is_some_and(|t| !t.trim().is_empty())
-                    })
+                    .filter(|c| c.text.as_ref().is_some_and(|t| !t.trim().is_empty()))
                     .map(|c| c.message_hash.clone())
                     .collect();
 
@@ -258,9 +257,7 @@ pub async fn handle_fetch_users(
 
         let result = match (profile_result, casts_result) {
             (Ok(Some(profile)), Ok(casts)) => Ok((profile, casts)),
-            (Ok(None), _) => Err(crate::SnapRagError::Custom(format!(
-                "User {fid} not found"
-            ))),
+            (Ok(None), _) => Err(crate::SnapRagError::Custom(format!("User {fid} not found"))),
             (Err(e), _) | (_, Err(e)) => Err(e),
         };
 
@@ -357,9 +354,7 @@ pub async fn handle_fetch_popular(
 
         let result = match (profile_result, casts_result) {
             (Ok(Some(profile)), Ok(casts)) => Ok((profile, casts)),
-            (Ok(None), _) => Err(crate::SnapRagError::Custom(format!(
-                "User {fid} not found"
-            ))),
+            (Ok(None), _) => Err(crate::SnapRagError::Custom(format!("User {fid} not found"))),
             (Err(e), _) | (_, Err(e)) => Err(e),
         };
 

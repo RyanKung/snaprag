@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::{print_info, print_warning, truncate_str};
+use crate::cli::output::print_info;
+use crate::cli::output::print_warning;
+use crate::cli::output::truncate_str;
 use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;

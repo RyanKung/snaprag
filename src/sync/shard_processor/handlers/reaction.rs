@@ -1,9 +1,7 @@
+use super::super::types::BatchedData;
 /// Reaction message handlers (Add and Remove)
-
 use crate::models::ShardBlockInfo;
 use crate::Result;
-
-use super::super::types::BatchedData;
 
 /// Handle `ReactionAdd` message (type 3)
 pub(super) fn handle_reaction_add(
@@ -19,8 +17,9 @@ pub(super) fn handle_reaction_add(
             reaction_body
                 .get("type")
                 .and_then(serde_json::Value::as_i64)
-                .unwrap_or(1)
-        ).unwrap_or(1); // 1=like, 2=recast
+                .unwrap_or(1),
+        )
+        .unwrap_or(1); // 1=like, 2=recast
 
         // Handle target_cast_id (reaction to a cast)
         if let Some(target) = reaction_body.get("target_cast_id") {
@@ -35,8 +34,8 @@ pub(super) fn handle_reaction_add(
                         reaction_type,
                         timestamp,
                         message_hash.to_vec(),
-                        None,  // removed_at (None for Add)
-                        None,  // removed_message_hash
+                        None, // removed_at (None for Add)
+                        None, // removed_message_hash
                         shard_block_info.clone(),
                     ));
 
@@ -61,8 +60,8 @@ pub(super) fn handle_reaction_add(
                 reaction_type,
                 timestamp,
                 message_hash.to_vec(),
-                None,  // removed_at (None for Add)
-                None,  // removed_message_hash
+                None, // removed_at (None for Add)
+                None, // removed_message_hash
                 shard_block_info.clone(),
             ));
 
@@ -73,7 +72,10 @@ pub(super) fn handle_reaction_add(
                 reaction_type
             );
         } else {
-            tracing::warn!("ReactionAdd for FID {} has no target_cast_id or target_url", fid);
+            tracing::warn!(
+                "ReactionAdd for FID {} has no target_cast_id or target_url",
+                fid
+            );
         }
     }
 }
@@ -114,12 +116,9 @@ pub(super) fn handle_reaction_remove(
         // Handle target_url removes
         else if let Some(target_url) = reaction_body.get("target_url").and_then(|v| v.as_str()) {
             let url_hash = format!("url_{target_url}").as_bytes().to_vec();
-            batched.reaction_removes.push((
-                fid,
-                url_hash,
-                timestamp,
-                message_hash.to_vec(),
-            ));
+            batched
+                .reaction_removes
+                .push((fid, url_hash, timestamp, message_hash.to_vec()));
             tracing::debug!(
                 "Collected URL reaction remove: FID {} unliked URL {} (type: {})",
                 fid,
@@ -129,4 +128,3 @@ pub(super) fn handle_reaction_remove(
         }
     }
 }
-

@@ -1,5 +1,5 @@
 /// Message handlers module - routes messages to appropriate type-specific handlers
-/// 
+///
 /// This module is organized by message type for better maintainability:
 /// - reaction.rs: ReactionAdd/Remove handlers
 /// - link.rs: LinkAdd/Remove handlers
@@ -8,7 +8,6 @@
 /// - username.rs: `UsernameProof` handler
 /// - frame.rs: `FrameAction` handler
 /// - system.rs: System message (`OnChainEvent`) handler
-
 use super::cast_handlers::collect_cast_add;
 use super::types::BatchedData;
 use crate::models::ShardBlockInfo;
@@ -88,7 +87,14 @@ pub(super) async fn collect_message_data(
         3 => {
             // ReactionAdd
             if let Some(body) = &data.body {
-                reaction::handle_reaction_add(body, fid, timestamp, &message_hash, shard_block_info, batched);
+                reaction::handle_reaction_add(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    shard_block_info,
+                    batched,
+                );
             }
         }
         4 => {
@@ -100,25 +106,52 @@ pub(super) async fn collect_message_data(
         5 => {
             // LinkAdd
             if let Some(body) = &data.body {
-                link::handle_link_add(body, fid, timestamp, &message_hash, shard_block_info, batched);
+                link::handle_link_add(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    shard_block_info,
+                    batched,
+                );
             }
         }
         6 => {
             // LinkRemove
             if let Some(body) = &data.body {
-                link::handle_link_remove(body, fid, timestamp, &message_hash, shard_block_info, batched);
+                link::handle_link_remove(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    shard_block_info,
+                    batched,
+                );
             }
         }
         7 => {
             // VerificationAdd (ETH or Solana)
             if let Some(body) = &data.body {
-                verification::handle_verification_add(body, fid, timestamp, &message_hash, shard_block_info, batched);
+                verification::handle_verification_add(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    shard_block_info,
+                    batched,
+                );
             }
         }
         8 => {
             // VerificationRemove
             if let Some(body) = &data.body {
-                verification::handle_verification_remove(body, fid, timestamp, &message_hash, batched);
+                verification::handle_verification_remove(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    batched,
+                );
             }
         }
         11 => {
@@ -130,18 +163,36 @@ pub(super) async fn collect_message_data(
         12 => {
             // UsernameProof
             if let Some(body) = &data.body {
-                username::handle_username_proof(body, fid, timestamp, &message_hash, shard_block_info, batched);
+                username::handle_username_proof(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    shard_block_info,
+                    batched,
+                );
             }
         }
         13 => {
             // FrameAction
             if let Some(body) = &data.body {
-                frame::handle_frame_action(body, fid, timestamp, &message_hash, shard_block_info, batched);
+                frame::handle_frame_action(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    shard_block_info,
+                    batched,
+                );
             }
         }
         14 | 15 => {
             // LINK_COMPACT_STATE (14) and LEND_STORAGE (15) - low priority, log only
-            tracing::debug!("Received message type {} for FID {} - not stored", message_type, fid);
+            tracing::debug!(
+                "Received message type {} for FID {} - not stored",
+                message_type,
+                fid
+            );
         }
         _ => {
             tracing::debug!("Unknown message type {} for FID {}", message_type, fid);
@@ -153,4 +204,3 @@ pub(super) async fn collect_message_data(
 
 // REMOVED: message_handlers_test.rs was outdated and deleted
 // Tests are now in src/tests/message_types_test.rs
-

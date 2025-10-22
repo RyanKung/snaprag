@@ -1,5 +1,7 @@
 use super::Database;
-use crate::models::{UserProfileSnapshot, UserProfile, ProfileSnapshotQuery};
+use crate::models::ProfileSnapshotQuery;
+use crate::models::UserProfile;
+use crate::models::UserProfileSnapshot;
 use crate::Result;
 
 impl Database {
@@ -12,7 +14,7 @@ impl Database {
                 snapshot_timestamp, message_hash
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            "#
+            "#,
         )
         .bind(snapshot.fid)
         .bind(&snapshot.username)

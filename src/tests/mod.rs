@@ -41,12 +41,10 @@ pub async fn cleanup_test_data(database: &Database, test_fid: i64) -> Result<()>
 
 /// Test helper to verify data exists in database
 pub async fn verify_user_profile_exists(database: &Database, fid: i64) -> Result<bool> {
-    let result: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_profiles WHERE fid = $1"
-    )
-    .bind(fid)
-    .fetch_one(database.pool())
-    .await?;
+    let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_profiles WHERE fid = $1")
+        .bind(fid)
+        .fetch_one(database.pool())
+        .await?;
 
     Ok(result.0 > 0)
 }
@@ -56,12 +54,11 @@ pub async fn get_user_profile_data(
     database: &Database,
     fid: i64,
 ) -> Result<Option<(String, String, String)>> {
-    let result: Option<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT username, display_name, bio FROM user_profiles WHERE fid = $1"
-    )
-    .bind(fid)
-    .fetch_optional(database.pool())
-    .await?;
+    let result: Option<(Option<String>, Option<String>, Option<String>)> =
+        sqlx::query_as("SELECT username, display_name, bio FROM user_profiles WHERE fid = $1")
+            .bind(fid)
+            .fetch_optional(database.pool())
+            .await?;
 
     if let Some((username, display_name, bio)) = result {
         Ok(Some((

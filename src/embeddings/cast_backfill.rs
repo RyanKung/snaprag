@@ -51,7 +51,10 @@ pub async fn backfill_cast_embeddings_with_config(
 
     // Process in batches with parallelism - configurable for different hardware
     let batch_size = config.map_or(100, super::super::config::AppConfig::embeddings_batch_size);
-    let parallel_tasks = config.map_or(5, super::super::config::AppConfig::embeddings_parallel_tasks);
+    let parallel_tasks = config.map_or(
+        5,
+        super::super::config::AppConfig::embeddings_parallel_tasks,
+    );
 
     info!(
         "Using batch_size={}, parallel_tasks={} for embeddings generation",
@@ -212,12 +215,12 @@ pub struct CastBackfillStats {
 }
 
 impl CastBackfillStats {
-    #[must_use] 
+    #[must_use]
     pub const fn processed(&self) -> usize {
         self.success + self.skipped + self.failed
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn success_rate(&self) -> f64 {
         if self.processed() == 0 {
             0.0

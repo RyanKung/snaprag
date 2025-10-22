@@ -211,9 +211,7 @@ impl SnapchainClient {
             crate::generated::grpc_client::hub_service_client::HubServiceClient::connect(grpc_url)
                 .await
                 .map_err(|e| {
-                    crate::SnapRagError::Custom(format!(
-                        "Failed to connect to gRPC endpoint: {e}"
-                    ))
+                    crate::SnapRagError::Custom(format!("Failed to connect to gRPC endpoint: {e}"))
                 })?;
 
         // Set large message size limits for batch processing after client creation
@@ -262,14 +260,12 @@ impl SnapchainClient {
                     .db_stats
                     .as_ref()
                     .map_or(0, |s| s.num_fid_registrations),
-                approx_size: grpc_response
-                    .db_stats
-                    .as_ref()
-                    .map_or(0, |s| s.approx_size),
+                approx_size: grpc_response.db_stats.as_ref().map_or(0, |s| s.approx_size),
             }),
             peer_id: grpc_response.peer_id,
             num_shards: grpc_response.num_shards,
-            shard_infos: grpc_response.shard_infos
+            shard_infos: grpc_response
+                .shard_infos
                 .into_iter()
                 .map(|s| proto::ShardInfo {
                     shard_id: s.shard_id,
@@ -459,10 +455,8 @@ impl SnapchainClient {
 
                         // Extract target_fid from the target oneof
                         if let Some(Target::TargetFid(target_fid)) = &link_body.target {
-                            link_body_json.insert(
-                                "target_fid".to_string(),
-                                serde_json::json!(target_fid),
-                            );
+                            link_body_json
+                                .insert("target_fid".to_string(), serde_json::json!(target_fid));
                         }
 
                         link_body_json
@@ -799,10 +793,10 @@ fn user_data_body_to_json(user_data: &grpc_proto::UserDataBody) -> Value {
 
 fn link_body_to_json(link_body: &grpc_proto::LinkBody) -> Value {
     use crate::generated::grpc_client::link_body::Target;
-    
+
     let mut obj = Map::new();
     obj.insert("type".to_string(), json!(link_body.r#type.clone()));
-    
+
     // Extract target_fid from the target oneof
     if let Some(target) = &link_body.target {
         match target {
@@ -811,16 +805,28 @@ fn link_body_to_json(link_body: &grpc_proto::LinkBody) -> Value {
             }
         }
     }
-    
+
     Value::Object(obj)
 }
 
 fn verification_add_body_to_json(verification: &grpc_proto::VerificationAddAddressBody) -> Value {
     let mut obj = Map::new();
-    obj.insert("address".to_string(), json!(hex::encode(&verification.address)));
-    obj.insert("claim_signature".to_string(), json!(hex::encode(&verification.claim_signature)));
-    obj.insert("block_hash".to_string(), json!(hex::encode(&verification.block_hash)));
-    obj.insert("verification_type".to_string(), json!(verification.verification_type));
+    obj.insert(
+        "address".to_string(),
+        json!(hex::encode(&verification.address)),
+    );
+    obj.insert(
+        "claim_signature".to_string(),
+        json!(hex::encode(&verification.claim_signature)),
+    );
+    obj.insert(
+        "block_hash".to_string(),
+        json!(hex::encode(&verification.block_hash)),
+    );
+    obj.insert(
+        "verification_type".to_string(),
+        json!(verification.verification_type),
+    );
     obj.insert("chain_id".to_string(), json!(verification.chain_id));
     obj.insert("protocol".to_string(), json!(verification.protocol));
     Value::Object(obj)
@@ -921,22 +927,22 @@ impl Default for SnapchainProtobufClient {
 
 impl SnapchainProtobufClient {
     /// Create a new protobuf client
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {}
     }
 
     /// Create a new protobuf client from `AppConfig`
-    #[must_use] 
+    #[must_use]
     pub const fn from_config(_config: &crate::AppConfig) -> Self {
         Self::new()
     }
 
     /// Serialize data to protobuf format
     pub fn serialize<T: protobuf::Message>(&self, message: &T) -> Result<Vec<u8>> {
-        message.write_to_bytes().map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to serialize protobuf: {e}"))
-        })
+        message
+            .write_to_bytes()
+            .map_err(|e| crate::SnapRagError::Custom(format!("Failed to serialize protobuf: {e}")))
     }
 
     /// Deserialize data from protobuf format

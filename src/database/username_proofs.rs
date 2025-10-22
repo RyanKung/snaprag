@@ -1,5 +1,6 @@
 use super::Database;
-use crate::models::{UsernameType, UsernameProof};
+use crate::models::UsernameProof;
+use crate::models::UsernameType;
 use crate::Result;
 
 impl Database {

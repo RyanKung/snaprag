@@ -124,9 +124,10 @@ impl EmbeddingClient {
             )));
         }
 
-        let result: OpenAIResponse = response.json().await.map_err(|e| {
-            SnapragError::EmbeddingError(format!("Failed to parse response: {e}"))
-        })?;
+        let result: OpenAIResponse = response
+            .json()
+            .await
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse response: {e}")))?;
 
         result
             .data
@@ -188,9 +189,10 @@ impl EmbeddingClient {
             )));
         }
 
-        let result: OpenAIResponse = response.json().await.map_err(|e| {
-            SnapragError::EmbeddingError(format!("Failed to parse response: {e}"))
-        })?;
+        let result: OpenAIResponse = response
+            .json()
+            .await
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse response: {e}")))?;
 
         Ok(result.data.into_iter().map(|d| d.embedding).collect())
     }
@@ -236,9 +238,10 @@ impl EmbeddingClient {
             )));
         }
 
-        let result: OllamaResponse = response.json().await.map_err(|e| {
-            SnapragError::EmbeddingError(format!("Failed to parse response: {e}"))
-        })?;
+        let result: OllamaResponse = response
+            .json()
+            .await
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse response: {e}")))?;
 
         Ok(result.embedding)
     }

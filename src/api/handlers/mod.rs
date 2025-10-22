@@ -9,7 +9,11 @@ use axum::Json;
 use tracing::error;
 use tracing::info;
 
-use crate::api::types::{ApiResponse, HealthResponse, FetchResponse, ProfileResponse, FetchUsersBatchRequest};
+use crate::api::types::ApiResponse;
+use crate::api::types::FetchResponse;
+use crate::api::types::FetchUsersBatchRequest;
+use crate::api::types::HealthResponse;
+use crate::api::types::ProfileResponse;
 use crate::config::AppConfig;
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;

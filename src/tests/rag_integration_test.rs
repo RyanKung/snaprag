@@ -87,7 +87,9 @@ async fn test_profile_rag_pipeline() -> Result<()> {
     );
 
     // Step 6: Query LLM
-    let response = (*llm_service).generate_with_params(&prompt, 0.7, 500).await?;
+    let response = (*llm_service)
+        .generate_with_params(&prompt, 0.7, 500)
+        .await?;
     assert!(!response.is_empty(), "LLM response is empty");
     assert!(
         response.len() > 20,
@@ -177,7 +179,9 @@ async fn test_cast_rag_pipeline() -> Result<()> {
     );
 
     // Step 6: Query LLM
-    let response = (*llm_service).generate_with_params(&prompt, 0.7, 500).await?;
+    let response = (*llm_service)
+        .generate_with_params(&prompt, 0.7, 500)
+        .await?;
     assert!(!response.is_empty(), "LLM response is empty");
     assert!(
         response.len() > 20,

@@ -9,13 +9,12 @@ pub fn display_response(
 ) {
     let username = profile
         .username
-        .as_ref().map_or_else(|| format!("FID {}", profile.fid), |u| format!("@{u}"));
+        .as_ref()
+        .map_or_else(|| format!("FID {}", profile.fid), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
     println!("╔═══════════════════════════════════════════════════════════════╗");
-    println!(
-        "║  {display_name} ({username})                                           "
-    );
+    println!("║  {display_name} ({username})                                           ");
     println!("╚═══════════════════════════════════════════════════════════════╝");
     println!();
 
@@ -23,9 +22,7 @@ pub fn display_response(
 
     println!();
     println!("─────────────────────────────────────────────────────────────────");
-    println!(
-        "💬 Based on {total_casts} casts  |  🎯 Context: {relevant_casts} relevant casts"
-    );
+    println!("💬 Based on {total_casts} casts  |  🎯 Context: {relevant_casts} relevant casts");
     println!("─────────────────────────────────────────────────────────────────");
 }
 

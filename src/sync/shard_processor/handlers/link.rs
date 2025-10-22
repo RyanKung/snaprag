@@ -1,9 +1,7 @@
+use super::super::types::BatchedData;
 /// Link message handlers (Add and Remove)
-
 use crate::models::ShardBlockInfo;
 use crate::Result;
-
-use super::super::types::BatchedData;
 
 /// Handle `LinkAdd` message (type 5)
 pub(super) fn handle_link_add(
@@ -14,16 +12,23 @@ pub(super) fn handle_link_add(
     shard_block_info: &ShardBlockInfo,
     batched: &mut BatchedData,
 ) {
-    tracing::trace!("Processing LinkAdd message for FID {}, body present: {}", fid, body.is_object());
-    
+    tracing::trace!(
+        "Processing LinkAdd message for FID {}, body present: {}",
+        fid,
+        body.is_object()
+    );
+
     if let Some(link_body) = body.get("link_body") {
-        tracing::trace!("Body keys: {:?}", link_body.as_object().map(|o| o.keys().collect::<Vec<_>>()));
-        
+        tracing::trace!(
+            "Body keys: {:?}",
+            link_body.as_object().map(|o| o.keys().collect::<Vec<_>>())
+        );
+
         let link_type = link_body
             .get("type")
             .and_then(|v| v.as_str())
             .unwrap_or("follow");
-        
+
         let target_fid = link_body
             .get("target_fid")
             .and_then(serde_json::Value::as_i64)
@@ -36,8 +41,8 @@ pub(super) fn handle_link_add(
                 link_type.to_string(),
                 timestamp,
                 message_hash.to_vec(),
-                None,  // removed_at (None for LinkAdd)
-                None,  // removed_message_hash
+                None, // removed_at (None for LinkAdd)
+                None, // removed_message_hash
                 shard_block_info.clone(),
             ));
 
@@ -65,7 +70,7 @@ pub(super) fn handle_link_remove(
             .get("type")
             .and_then(|v| v.as_str())
             .unwrap_or("follow");
-        
+
         let target_fid = link_body
             .get("target_fid")
             .and_then(serde_json::Value::as_i64)
@@ -80,7 +85,7 @@ pub(super) fn handle_link_remove(
                 link_type.to_string(),
                 timestamp,
                 message_hash.to_vec(),
-                Some(timestamp),           // removed_at (set for LinkRemove)
+                Some(timestamp),             // removed_at (set for LinkRemove)
                 Some(message_hash.to_vec()), // removed_message_hash
                 shard_block_info.clone(),
             ));
@@ -94,4 +99,3 @@ pub(super) fn handle_link_remove(
         }
     }
 }
-

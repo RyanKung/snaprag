@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use super::info::print_sync_status;
 use crate::cli::commands::SyncCommands;
-use crate::cli::output::{print_info, print_success, print_error};
+use crate::cli::output::print_error;
+use crate::cli::output::print_info;
+use crate::cli::output::print_success;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -90,7 +92,9 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
                 ));
             }
 
-            snaprag.start_sync_with_range_and_workers(from_block, to_block, workers_per_shard).await?;
+            snaprag
+                .start_sync_with_range_and_workers(from_block, to_block, workers_per_shard)
+                .await?;
         }
         SyncCommands::Test { shard, block } => {
             print_info(&format!(

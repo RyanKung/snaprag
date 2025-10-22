@@ -17,7 +17,7 @@ pub struct CastRetriever {
 
 impl CastRetriever {
     /// Create a new cast retriever
-    #[must_use] 
+    #[must_use]
     pub const fn new(database: Arc<Database>, embedding_service: Arc<EmbeddingService>) -> Self {
         Self {
             database,

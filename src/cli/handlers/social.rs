@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::{print_info, print_warning};
+use crate::cli::output::print_info;
+use crate::cli::output::print_warning;
 use crate::database::Database;
 use crate::social_graph::SocialGraphAnalyzer;
 use crate::sync::client::SnapchainClient;
@@ -32,7 +33,8 @@ pub async fn handle_social_analysis(
 
     let username = profile
         .username
-        .as_ref().map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
+        .as_ref()
+        .map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
     print_info(&format!(

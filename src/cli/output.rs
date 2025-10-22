@@ -2,17 +2,21 @@
 //!
 //! This module provides consistent output formatting for the `SnapRAG` CLI
 
-use crate::models::{UserProfile, Cast, Link, UserData, StatisticsResult};
+use crate::models::Cast;
+use crate::models::Link;
+use crate::models::StatisticsResult;
+use crate::models::UserData;
+use crate::models::UserProfile;
 use crate::AppConfig;
 
 /// Safely truncate a string at character boundary (not byte boundary)
-/// 
+///
 /// This prevents panics when truncating strings with multi-byte UTF-8 characters (emojis, etc.)
-/// 
+///
 /// # Arguments
 /// * `s` - The string to truncate
 /// * `max_chars` - Maximum number of characters (not bytes)
-/// 
+///
 /// # Returns
 /// Truncated string with "..." suffix if truncated, otherwise the original string
 #[must_use]

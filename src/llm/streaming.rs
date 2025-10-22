@@ -12,7 +12,7 @@ pub struct StreamingResponse {
 }
 
 impl StreamingResponse {
-    #[must_use] 
+    #[must_use]
     pub fn new(stream: Pin<Box<dyn Stream<Item = Result<String>> + Send>>) -> Self {
         Self { stream }
     }
@@ -28,7 +28,7 @@ impl StreamingResponse {
     }
 
     /// Get the underlying stream
-    #[must_use] 
+    #[must_use]
     pub fn into_stream(self) -> Pin<Box<dyn Stream<Item = Result<String>> + Send>> {
         self.stream
     }

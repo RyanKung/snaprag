@@ -1,5 +1,9 @@
 use super::Database;
-use crate::models::{UserProfile, CreateUserProfileRequest, UpdateUserProfileRequest, UserDataType, UserProfileQuery};
+use crate::models::CreateUserProfileRequest;
+use crate::models::UpdateUserProfileRequest;
+use crate::models::UserDataType;
+use crate::models::UserProfile;
+use crate::models::UserProfileQuery;
 use crate::Result;
 use crate::SnapRagError;
 
@@ -8,8 +12,9 @@ impl Database {
     pub async fn upsert_user_profile(&self, profile: &UserProfile) -> Result<()> {
         // Insert each non-null field as a separate change event
         use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        
+        use std::hash::Hash;
+        use std::hash::Hasher;
+
         let fields = vec![
             ("username", &profile.username),
             ("display_name", &profile.display_name),
@@ -17,7 +22,7 @@ impl Database {
             ("pfp_url", &profile.pfp_url),
             ("website_url", &profile.website_url),
         ];
-        
+
         for (field_name, field_value) in fields {
             if let Some(value) = field_value {
                 // Generate message_hash
@@ -27,8 +32,10 @@ impl Database {
                 profile.last_updated_timestamp.hash(&mut hasher);
                 value.hash(&mut hasher);
                 let hash_value = hasher.finish();
-                let message_hash = format!("profile_{field_name}_{hash_value}").as_bytes().to_vec();
-                
+                let message_hash = format!("profile_{field_name}_{hash_value}")
+                    .as_bytes()
+                    .to_vec();
+
                 sqlx::query(
                     "INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) 
                      VALUES ($1, $2, $3, $4, $5)
@@ -53,8 +60,9 @@ impl Database {
         request: CreateUserProfileRequest,
     ) -> Result<UserProfile> {
         use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        
+        use std::hash::Hash;
+        use std::hash::Hasher;
+
         // Insert each non-null field as a change event
         let fields = vec![
             ("username", &request.username),
@@ -66,10 +74,13 @@ impl Database {
             ("website_url", &request.website_url),
             ("twitter_username", &request.twitter_username),
             ("github_username", &request.github_username),
-            ("primary_address_ethereum", &request.primary_address_ethereum),
+            (
+                "primary_address_ethereum",
+                &request.primary_address_ethereum,
+            ),
             ("primary_address_solana", &request.primary_address_solana),
         ];
-        
+
         for (field_name, field_value) in fields {
             if let Some(value) = field_value {
                 let mut hasher = DefaultHasher::new();
@@ -79,9 +90,11 @@ impl Database {
                 value.hash(&mut hasher);
                 let hash_value = hasher.finish();
                 let message_hash = request.message_hash.clone().unwrap_or_else(|| {
-                    format!("create_{field_name}_{hash_value}").as_bytes().to_vec()
+                    format!("create_{field_name}_{hash_value}")
+                        .as_bytes()
+                        .to_vec()
                 });
-                
+
                 sqlx::query(
                     "INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) 
                      VALUES ($1, $2, $3, $4, $5)
@@ -96,20 +109,19 @@ impl Database {
                 .await?;
             }
         }
-        
+
         // Fetch the reconstructed profile from the view
-        self.get_user_profile(request.fid).await.and_then(|opt| {
-            opt.ok_or_else(|| SnapRagError::UserNotFound(request.fid as u64))
-        })
+        self.get_user_profile(request.fid)
+            .await
+            .and_then(|opt| opt.ok_or_else(|| SnapRagError::UserNotFound(request.fid as u64)))
     }
 
     /// Get user profile by FID  
     pub async fn get_user_profile(&self, fid: i64) -> Result<Option<UserProfile>> {
-        let profile =
-            sqlx::query_as("SELECT * FROM user_profiles WHERE fid = $1")
-                .bind(fid)
-                .fetch_optional(&self.pool)
-                .await?;
+        let profile = sqlx::query_as("SELECT * FROM user_profiles WHERE fid = $1")
+            .bind(fid)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(profile)
     }
@@ -119,11 +131,10 @@ impl Database {
         &self,
         username: &str,
     ) -> Result<Option<UserProfile>> {
-        let profile =
-            sqlx::query_as("SELECT * FROM user_profiles WHERE username = $1")
-                .bind(username)
-                .fetch_optional(&self.pool)
-                .await?;
+        let profile = sqlx::query_as("SELECT * FROM user_profiles WHERE username = $1")
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(profile)
     }
@@ -171,9 +182,9 @@ impl Database {
 
         // Insert the field change (event-sourcing - no UPDATE!)
         // Just insert and then fetch the updated view
-        self.get_user_profile(request.fid).await.and_then(|opt| {
-            opt.ok_or_else(|| SnapRagError::UserNotFound(request.fid as u64))
-        })
+        self.get_user_profile(request.fid)
+            .await
+            .and_then(|opt| opt.ok_or_else(|| SnapRagError::UserNotFound(request.fid as u64)))
     }
 
     /// Delete user profile (soft delete by setting fields to NULL)
@@ -236,14 +247,24 @@ impl Database {
 
         // Insert NULL values for all fields (deletion events)
         use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        
+        use std::hash::Hash;
+        use std::hash::Hasher;
+
         let field_names = vec![
-            "username", "display_name", "bio", "pfp_url", "banner_url",
-            "location", "website_url", "twitter_username", "github_username",
-            "primary_address_ethereum", "primary_address_solana", "profile_token"
+            "username",
+            "display_name",
+            "bio",
+            "pfp_url",
+            "banner_url",
+            "location",
+            "website_url",
+            "twitter_username",
+            "github_username",
+            "primary_address_ethereum",
+            "primary_address_solana",
+            "profile_token",
         ];
-        
+
         for field_name in field_names {
             let mut hasher = DefaultHasher::new();
             field_name.hash(&mut hasher);
@@ -251,8 +272,10 @@ impl Database {
             timestamp.hash(&mut hasher);
             "deleted".hash(&mut hasher);
             let hash_value = hasher.finish();
-            let msg_hash = format!("delete_{field_name}_{hash_value}").as_bytes().to_vec();
-            
+            let msg_hash = format!("delete_{field_name}_{hash_value}")
+                .as_bytes()
+                .to_vec();
+
             sqlx::query(
                 "INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) 
                  VALUES ($1, $2, NULL, $3, $4)
@@ -267,9 +290,9 @@ impl Database {
         }
 
         // Fetch the updated profile from view
-        self.get_user_profile(fid).await.and_then(|opt| {
-            opt.ok_or_else(|| SnapRagError::UserNotFound(fid as u64))
-        })
+        self.get_user_profile(fid)
+            .await
+            .and_then(|opt| opt.ok_or_else(|| SnapRagError::UserNotFound(fid as u64)))
     }
 
     /// List user profiles with filters
@@ -358,9 +381,10 @@ impl Database {
         query: crate::models::StatisticsQuery,
     ) -> Result<crate::models::StatisticsResult> {
         // Get basic counts
-        let total_fids = sqlx::query_scalar::<_, i64>("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
-            .fetch_one(&self.pool)
-            .await?;
+        let total_fids =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
+                .fetch_one(&self.pool)
+                .await?;
 
         let profiles_with_username = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM user_profiles WHERE username IS NOT NULL AND username != ''",

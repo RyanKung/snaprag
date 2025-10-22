@@ -1,6 +1,10 @@
 -- Complete database initialization for SnapRAG
 -- This script creates all tables with the exact structure from production
 -- Run with: snaprag init --force
+--
+-- NOTE: This script is IDEMPOTENT and safe to run multiple times.
+-- It uses CREATE TABLE IF NOT EXISTS to avoid dropping data.
+-- To drop existing data, use: snaprag reset --force
 
 -- Enable pgvector extension (requires superuser)
 -- If this fails, run on DB server: sudo -u postgres psql -d snaprag -c 'CREATE EXTENSION IF NOT EXISTS vector;'
@@ -234,7 +238,7 @@ CREATE TABLE IF NOT EXISTS username_proofs (
     shard_id INTEGER,
     block_height BIGINT,
     transaction_fid BIGINT,
-    UNIQUE(fid)  -- One username per FID (latest proof)
+    UNIQUE(fid, username_type)  -- One username per FID per type (FNAME vs ENS)
 );
 
 CREATE INDEX IF NOT EXISTS idx_username_proofs_fid ON username_proofs(fid);

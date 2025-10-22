@@ -32,7 +32,7 @@ pub struct ChatSession {
 }
 
 impl ChatSession {
-    #[must_use] 
+    #[must_use]
     pub fn new(
         fid: i64,
         username: Option<String>,
@@ -78,7 +78,7 @@ impl ChatSession {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn is_expired(&self, timeout_secs: u64) -> bool {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -96,7 +96,7 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
-    #[must_use] 
+    #[must_use]
     pub fn new(session_timeout_secs: u64) -> Self {
         let sessions = Arc::new(DashMap::new());
         let session_timeout = Duration::from_secs(session_timeout_secs);
@@ -117,7 +117,7 @@ impl SessionManager {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn create_session(
         &self,
         fid: i64,
@@ -132,7 +132,7 @@ impl SessionManager {
         session
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn get_session(&self, session_id: &str) -> Option<ChatSession> {
         self.sessions.get(session_id).map(|s| s.clone())
     }
@@ -145,7 +145,7 @@ impl SessionManager {
         self.sessions.remove(session_id);
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn session_count(&self) -> usize {
         self.sessions.len()
     }

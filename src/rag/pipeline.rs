@@ -40,7 +40,7 @@ impl RagService {
     }
 
     /// Create from existing services
-    #[must_use] 
+    #[must_use]
     pub fn from_services(
         database: Arc<Database>,
         embedding_service: Arc<EmbeddingService>,
@@ -149,13 +149,13 @@ Answer:"
     }
 
     /// Get retriever reference
-    #[must_use] 
+    #[must_use]
     pub const fn retriever(&self) -> &Retriever {
         &self.retriever
     }
 
     /// Get context assembler reference
-    #[must_use] 
+    #[must_use]
     pub const fn context_assembler(&self) -> &ContextAssembler {
         &self.context_assembler
     }
@@ -196,7 +196,7 @@ pub struct RagResponse {
 
 impl RagResponse {
     /// Get a formatted string representation
-    #[must_use] 
+    #[must_use]
     pub fn format(&self) -> String {
         let mut output = String::new();
         output.push_str(&format!("Query: {}\n\n", self.query));

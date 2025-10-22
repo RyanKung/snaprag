@@ -1,5 +1,10 @@
 use super::Database;
-use crate::models::{Cast, CastQuery, CastSortBy, SortOrder, CastSearchResult, CastStats};
+use crate::models::Cast;
+use crate::models::CastQuery;
+use crate::models::CastSearchResult;
+use crate::models::CastSortBy;
+use crate::models::CastStats;
+use crate::models::SortOrder;
 use crate::Result;
 
 /// Cast thread structure

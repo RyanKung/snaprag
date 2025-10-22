@@ -18,7 +18,7 @@ pub struct ProcessMonitor {
 
 impl ProcessMonitor {
     /// Create a new process monitor
-    #[must_use] 
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             max_idle_time: Duration::from_secs(300), // 5 minutes

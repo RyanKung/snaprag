@@ -108,10 +108,10 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
             .await
             .ok();
     }
-    
+
     // Then drop tables
     let tables = [
-        "cast_embeddings", // Drop first due to FK constraint
+        "cast_embeddings",      // Drop first due to FK constraint
         "user_profile_changes", // Event-sourcing table
         "profile_embeddings",   // Embeddings table
         "user_profile_snapshots",
@@ -142,9 +142,13 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     }
 
     // Drop the trigger function
-    if let Ok(_) = sqlx::query("DROP FUNCTION IF EXISTS update_cast_embeddings_updated_at() CASCADE")
-        .execute(snaprag.database().pool())
-        .await { print_success("Dropped trigger function") }
+    if let Ok(_) =
+        sqlx::query("DROP FUNCTION IF EXISTS update_cast_embeddings_updated_at() CASCADE")
+            .execute(snaprag.database().pool())
+            .await
+    {
+        print_success("Dropped trigger function")
+    }
 
     println!();
     print_success("✅ Database completely reset!");
@@ -225,8 +229,8 @@ fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
         .arg("ON_ERROR_STOP=0") // Continue on errors
         .output()?;
 
-    // Clean up temp file
-    std::fs::remove_file(temp_sql_path).ok();
+    // Clean up temp file (keep for debugging)
+    // std::fs::remove_file(temp_sql_path).ok();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -257,14 +261,11 @@ fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
 }
 
 /// Run schema migrations
-fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
-    // Run all migration files in order
-    let migrations = vec![
-        ("006_add_reactions_and_verifications.sql", include_str!("../../../migrations/006_add_reactions_and_verifications.sql")),
-        ("007_fix_composite_constraints.sql", include_str!("../../../migrations/007_fix_composite_constraints.sql")),
-        ("008_profiles_event_sourcing.sql", include_str!("../../../migrations/008_profiles_event_sourcing.sql")),
-    ];
-    
+/// NOTE: All schema is now in 000_complete_init.sql, no additional migrations needed
+fn run_schema_migrations(_snaprag: &SnapRag) -> Result<()> {
+    // No additional migrations - everything is in 000_complete_init.sql
+    let migrations: Vec<(&str, &str)> = vec![];
+
     // Get database connection info
     let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
         std::fs::read_to_string("config.toml")
@@ -280,46 +281,56 @@ fn run_schema_migrations(snaprag: &SnapRag) -> Result<()> {
                 "postgresql://snaprag:hackinthebox_24601@192.168.1.192/snaprag".to_string()
             })
     });
-    
+
     let url_without_scheme = db_url
         .strip_prefix("postgresql://")
         .or_else(|| db_url.strip_prefix("postgres://"))
         .ok_or_else(|| crate::SnapRagError::Custom("Invalid database URL".to_string()))?;
-    
+
     let (user_pass, host_db) = url_without_scheme
         .split_once('@')
         .ok_or_else(|| crate::SnapRagError::Custom("Invalid database URL".to_string()))?;
-    
+
     let (user, password) = user_pass.split_once(':').unwrap_or((user_pass, ""));
     let (host_port, database) = host_db.split_once('/').unwrap_or((host_db, "snaprag"));
     let (host, port) = host_port.split_once(':').unwrap_or((host_port, "5432"));
-    
+
     // Run each migration
     for (name, sql) in migrations {
         let temp_path = format!("/tmp/snaprag_{name}");
         std::fs::write(&temp_path, sql)?;
-        
+
         tracing::info!("Running migration: {}", name);
-        
+
         let output = std::process::Command::new("psql")
             .env("PGPASSWORD", password)
-            .arg("-h").arg(host)
-            .arg("-p").arg(port)
-            .arg("-U").arg(user)
-            .arg("-d").arg(database)
-            .arg("-f").arg(&temp_path)
-            .arg("-v").arg("ON_ERROR_STOP=0")
+            .arg("-h")
+            .arg(host)
+            .arg("-p")
+            .arg(port)
+            .arg("-U")
+            .arg(user)
+            .arg("-d")
+            .arg(database)
+            .arg("-f")
+            .arg(&temp_path)
+            .arg("-v")
+            .arg("ON_ERROR_STOP=0")
             .output()?;
-        
+
         std::fs::remove_file(&temp_path).ok();
-        
+
         if output.status.success() {
             tracing::info!("Migration {} completed", name);
         } else {
-            tracing::warn!("Migration {} had warnings: {}", name, String::from_utf8_lossy(&output.stderr));
+            tracing::warn!(
+                "Migration {} had warnings: {}",
+                name,
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
     }
-    
+
     Ok(())
 }
 
@@ -330,7 +341,7 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
     // Only create essential indexes for write-heavy workload
 
     // Note: user_activity_timeline table removed for performance
-    
+
     // 1. casts (essential for message lookups)
     sqlx::query(
         "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_fid 
@@ -351,14 +362,32 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
 
     // 4. Update statistics
     sqlx::query("ANALYZE casts").execute(pool).await.ok();
-    sqlx::query("ANALYZE user_profile_changes").execute(pool).await.ok();
-    sqlx::query("ANALYZE profile_embeddings").execute(pool).await.ok();
+    sqlx::query("ANALYZE user_profile_changes")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("ANALYZE profile_embeddings")
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("ANALYZE links").execute(pool).await.ok();
     sqlx::query("ANALYZE reactions").execute(pool).await.ok();
-    sqlx::query("ANALYZE verifications").execute(pool).await.ok();
-    sqlx::query("ANALYZE onchain_events").execute(pool).await.ok();
-    sqlx::query("ANALYZE username_proofs").execute(pool).await.ok();
-    sqlx::query("ANALYZE frame_actions").execute(pool).await.ok();
+    sqlx::query("ANALYZE verifications")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("ANALYZE onchain_events")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("ANALYZE username_proofs")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("ANALYZE frame_actions")
+        .execute(pool)
+        .await
+        .ok();
 
     Ok(())
 }

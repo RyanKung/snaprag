@@ -27,7 +27,7 @@ pub struct Database {
 }
 
 impl Database {
-    #[must_use] 
+    #[must_use]
     pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -40,13 +40,13 @@ impl Database {
             .acquire_timeout(std::time::Duration::from_secs(config.connection_timeout()));
 
         let pool = pool_options.connect(config.database_url()).await?;
-        
+
         tracing::info!(
             "Database pool configured: max_connections={}, min_connections={}",
             config.max_connections(),
             config.min_connections()
         );
-        
+
         Ok(Self::new(pool))
     }
 
@@ -58,7 +58,7 @@ impl Database {
     }
 
     /// Get a reference to the database pool for raw queries
-    #[must_use] 
+    #[must_use]
     pub const fn pool(&self) -> &sqlx::PgPool {
         &self.pool
     }

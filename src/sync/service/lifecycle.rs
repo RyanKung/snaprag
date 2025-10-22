@@ -200,7 +200,10 @@ impl LifecycleManager {
             // Spawn parallel task for this shard
             let handle = tokio::spawn(async move {
                 // Check if we should resume from last saved progress
-                let last_saved_height = database.get_last_processed_height(shard_id).await.unwrap_or(0);
+                let last_saved_height = database
+                    .get_last_processed_height(shard_id)
+                    .await
+                    .unwrap_or(0);
 
                 // Resume from last saved height if it's greater than requested from_block
                 let resume_from = if from_block == 0 && last_saved_height > 0 {
@@ -242,9 +245,12 @@ impl LifecycleManager {
                     match client.get_shard_chunks(request).await {
                         Ok(response) => {
                             let chunks = response.shard_chunks;
-                            
+
                             if chunks.is_empty() {
-                                info!("Shard {}: no more chunks at block {}", shard_id, current_block);
+                                info!(
+                                    "Shard {}: no more chunks at block {}",
+                                    shard_id, current_block
+                                );
                                 break;
                             }
 
@@ -252,15 +258,22 @@ impl LifecycleManager {
                             processor.process_chunks_batch(&chunks, shard_id).await?;
 
                             // Update stats
-                            let messages_in_batch: u64 = chunks.iter()
-                                .map(|c| c.transactions.iter().map(|tx| tx.user_messages.len() as u64).sum::<u64>())
+                            let messages_in_batch: u64 = chunks
+                                .iter()
+                                .map(|c| {
+                                    c.transactions
+                                        .iter()
+                                        .map(|tx| tx.user_messages.len() as u64)
+                                        .sum::<u64>()
+                                })
                                 .sum();
-                            
+
                             total_blocks += chunks.len() as u64;
                             total_messages += messages_in_batch;
 
                             // Find max block number processed
-                            let max_block = chunks.iter()
+                            let max_block = chunks
+                                .iter()
                                 .filter_map(|c| c.header.as_ref())
                                 .filter_map(|h| h.height.as_ref())
                                 .map(|height| height.block_number)
@@ -270,7 +283,9 @@ impl LifecycleManager {
                             current_block = max_block.saturating_add(1);
 
                             // Save progress to database
-                            database.update_last_processed_height(shard_id, current_block).await?;
+                            database
+                                .update_last_processed_height(shard_id, current_block)
+                                .await?;
 
                             info!(
                                 "Shard {}: processed {} blocks, {} messages (current: {})",
@@ -284,13 +299,19 @@ impl LifecycleManager {
                             break;
                         }
                         Err(e) => {
-                            error!("Shard {} sync error at block {}: {}", shard_id, current_block, e);
+                            error!(
+                                "Shard {} sync error at block {}: {}",
+                                shard_id, current_block, e
+                            );
                             return Err(e);
                         }
                     }
                 }
 
-                info!("✅ Shard {} completed: {} blocks, {} messages", shard_id, total_blocks, total_messages);
+                info!(
+                    "✅ Shard {} completed: {} blocks, {} messages",
+                    shard_id, total_blocks, total_messages
+                );
                 Ok::<(), crate::SnapRagError>(())
             });
 
@@ -321,7 +342,10 @@ impl LifecycleManager {
             }
         }
 
-        info!("🎉 Parallel sync completed across {} shards", self.config.shard_ids.len());
+        info!(
+            "🎉 Parallel sync completed across {} shards",
+            self.config.shard_ids.len()
+        );
         Ok(())
     }
 
@@ -338,7 +362,10 @@ impl LifecycleManager {
         to_block: u64,
         workers_per_shard: u32,
     ) -> Result<()> {
-        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+        use std::sync::atomic::AtomicBool;
+        use std::sync::atomic::AtomicU64;
+        use std::sync::atomic::Ordering;
+
         use tokio::sync::Semaphore;
 
         info!(
@@ -349,14 +376,15 @@ impl LifecycleManager {
         );
 
         // Get Snapchain info to determine actual max heights per shard
-        let shard_max_heights: std::collections::HashMap<u32, u64> = match self.client.get_info().await {
-            Ok(info) => {
-                info.shard_infos.iter()
+        let shard_max_heights: std::collections::HashMap<u32, u64> =
+            match self.client.get_info().await {
+                Ok(info) => info
+                    .shard_infos
+                    .iter()
                     .map(|s| (s.shard_id, s.max_height))
-                    .collect()
-            }
-            Err(_) => std::collections::HashMap::new(),
-        };
+                    .collect(),
+                Err(_) => std::collections::HashMap::new(),
+            };
 
         let mut all_shard_handles = vec![];
 
@@ -364,13 +392,20 @@ impl LifecycleManager {
         for &shard_id in &self.config.shard_ids {
             // Determine the actual range for this shard
             let shard_to_block = if to_block == u64::MAX {
-                shard_max_heights.get(&shard_id).copied().unwrap_or(to_block)
+                shard_max_heights
+                    .get(&shard_id)
+                    .copied()
+                    .unwrap_or(to_block)
             } else {
                 to_block
             };
 
             // Check if we should resume from last saved progress
-            let last_saved_height = self.database.get_last_processed_height(shard_id).await.unwrap_or(0);
+            let last_saved_height = self
+                .database
+                .get_last_processed_height(shard_id)
+                .await
+                .unwrap_or(0);
             let shard_from_block = if from_block == 0 && last_saved_height > 0 {
                 info!(
                     "📍 Shard {} resuming from last saved height {}",
@@ -401,7 +436,7 @@ impl LifecycleManager {
                 // 🚀 LOCK-FREE: Use DashMap instead of Mutex<BTreeSet> for zero-contention tracking
                 let completed_batches = Arc::new(dashmap::DashSet::new());
                 let mut task_handles = vec![];
-                
+
                 // Spawn a background task to periodically save progress
                 let progress_saver_db = database.clone();
                 let progress_saver_batches = completed_batches.clone();
@@ -410,25 +445,31 @@ impl LifecycleManager {
                     let mut last_saved_progress = shard_from_block;
                     loop {
                         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                        
+
                         if progress_saver_stop.load(Ordering::SeqCst) {
                             break;
                         }
-                        
+
                         // 🚀 LOCK-FREE: Calculate continuous progress without blocking
                         let mut continuous_progress = shard_from_block;
                         let batch_size_u64 = u64::from(config.batch_size);
-                        
+
                         while progress_saver_batches.contains(&continuous_progress) {
                             continuous_progress += batch_size_u64;
                         }
-                        
+
                         // Only update if progress changed
                         if continuous_progress > last_saved_progress {
-                            if let Err(e) = progress_saver_db.update_last_processed_height(shard_id, continuous_progress).await {
+                            if let Err(e) = progress_saver_db
+                                .update_last_processed_height(shard_id, continuous_progress)
+                                .await
+                            {
                                 warn!("Failed to save progress: {}", e);
                             } else {
-                                info!("💾 Shard {} progress saved: {} blocks", shard_id, continuous_progress);
+                                info!(
+                                    "💾 Shard {} progress saved: {} blocks",
+                                    shard_id, continuous_progress
+                                );
                                 last_saved_progress = continuous_progress;
                             }
                         }
@@ -439,18 +480,23 @@ impl LifecycleManager {
                 loop {
                     // Check if we should stop (another worker failed)
                     if should_stop.load(Ordering::SeqCst) {
-                        warn!("Shard {}: stopping task spawning due to failure in another worker", shard_id);
+                        warn!(
+                            "Shard {}: stopping task spawning due to failure in another worker",
+                            shard_id
+                        );
                         break;
                     }
 
-                    let batch_start = current_block.fetch_add(u64::from(config.batch_size), Ordering::SeqCst);
-                    
+                    let batch_start =
+                        current_block.fetch_add(u64::from(config.batch_size), Ordering::SeqCst);
+
                     if batch_start >= shard_to_block {
                         break; // No more batches to process
                     }
 
-                    let batch_end = (batch_start + u64::from(config.batch_size) - 1).min(shard_to_block);
-                    
+                    let batch_end =
+                        (batch_start + u64::from(config.batch_size) - 1).min(shard_to_block);
+
                     // Acquire semaphore permit (will wait if at max workers)
                     let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
                         crate::SnapRagError::Custom(format!("Semaphore error: {e}"))
@@ -465,12 +511,12 @@ impl LifecycleManager {
                     let task = tokio::spawn(async move {
                         let _permit = permit; // Hold permit until task completes
 
-                        const MAX_RETRIES: u32 = 5;  // Increased from 3 to 5
+                        const MAX_RETRIES: u32 = 5; // Increased from 3 to 5
                         let mut attempt = 0;
 
                         loop {
                             attempt += 1;
-                            
+
                             // Check stop signal before each attempt
                             if should_stop_shared.load(Ordering::SeqCst) {
                                 return Ok::<(u64, u64), crate::SnapRagError>((0, 0));
@@ -509,7 +555,9 @@ impl LifecycleManager {
                                                     .sum();
 
                                                 // 📊 Log performance breakdown
-                                                if fetch_elapsed.as_millis() > 500 || process_elapsed.as_millis() > 500 {
+                                                if fetch_elapsed.as_millis() > 500
+                                                    || process_elapsed.as_millis() > 500
+                                                {
                                                     info!(
                                                         "⏱️  Shard {} batch {}-{}: fetch={}ms, process={}ms (total={}ms)",
                                                         shard_id, batch_start, batch_end,
@@ -538,25 +586,30 @@ impl LifecycleManager {
                                                 // Exponential backoff: 2^attempt seconds (2s, 4s, 8s, 16s, 32s)
                                                 let backoff_secs = 2u64.pow(attempt - 1).min(30);
                                                 let error_msg = e.to_string();
-                                                let error_type = if error_msg.contains("Database") || error_msg.contains("Sqlx") {
+                                                let error_type = if error_msg.contains("Database")
+                                                    || error_msg.contains("Sqlx")
+                                                {
                                                     "💾 Database Error"
                                                 } else if error_msg.contains("timeout") {
                                                     "⏱️  Processing Timeout"
                                                 } else {
                                                     "❌ Processing Error"
                                                 };
-                                                
+
                                                 warn!(
                                                     "{} - Shard {} batch {}-{} (attempt {}/{}): {}\n   Retrying in {}s...",
                                                     error_type, shard_id, batch_start, batch_end, attempt, MAX_RETRIES, error_msg, backoff_secs
                                                 );
-                                                tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
+                                                tokio::time::sleep(
+                                                    tokio::time::Duration::from_secs(backoff_secs),
+                                                )
+                                                .await;
                                                 continue; // Retry
                                             }
                                             Err(e) => {
                                                 let error_msg = e.to_string();
                                                 let error_debug = format!("{e:?}");
-                                                
+
                                                 error!(
                                                     "🔴 CRITICAL: Shard {} batch {}-{} processing FAILED after {} attempts\n\
                                                      ├─ Error Type: {}\n\
@@ -577,7 +630,7 @@ impl LifecycleManager {
                                                     batch_end,
                                                     MAX_RETRIES
                                                 );
-                                                
+
                                                 // Signal all workers to stop
                                                 should_stop_shared.store(true, Ordering::SeqCst);
                                                 return Err(e);
@@ -606,18 +659,21 @@ impl LifecycleManager {
                                     } else {
                                         "❌ gRPC Error"
                                     };
-                                    
+
                                     warn!(
                                         "{} - Shard {} batch {}-{} (attempt {}/{}): {}\n   Retrying in {}s...",
                                         error_type, shard_id, batch_start, batch_end, attempt, MAX_RETRIES, error_msg, backoff_secs
                                     );
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(backoff_secs)).await;
+                                    tokio::time::sleep(tokio::time::Duration::from_secs(
+                                        backoff_secs,
+                                    ))
+                                    .await;
                                     continue; // Retry
                                 }
                                 Err(e) => {
                                     let error_msg = e.to_string();
                                     let error_debug = format!("{e:?}");
-                                    
+
                                     error!(
                                         "🔴 CRITICAL: Shard {} batch {}-{} fetch FAILED after {} attempts\n\
                                          ├─ Error Type: {}\n\
@@ -639,7 +695,7 @@ impl LifecycleManager {
                                         batch_end,
                                         MAX_RETRIES
                                     );
-                                    
+
                                     // Signal all workers to stop (fail-fast to avoid holes)
                                     should_stop_shared.store(true, Ordering::SeqCst);
                                     return Err(e);
@@ -653,7 +709,10 @@ impl LifecycleManager {
 
                 // Wait for all tasks to complete
                 let total_tasks = task_handles.len();
-                info!("Shard {}: waiting for {} tasks to complete...", shard_id, total_tasks);
+                info!(
+                    "Shard {}: waiting for {} tasks to complete...",
+                    shard_id, total_tasks
+                );
 
                 let mut total_blocks = 0u64;
                 let mut total_messages = 0u64;
@@ -669,67 +728,89 @@ impl LifecycleManager {
                             completed_tasks += 1;
 
                             if completed_tasks % 100 == 0 {
-                                let progress_pct = (completed_tasks as f64 / total_tasks as f64 * 100.0).min(100.0);
+                                let progress_pct = (completed_tasks as f64 / total_tasks as f64
+                                    * 100.0)
+                                    .min(100.0);
                                 info!(
                                     "Shard {}: {}/{} tasks ({:.1}%), {} blocks, {} msgs total",
-                                    shard_id, completed_tasks, total_tasks, progress_pct, total_blocks, total_messages
+                                    shard_id,
+                                    completed_tasks,
+                                    total_tasks,
+                                    progress_pct,
+                                    total_blocks,
+                                    total_messages
                                 );
                             }
                         }
                         Ok(Err(e)) => {
                             error!("🔴 Shard {} batch {} failed: {}", shard_id, batch_start, e);
-                            
+
                             // Signal all workers to stop (already set by the failed worker, but set again to be safe)
                             should_stop.store(true, Ordering::SeqCst);
-                            
+
                             // 🚀 LOCK-FREE: Calculate final continuous progress
                             let mut continuous_progress = shard_from_block;
                             let batch_size_u64 = u64::from(config.batch_size);
                             while completed_batches.contains(&continuous_progress) {
                                 continuous_progress += batch_size_u64;
                             }
-                            
-                            if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
+
+                            if let Err(save_err) = database
+                                .update_last_processed_height(shard_id, continuous_progress)
+                                .await
+                            {
                                 error!("Failed to save progress: {}", save_err);
                             } else {
-                                info!("💾 Saved final progress at block {} before stopping", continuous_progress);
+                                info!(
+                                    "💾 Saved final progress at block {} before stopping",
+                                    continuous_progress
+                                );
                             }
-                            
+
                             // Wait for remaining spawned tasks to finish gracefully
                             let remaining = task_handles_iter.len();
                             if remaining > 0 {
                                 info!("⏳ Waiting for {} remaining tasks to finish...", remaining);
                                 for (_batch_start, task) in task_handles_iter {
-                                    let _ = task.await;  // Ignore individual errors, we're already failing
+                                    let _ = task.await; // Ignore individual errors, we're already failing
                                 }
                                 info!("✅ All tasks stopped gracefully");
                             }
-                            
+
                             // Stop progress saver
                             let _ = progress_saver.await;
-                            
+
                             // Fail fast - stop entire shard sync
                             return Err(e);
                         }
                         Err(e) => {
-                            error!("🔴 Shard {} batch {} panicked: {}", shard_id, batch_start, e);
-                            
+                            error!(
+                                "🔴 Shard {} batch {} panicked: {}",
+                                shard_id, batch_start, e
+                            );
+
                             // Signal all workers to stop
                             should_stop.store(true, Ordering::SeqCst);
-                            
+
                             // 🚀 LOCK-FREE: Calculate final continuous progress
                             let mut continuous_progress = shard_from_block;
                             let batch_size_u64 = u64::from(config.batch_size);
                             while completed_batches.contains(&continuous_progress) {
                                 continuous_progress += batch_size_u64;
                             }
-                            
-                            if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
+
+                            if let Err(save_err) = database
+                                .update_last_processed_height(shard_id, continuous_progress)
+                                .await
+                            {
                                 error!("Failed to save progress: {}", save_err);
                             } else {
-                                info!("💾 Saved final progress at block {} before stopping", continuous_progress);
+                                info!(
+                                    "💾 Saved final progress at block {} before stopping",
+                                    continuous_progress
+                                );
                             }
-                            
+
                             // Wait for remaining spawned tasks to finish gracefully
                             let remaining = task_handles_iter.len();
                             if remaining > 0 {
@@ -739,10 +820,10 @@ impl LifecycleManager {
                                 }
                                 info!("✅ All tasks stopped gracefully");
                             }
-                            
+
                             // Stop progress saver
                             let _ = progress_saver.await;
-                            
+
                             return Err(crate::SnapRagError::Custom(format!("Task panicked: {e}")));
                         }
                     }
@@ -760,7 +841,7 @@ impl LifecycleManager {
                     "✅ Shard {} completed: {} blocks, {} messages",
                     shard_id, total_blocks, total_messages
                 );
-                
+
                 // Stop the progress saver and wait for it
                 should_stop.store(true, Ordering::SeqCst);
                 let _ = progress_saver.await;
@@ -772,7 +853,10 @@ impl LifecycleManager {
         }
 
         // Wait for all shards to complete
-        info!("⏳ Waiting for {} shards to complete...", all_shard_handles.len());
+        info!(
+            "⏳ Waiting for {} shards to complete...",
+            all_shard_handles.len()
+        );
 
         for (shard_id, handle) in all_shard_handles {
             match handle.await {

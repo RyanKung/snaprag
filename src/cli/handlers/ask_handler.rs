@@ -17,7 +17,11 @@ use crate::cli::handlers::ask::output::print_wrapped;
 use crate::cli::handlers::ask::retrieval::analyze_writing_style;
 use crate::cli::handlers::ask::retrieval::find_relevant_casts;
 use crate::cli::handlers::ask::retrieval::Spinner;
-use crate::cli::output::{print_info, print_error, print_warning, print_success, truncate_str};
+use crate::cli::output::print_error;
+use crate::cli::output::print_info;
+use crate::cli::output::print_success;
+use crate::cli::output::print_warning;
+use crate::cli::output::truncate_str;
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::llm::LlmService;
@@ -117,7 +121,8 @@ async fn load_user_data(
 
     let username = profile
         .username
-        .as_ref().map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
+        .as_ref()
+        .map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
     println!("   ✅ Found: {display_name} ({username})");
@@ -147,11 +152,7 @@ async fn load_user_data(
     // Check how many casts need embeddings
     let cast_hashes: Vec<_> = casts
         .iter()
-        .filter(|c| {
-            c.text
-                .as_ref()
-                .is_some_and(|t| !t.trim().is_empty())
-        })
+        .filter(|c| c.text.as_ref().is_some_and(|t| !t.trim().is_empty()))
         .map(|c| c.message_hash.clone())
         .collect();
 
@@ -215,9 +216,7 @@ async fn load_user_data(
                     let filled = (processed as f64 / total as f64 * bar_width as f64) as usize;
                     let bar: String = "█".repeat(filled) + &"░".repeat(bar_width - filled);
 
-                    print!(
-                        "\r   Progress: [{bar}] {percentage}% ({processed}/{total})"
-                    );
+                    print!("\r   Progress: [{bar}] {percentage}% ({processed}/{total})");
                     io::stdout().flush().ok();
                 }
             }
@@ -299,14 +298,13 @@ async fn run_interactive_chat(
 ) -> Result<()> {
     let username = profile
         .username
-        .as_ref().map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
+        .as_ref()
+        .map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
     println!("╔════════════════════════════════════════════════════════════════╗");
     println!("║  💬 Interactive Chat Mode                                     ║");
-    println!(
-        "║  Chatting with: {display_name} ({username})                      "
-    );
+    println!("║  Chatting with: {display_name} ({username})                      ");
     if let Some(bio) = &profile.bio {
         println!(
             "║  Bio: {}                                     ",

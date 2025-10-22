@@ -14,10 +14,9 @@ mod types;
 mod utils;
 
 // Re-export types
-pub use types::BatchedData;
-
 // Re-export batch function for testing (both unit and integration tests)
 pub use batch::flush_batched_data;
+pub use types::BatchedData;
 
 /// Processor for handling shard chunks and extracting user data
 pub struct ShardProcessor {

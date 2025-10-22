@@ -4,10 +4,14 @@
 //! during bulk synchronization operations. Disabling non-essential indexes and autovacuum
 //! can significantly speed up bulk inserts (30-70% faster).
 
+use std::io::Write;
+use std::io::{
+    self,
+};
+
 use crate::cli::commands::IndexCommands;
 use crate::errors::Result;
 use crate::SnapRag;
-use std::io::{self, Write};
 
 /// Handle index management commands
 pub async fn handle_index_command(snaprag: &SnapRag, command: &IndexCommands) -> Result<()> {
@@ -259,12 +263,11 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
 
     let mut existing_count = 0;
     for index_name in &indexes {
-        let result: Option<(bool,)> = sqlx::query_as(
-            "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)",
-        )
-        .bind(index_name)
-        .fetch_optional(db)
-        .await?;
+        let result: Option<(bool,)> =
+            sqlx::query_as("SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)")
+                .bind(index_name)
+                .fetch_optional(db)
+                .await?;
 
         if let Some((exists,)) = result {
             if exists {
@@ -295,12 +298,11 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
 
     let mut enabled_count = 0;
     for table in &tables {
-        let result: Option<(Option<Vec<String>>,)> = sqlx::query_as(
-            "SELECT reloptions FROM pg_class WHERE relname = $1",
-        )
-        .bind(table)
-        .fetch_optional(db)
-        .await?;
+        let result: Option<(Option<Vec<String>>,)> =
+            sqlx::query_as("SELECT reloptions FROM pg_class WHERE relname = $1")
+                .bind(table)
+                .fetch_optional(db)
+                .await?;
 
         let is_enabled = if let Some((Some(options),)) = result {
             !options
@@ -341,8 +343,16 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         println!("\n  ⚠️  Run 'snaprag index set' after sync completes!");
     } else {
         println!("  ⚠️  MIXED/INCONSISTENT STATE");
-        println!("     - Some indexes missing: {}/{}", indexes.len() - existing_count, indexes.len());
-        println!("     - Autovacuum disabled on: {}/{}", tables.len() - enabled_count, tables.len());
+        println!(
+            "     - Some indexes missing: {}/{}",
+            indexes.len() - existing_count,
+            indexes.len()
+        );
+        println!(
+            "     - Autovacuum disabled on: {}/{}",
+            tables.len() - enabled_count,
+            tables.len()
+        );
         println!("\n  💡 Recommendation:");
         println!("     - Run 'snaprag index unset' before bulk sync");
         println!("     - Run 'snaprag index set' after bulk sync");
@@ -350,4 +360,3 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
 
     Ok(())
 }
-

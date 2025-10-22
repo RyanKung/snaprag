@@ -1,6 +1,9 @@
 //! Cast-related command handlers
 
-use crate::cli::output::{print_info, print_warning, print_error, truncate_str};
+use crate::cli::output::print_error;
+use crate::cli::output::print_info;
+use crate::cli::output::print_warning;
+use crate::cli::output::truncate_str;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -65,7 +68,10 @@ pub async fn handle_cast_search(
         };
 
         // Format timestamp
-        let timestamp_str = chrono::DateTime::from_timestamp(result.timestamp, 0).map_or_else(|| "Unknown".to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string());
+        let timestamp_str = chrono::DateTime::from_timestamp(result.timestamp, 0).map_or_else(
+            || "Unknown".to_string(),
+            |dt| dt.format("%Y-%m-%d %H:%M").to_string(),
+        );
 
         println!(
             "{}. {} | {} | Similarity: {:.2}%",
@@ -138,7 +144,10 @@ pub async fn handle_cast_recent(snaprag: &SnapRag, fid: i64, limit: usize) -> Re
     println!("{}", "─".repeat(100));
 
     for (idx, cast) in casts.iter().enumerate() {
-        let timestamp_str = chrono::DateTime::from_timestamp(cast.timestamp, 0).map_or_else(|| "Unknown".to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string());
+        let timestamp_str = chrono::DateTime::from_timestamp(cast.timestamp, 0).map_or_else(
+            || "Unknown".to_string(),
+            |dt| dt.format("%Y-%m-%d %H:%M").to_string(),
+        );
 
         println!("{}. {}", idx + 1, timestamp_str);
         if let Some(text) = &cast.text {
@@ -215,7 +224,10 @@ pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -
         format!("FID {}", root_cast.fid)
     };
 
-    let timestamp_str = chrono::DateTime::from_timestamp(root_cast.timestamp, 0).map_or_else(|| "Unknown".to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string());
+    let timestamp_str = chrono::DateTime::from_timestamp(root_cast.timestamp, 0).map_or_else(
+        || "Unknown".to_string(),
+        |dt| dt.format("%Y-%m-%d %H:%M").to_string(),
+    );
 
     println!("\n{indent}🎯 {author_name} | {timestamp_str}");
     if let Some(text) = &root_cast.text {

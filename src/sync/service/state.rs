@@ -9,17 +9,17 @@ pub struct ChunkProcessStats {
 }
 
 impl ChunkProcessStats {
-    #[must_use] 
+    #[must_use]
     pub const fn blocks_processed(&self) -> u64 {
         self.blocks_processed
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn messages_processed(&self) -> u64 {
         self.messages_processed
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn last_block_number(&self) -> Option<u64> {
         self.last_block_number
     }

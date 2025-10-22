@@ -1,5 +1,8 @@
 use super::Database;
-use crate::models::{UserDataQuery, UserData, UserProfile, UserProfileQuery};
+use crate::models::UserData;
+use crate::models::UserDataQuery;
+use crate::models::UserProfile;
+use crate::models::UserProfileQuery;
 use crate::Result;
 
 impl Database {
@@ -128,9 +131,16 @@ impl Database {
 
         // Insert or update profile_embeddings table (separate from event-sourcing)
         let field_list = field_names.join(", ");
-        let placeholders = (2..=field_names.len()+1).map(|n| format!("${n}")).collect::<Vec<_>>().join(", ");
-        let updates_clause = field_names.iter().map(|f| format!("{f} = EXCLUDED.{f}")).collect::<Vec<_>>().join(", ");
-        
+        let placeholders = (2..=field_names.len() + 1)
+            .map(|n| format!("${n}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let updates_clause = field_names
+            .iter()
+            .map(|f| format!("{f} = EXCLUDED.{f}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+
         let query_str = format!(
             "INSERT INTO profile_embeddings (fid, {field_list}) VALUES ($1, {placeholders})
              ON CONFLICT (fid) DO UPDATE SET {updates_clause}"

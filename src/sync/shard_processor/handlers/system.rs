@@ -1,9 +1,7 @@
+use super::super::types::BatchedData;
 /// System message handler (`OnChain` Events)
-
 use crate::models::ShardBlockInfo;
 use crate::Result;
-
-use super::super::types::BatchedData;
 
 /// Process system messages (`OnChainEvents`)
 pub(in crate::sync::shard_processor) async fn process_system_message(
@@ -61,7 +59,6 @@ pub(in crate::sync::shard_processor) async fn process_system_message(
             shard_block_info.shard_id
         );
     }
-    
+
     Ok(())
 }
-

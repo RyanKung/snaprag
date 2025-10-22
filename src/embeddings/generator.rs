@@ -182,19 +182,19 @@ impl EmbeddingService {
     }
 
     /// Get the embedding dimension
-    #[must_use] 
+    #[must_use]
     pub const fn dimension(&self) -> usize {
         self.config.dimension
     }
 
     /// Get the model name
-    #[must_use] 
+    #[must_use]
     pub fn model(&self) -> &str {
         &self.config.model
     }
 
     /// Get the provider
-    #[must_use] 
+    #[must_use]
     pub const fn provider(&self) -> EmbeddingProvider {
         self.config.provider
     }

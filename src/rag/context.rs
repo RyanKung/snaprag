@@ -12,13 +12,13 @@ pub struct ContextAssembler {
 
 impl ContextAssembler {
     /// Create a new context assembler
-    #[must_use] 
+    #[must_use]
     pub const fn new(max_context_length: usize) -> Self {
         Self { max_context_length }
     }
 
     /// Assemble context from search results
-    #[must_use] 
+    #[must_use]
     pub fn assemble(&self, results: &[SearchResult]) -> String {
         let mut context = String::new();
         let mut total_length = 0;
@@ -39,7 +39,7 @@ impl ContextAssembler {
     }
 
     /// Assemble context with metadata
-    #[must_use] 
+    #[must_use]
     pub fn assemble_with_metadata(
         &self,
         results: &[SearchResult],
@@ -101,7 +101,7 @@ impl ContextAssembler {
     }
 
     /// Create a summary of the retrieved profiles
-    #[must_use] 
+    #[must_use]
     pub fn create_summary(&self, results: &[SearchResult]) -> String {
         if results.is_empty() {
             return "No profiles found.".to_string();
@@ -146,13 +146,13 @@ pub struct CastContextAssembler {
 
 impl CastContextAssembler {
     /// Create a new cast context assembler
-    #[must_use] 
+    #[must_use]
     pub const fn new(max_context_length: usize) -> Self {
         Self { max_context_length }
     }
 
     /// Assemble context from cast search results
-    #[must_use] 
+    #[must_use]
     pub fn assemble(&self, results: &[crate::models::CastSearchResult]) -> String {
         let mut context = String::new();
         let mut total_length = 0;
@@ -218,7 +218,7 @@ impl CastContextAssembler {
     }
 
     /// Create a summary of the retrieved casts
-    #[must_use] 
+    #[must_use]
     pub fn create_summary(&self, results: &[crate::models::CastSearchResult]) -> String {
         if results.is_empty() {
             return "No casts found.".to_string();

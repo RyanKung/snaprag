@@ -844,7 +844,11 @@ async fn test_scan_for_user_data_blocks() -> Result<()> {
     let config = AppConfig::load()?;
 
     // Create gRPC client
-    let client = SnapchainClient::new(&config.sync.snapchain_http_endpoint, &config.sync.snapchain_grpc_endpoint).await?;
+    let client = SnapchainClient::new(
+        &config.sync.snapchain_http_endpoint,
+        &config.sync.snapchain_grpc_endpoint,
+    )
+    .await?;
 
     println!("\n🔍 Scanning blocks for UserDataAdd messages (type=11)...\n");
     println!(

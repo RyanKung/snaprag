@@ -4,7 +4,9 @@
 //! 1. Different batches contain the same message_hash
 //! 2. Same FID appears in multiple batches with different messages
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
+
 use crate::sync::client::SnapchainClient;
 use crate::Result;
 
@@ -16,7 +18,8 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
-    ).await?;
+    )
+    .await?;
 
     // Test parameters
     let shard_id = 1; // Test shard 1
@@ -25,8 +28,10 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
     let num_batches = 3; // Test 3 consecutive batches
 
     println!("\n🔍 Testing for cross-batch duplicate message_hash");
-    println!("Shard: {}, Starting block: {}, Batch size: {}, Batches: {}", 
-             shard_id, test_start_block, batch_size, num_batches);
+    println!(
+        "Shard: {}, Starting block: {}, Batch size: {}, Batches: {}",
+        shard_id, test_start_block, batch_size, num_batches
+    );
     println!("{}", "=".repeat(80));
 
     let mut all_message_hashes: HashMap<Vec<u8>, (u32, u64)> = HashMap::new(); // hash -> (batch_num, block_num)
@@ -60,7 +65,9 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
                     total_messages += 1;
 
                     let message_hash = msg.hash.clone();
-                    let block_num = chunk.header.as_ref()
+                    let block_num = chunk
+                        .header
+                        .as_ref()
                         .and_then(|h| h.height.as_ref())
                         .map(|h| h.block_number)
                         .unwrap_or(0);
@@ -68,9 +75,12 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
                     // Extract FID from message data
                     if let Some(msg_data) = &msg.data {
                         if let Some(body_value) = &msg_data.body {
-                            if let Ok(body) = serde_json::from_value::<serde_json::Value>(body_value.clone()) {
+                            if let Ok(body) =
+                                serde_json::from_value::<serde_json::Value>(body_value.clone())
+                            {
                                 if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
-                                    all_fids.entry(fid)
+                                    all_fids
+                                        .entry(fid)
                                         .or_default()
                                         .push((batch_num, message_hash.clone()));
                                 }
@@ -83,8 +93,16 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
                         cross_batch_duplicates += 1;
                         println!("   ⚠️  DUPLICATE FOUND:");
                         println!("      Message hash: {}", hex::encode(&message_hash[..8]));
-                        println!("      First seen: Batch {} (block {})", prev_batch + 1, prev_block);
-                        println!("      Seen again: Batch {} (block {})", batch_num + 1, block_num);
+                        println!(
+                            "      First seen: Batch {} (block {})",
+                            prev_batch + 1,
+                            prev_block
+                        );
+                        println!(
+                            "      Seen again: Batch {} (block {})",
+                            batch_num + 1,
+                            block_num
+                        );
                     } else {
                         all_message_hashes.insert(message_hash.clone(), (batch_num, block_num));
                     }
@@ -95,17 +113,28 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
         }
 
         println!("   Messages in batch: {}", batch_messages);
-        println!("   Unique message_hash in batch: {}", batch_message_hashes.len());
-        println!("   Duplicates within batch: {}", batch_messages - batch_message_hashes.len());
+        println!(
+            "   Unique message_hash in batch: {}",
+            batch_message_hashes.len()
+        );
+        println!(
+            "   Duplicates within batch: {}",
+            batch_messages - batch_message_hashes.len()
+        );
     }
 
     println!("\n{}", "=".repeat(80));
     println!("📊 RESULTS:");
     println!("   Total messages processed: {}", total_messages);
-    println!("   Unique message_hash across all batches: {}", all_message_hashes.len());
+    println!(
+        "   Unique message_hash across all batches: {}",
+        all_message_hashes.len()
+    );
     println!("   Cross-batch duplicates: {}", cross_batch_duplicates);
-    println!("   Duplicate rate: {:.2}%", 
-             (cross_batch_duplicates as f64 / total_messages as f64) * 100.0);
+    println!(
+        "   Duplicate rate: {:.2}%",
+        (cross_batch_duplicates as f64 / total_messages as f64) * 100.0
+    );
 
     // Analyze FID distribution
     let mut fids_in_multiple_batches = 0;
@@ -119,19 +148,26 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
         max_batches_per_fid = max_batches_per_fid.max(unique_batches.len());
 
         if unique_batches.len() == num_batches as usize {
-            println!("   FID {} appears in ALL {} batches ({} messages)", 
-                     fid, num_batches, appearances.len());
+            println!(
+                "   FID {} appears in ALL {} batches ({} messages)",
+                fid,
+                num_batches,
+                appearances.len()
+            );
         }
     }
 
     println!("\n📈 FID Analysis:");
     println!("   Total unique FIDs: {}", all_fids.len());
-    println!("   FIDs appearing in multiple batches: {}", fids_in_multiple_batches);
+    println!(
+        "   FIDs appearing in multiple batches: {}",
+        fids_in_multiple_batches
+    );
     println!("   Max batches for single FID: {}", max_batches_per_fid);
 
     // Assertions
     println!("\n✅ Test Assertions:");
-    
+
     if cross_batch_duplicates > 0 {
         println!("   ⚠️  Cross-batch duplicates EXIST!");
         println!("   → This explains the lock contention issue");
@@ -159,11 +195,12 @@ async fn test_same_fid_across_batches() -> Result<()> {
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
-    ).await?;
+    )
+    .await?;
 
     let shard_id = 1;
     let start_block = 100_000;
-    
+
     // Fetch batch 1
     let req1 = crate::sync::client::proto::ShardChunksRequest {
         shard_id,
@@ -171,7 +208,7 @@ async fn test_same_fid_across_batches() -> Result<()> {
         stop_block_number: Some(start_block + 499),
     };
     let resp1 = client.get_shard_chunks(req1).await?;
-    
+
     // Fetch batch 2
     let req2 = crate::sync::client::proto::ShardChunksRequest {
         shard_id,
@@ -189,7 +226,9 @@ async fn test_same_fid_across_batches() -> Result<()> {
             for msg in &tx.user_messages {
                 if let Some(msg_data) = &msg.data {
                     if let Some(body_value) = &msg_data.body {
-                        if let Ok(body) = serde_json::from_value::<serde_json::Value>(body_value.clone()) {
+                        if let Ok(body) =
+                            serde_json::from_value::<serde_json::Value>(body_value.clone())
+                        {
                             if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
                                 fids_batch1.insert(fid);
                             }
@@ -205,7 +244,9 @@ async fn test_same_fid_across_batches() -> Result<()> {
             for msg in &tx.user_messages {
                 if let Some(msg_data) = &msg.data {
                     if let Some(body_value) = &msg_data.body {
-                        if let Ok(body) = serde_json::from_value::<serde_json::Value>(body_value.clone()) {
+                        if let Ok(body) =
+                            serde_json::from_value::<serde_json::Value>(body_value.clone())
+                        {
                             if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
                                 fids_batch2.insert(fid);
                             }
@@ -219,13 +260,23 @@ async fn test_same_fid_across_batches() -> Result<()> {
     let common_fids: HashSet<_> = fids_batch1.intersection(&fids_batch2).collect();
 
     println!("\n📊 FID Distribution Analysis:");
-    println!("   Batch 1 (blocks {}-{}): {} unique FIDs", 
-             start_block, start_block + 499, fids_batch1.len());
-    println!("   Batch 2 (blocks {}-{}): {} unique FIDs", 
-             start_block + 500, start_block + 999, fids_batch2.len());
+    println!(
+        "   Batch 1 (blocks {}-{}): {} unique FIDs",
+        start_block,
+        start_block + 499,
+        fids_batch1.len()
+    );
+    println!(
+        "   Batch 2 (blocks {}-{}): {} unique FIDs",
+        start_block + 500,
+        start_block + 999,
+        fids_batch2.len()
+    );
     println!("   FIDs appearing in BOTH batches: {}", common_fids.len());
-    println!("   Overlap rate: {:.2}%", 
-             (common_fids.len() as f64 / fids_batch1.len() as f64) * 100.0);
+    println!(
+        "   Overlap rate: {:.2}%",
+        (common_fids.len() as f64 / fids_batch1.len() as f64) * 100.0
+    );
 
     if !common_fids.is_empty() {
         println!("\n   Example FIDs in both batches:");
@@ -242,4 +293,3 @@ async fn test_same_fid_across_batches() -> Result<()> {
 
     Ok(())
 }
-

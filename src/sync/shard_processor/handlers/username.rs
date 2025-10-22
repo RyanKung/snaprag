@@ -1,9 +1,7 @@
+use super::super::types::BatchedData;
 /// `UsernameProof` message handler
-
 use crate::models::ShardBlockInfo;
 use crate::Result;
-
-use super::super::types::BatchedData;
 
 /// Handle `UsernameProof` message (type 12)
 pub(super) fn handle_username_proof(
@@ -20,7 +18,7 @@ pub(super) fn handle_username_proof(
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        
+
         if let Some(owner_str) = username_proof_body.get("owner").and_then(|v| v.as_str()) {
             if let Ok(owner) = hex::decode(owner_str) {
                 let signature = username_proof_body
@@ -28,12 +26,12 @@ pub(super) fn handle_username_proof(
                     .and_then(|v| v.as_str())
                     .and_then(|s| hex::decode(s).ok())
                     .unwrap_or_default();
-                
+
                 let username_type = username_proof_body
                     .get("type")
                     .and_then(serde_json::Value::as_i64)
                     .map_or(1, |v| i16::try_from(v).unwrap_or(1)); // Default to FNAME
-                
+
                 batched.username_proofs.push((
                     fid,
                     username,
@@ -44,16 +42,21 @@ pub(super) fn handle_username_proof(
                     message_hash.to_vec(),
                     shard_block_info.clone(),
                 ));
-                
+
                 tracing::debug!(
                     "Collected username proof: FID {} -> @{}",
                     fid,
-                    username_proof_body.get("name").and_then(|v| v.as_str()).unwrap_or("")
+                    username_proof_body
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
                 );
             } else {
-                tracing::warn!("Failed to decode owner address for USERNAME_PROOF FID {}", fid);
+                tracing::warn!(
+                    "Failed to decode owner address for USERNAME_PROOF FID {}",
+                    fid
+                );
             }
         }
     }
 }
-

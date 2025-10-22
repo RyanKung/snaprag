@@ -52,13 +52,13 @@ pub mod sync;
 pub const FARCASTER_EPOCH: u64 = 1_609_459_200_000;
 
 /// Convert Farcaster timestamp (seconds since Farcaster epoch) to Unix timestamp (seconds since Unix epoch)
-#[must_use] 
+#[must_use]
 pub const fn farcaster_to_unix_timestamp(farcaster_timestamp: u64) -> u64 {
     farcaster_timestamp + (FARCASTER_EPOCH / 1000)
 }
 
 /// Convert Unix timestamp (seconds since Unix epoch) to Farcaster timestamp (seconds since Farcaster epoch)
-#[must_use] 
+#[must_use]
 pub const fn unix_to_farcaster_timestamp(unix_timestamp: u64) -> u64 {
     unix_timestamp - (FARCASTER_EPOCH / 1000)
 }
@@ -158,13 +158,13 @@ impl SnapRag {
     }
 
     /// Get the database instance for direct access
-    #[must_use] 
+    #[must_use]
     pub const fn database(&self) -> &Arc<Database> {
         &self.database
     }
 
     /// Get reference to lazy loader
-    #[must_use] 
+    #[must_use]
     pub const fn lazy_loader(&self) -> Option<&Arc<LazyLoader>> {
         self.lazy_loader.as_ref()
     }
@@ -369,11 +369,15 @@ impl SnapRag {
                 Ok(lock) => Ok(Some(lock)),
                 Err(_) => {
                     // Fallback to sync_service if lock file read failed
-                    self.sync_service.as_ref().map_or_else(|| Ok(None), |sync_service| sync_service.get_sync_status())
+                    self.sync_service
+                        .as_ref()
+                        .map_or_else(|| Ok(None), |sync_service| sync_service.get_sync_status())
                 }
             }
         } else {
-            self.sync_service.as_ref().map_or_else(|| Ok(None), |sync_service| sync_service.get_sync_status())
+            self.sync_service
+                .as_ref()
+                .map_or_else(|| Ok(None), |sync_service| sync_service.get_sync_status())
         }
     }
 

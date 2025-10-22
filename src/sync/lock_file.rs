@@ -66,7 +66,7 @@ pub struct SyncRange {
 
 impl SyncLockFile {
     /// Create a new lock file
-    #[must_use] 
+    #[must_use]
     pub fn new(status: &str, sync_range: Option<SyncRange>) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -154,7 +154,7 @@ pub struct SyncLockManager {
 
 impl SyncLockManager {
     /// Create a new lock manager
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             lock_file_path: "snaprag.lock".to_string(),
@@ -254,9 +254,8 @@ impl SyncLockManager {
         let content = fs::read_to_string(&self.lock_file_path)
             .map_err(|e| crate::SnapRagError::Custom(format!("Failed to read lock file: {e}")))?;
 
-        let lock: SyncLockFile = serde_json::from_str(&content).map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to parse lock file: {e}"))
-        })?;
+        let lock: SyncLockFile = serde_json::from_str(&content)
+            .map_err(|e| crate::SnapRagError::Custom(format!("Failed to parse lock file: {e}")))?;
 
         Ok(lock)
     }
@@ -307,9 +306,8 @@ impl SyncLockManager {
             crate::SnapRagError::Custom(format!("Failed to serialize lock file: {e}"))
         })?;
 
-        fs::write(&self.lock_file_path, content).map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to write lock file: {e}"))
-        })?;
+        fs::write(&self.lock_file_path, content)
+            .map_err(|e| crate::SnapRagError::Custom(format!("Failed to write lock file: {e}")))?;
 
         Ok(())
     }
@@ -332,7 +330,7 @@ impl SyncLockManager {
     }
 
     /// Check if lock file exists
-    #[must_use] 
+    #[must_use]
     pub fn lock_exists(&self) -> bool {
         Path::new(&self.lock_file_path).exists()
     }
@@ -344,7 +342,7 @@ impl SyncLockManager {
     }
 
     /// Get lock file path
-    #[must_use] 
+    #[must_use]
     pub fn lock_file_path(&self) -> &str {
         &self.lock_file_path
     }

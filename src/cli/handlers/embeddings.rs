@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::{print_info, print_success};
+use crate::cli::output::print_info;
+use crate::cli::output::print_success;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -166,9 +167,10 @@ pub async fn handle_embeddings_generate(config: &AppConfig, fid: i64, verbose: b
     };
 
     let profiles = database.list_user_profiles(profile_query).await?;
-    let profile = profiles.into_iter().next().ok_or_else(|| {
-        crate::SnapRagError::Custom(format!("Profile not found for FID: {fid}"))
-    })?;
+    let profile = profiles
+        .into_iter()
+        .next()
+        .ok_or_else(|| crate::SnapRagError::Custom(format!("Profile not found for FID: {fid}")))?;
 
     println!(
         "✅ Found profile: @{}",
@@ -304,11 +306,12 @@ pub async fn handle_embeddings_stats(config: &AppConfig) -> Result<()> {
     .await?
     .try_get("count")?;
 
-    let with_bio_emb: i64 =
-        sqlx::query("SELECT COUNT(*) as count FROM profile_embeddings WHERE bio_embedding IS NOT NULL")
-            .fetch_one(database.pool())
-            .await?
-            .try_get("count")?;
+    let with_bio_emb: i64 = sqlx::query(
+        "SELECT COUNT(*) as count FROM profile_embeddings WHERE bio_embedding IS NOT NULL",
+    )
+    .fetch_one(database.pool())
+    .await?
+    .try_get("count")?;
 
     let with_interests_emb: i64 = sqlx::query(
         "SELECT COUNT(*) as count FROM profile_embeddings WHERE interests_embedding IS NOT NULL",

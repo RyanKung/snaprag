@@ -43,7 +43,7 @@ impl Default for SyncConfig {
 
 impl SyncConfig {
     /// Create `SyncConfig` from `AppConfig`
-    #[must_use] 
+    #[must_use]
     pub fn from_app_config(app_config: &crate::AppConfig) -> Self {
         Self {
             snapchain_http_endpoint: app_config.snapchain_http_endpoint().to_string(),
@@ -106,7 +106,7 @@ impl Default for SyncState {
 
 impl SyncState {
     /// Create a new sync state
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

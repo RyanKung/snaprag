@@ -21,7 +21,7 @@ impl PromptTemplate {
     }
 
     /// Fill in the template with variables
-    #[must_use] 
+    #[must_use]
     pub fn render(&self, values: &HashMap<String, String>) -> String {
         let mut result = self.template.clone();
         for var in &self.variables {
@@ -33,7 +33,7 @@ impl PromptTemplate {
     }
 
     /// Get required variables
-    #[must_use] 
+    #[must_use]
     pub fn variables(&self) -> &[String] {
         &self.variables
     }
@@ -45,26 +45,25 @@ fn extract_variables(template: &str) -> Vec<String> {
     let mut chars = template.chars().peekable();
 
     while let Some(c) = chars.next() {
-        if c == '{'
-            && chars.peek() == Some(&'{') {
-                chars.next(); // skip second '{'
-                let mut var_name = String::new();
-                while let Some(&ch) = chars.peek() {
-                    if ch == '}' {
+        if c == '{' && chars.peek() == Some(&'{') {
+            chars.next(); // skip second '{'
+            let mut var_name = String::new();
+            while let Some(&ch) = chars.peek() {
+                if ch == '}' {
+                    chars.next();
+                    if chars.peek() == Some(&'}') {
                         chars.next();
-                        if chars.peek() == Some(&'}') {
-                            chars.next();
-                            break;
-                        }
-                    } else {
-                        var_name.push(ch);
-                        chars.next();
+                        break;
                     }
-                }
-                if !var_name.is_empty() && !variables.contains(&var_name) {
-                    variables.push(var_name);
+                } else {
+                    var_name.push(ch);
+                    chars.next();
                 }
             }
+            if !var_name.is_empty() && !variables.contains(&var_name) {
+                variables.push(var_name);
+            }
+        }
     }
 
     variables
@@ -75,7 +74,7 @@ pub struct RagPrompts;
 
 impl RagPrompts {
     /// Profile search prompt
-    #[must_use] 
+    #[must_use]
     pub fn profile_search() -> PromptTemplate {
         PromptTemplate::new(
             r"You are helping search for Farcaster user profiles. 
@@ -91,7 +90,7 @@ Please provide a summary of the most relevant profiles and explain why they matc
     }
 
     /// Context-based QA prompt
-    #[must_use] 
+    #[must_use]
     pub fn context_qa() -> PromptTemplate {
         PromptTemplate::new(
             r"You are an expert on the Farcaster protocol and its community.
@@ -106,7 +105,7 @@ Please provide a detailed and accurate answer based on the context above. If the
     }
 
     /// Profile summary prompt
-    #[must_use] 
+    #[must_use]
     pub fn profile_summary() -> PromptTemplate {
         PromptTemplate::new(
             r"Generate a comprehensive summary of the following Farcaster user profile:
@@ -127,7 +126,7 @@ Please provide:
     }
 
     /// Semantic search query enhancement
-    #[must_use] 
+    #[must_use]
     pub fn query_enhancement() -> PromptTemplate {
         PromptTemplate::new(
             r"Enhance the following search query to improve semantic matching:

@@ -89,7 +89,7 @@ pub struct SocialGraphAnalyzer {
 
 impl SocialGraphAnalyzer {
     /// Create a new social graph analyzer
-    #[must_use] 
+    #[must_use]
     pub const fn new(database: Arc<Database>) -> Self {
         Self {
             database,
@@ -229,7 +229,7 @@ impl SocialGraphAnalyzer {
         .bind(fid)
         .fetch_one(self.database.pool())
         .await?;
-        
+
         Ok(count as usize)
     }
 
@@ -288,7 +288,7 @@ impl SocialGraphAnalyzer {
         .bind(fid)
         .fetch_one(self.database.pool())
         .await?;
-        
+
         Ok(count as usize)
     }
 
@@ -608,7 +608,7 @@ impl SocialGraphAnalyzer {
             WHERE fid = $1 AND mentions IS NOT NULL
             ORDER BY timestamp DESC
             LIMIT 100
-            "#
+            "#,
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -832,12 +832,12 @@ impl SocialGraphAnalyzer {
                 COUNT(*) FILTER (WHERE mentions IS NOT NULL) as mentions
             FROM casts 
             WHERE fid = $1
-            "
+            ",
         )
         .bind(fid)
         .fetch_one(self.database.pool())
         .await?;
-        
+
         let (total_casts, reply_count, mention_count) = counts;
 
         let reply_frequency = if total_casts > 0 {
@@ -932,7 +932,7 @@ impl SocialGraphAnalyzer {
     }
 
     /// Format social profile as a human-readable string for LLM context
-    #[must_use] 
+    #[must_use]
     pub fn format_for_llm(&self, profile: &SocialProfile) -> String {
         let mut output = String::new();
 

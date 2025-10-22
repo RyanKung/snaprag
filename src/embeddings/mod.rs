@@ -55,7 +55,7 @@ pub struct EmbeddingConfig {
 
 impl EmbeddingConfig {
     /// Create from app config using default LLM endpoint
-    #[must_use] 
+    #[must_use]
     pub fn from_app_config(config: &crate::config::AppConfig) -> Self {
         // Determine provider based on llm_key or endpoint
         // Priority: llm_key > endpoint domain
@@ -87,7 +87,7 @@ impl EmbeddingConfig {
     }
 
     /// Create from a specific endpoint configuration
-    #[must_use] 
+    #[must_use]
     pub fn from_endpoint(
         config: &crate::config::AppConfig,
         endpoint_config: &crate::config::EmbeddingEndpoint,

@@ -13,7 +13,7 @@ pub struct Spinner {
 }
 
 impl Spinner {
-    #[must_use] 
+    #[must_use]
     pub fn new(message: &str) -> Self {
         Self {
             message: message.to_string(),
@@ -161,7 +161,7 @@ pub async fn find_relevant_casts(
 }
 
 /// Analyze user's writing style from their casts
-#[must_use] 
+#[must_use]
 pub fn analyze_writing_style(casts: &[crate::models::CastSearchResult]) -> String {
     if casts.is_empty() {
         return "casual and friendly".to_string();
@@ -370,17 +370,11 @@ fn analyze_link_sharing(casts: &[crate::models::CastSearchResult]) -> String {
     let link_frequency = casts_with_links as f32 / casts.len() as f32;
 
     let mut result = if link_frequency > 0.5 {
-        format!(
-            "⛓️ FREQUENT link sharer ({total_links} links in {casts_with_links} posts)"
-        )
+        format!("⛓️ FREQUENT link sharer ({total_links} links in {casts_with_links} posts)")
     } else if link_frequency > 0.2 {
-        format!(
-            "🔗 Occasional link sharer ({total_links} links in {casts_with_links} posts)"
-        )
+        format!("🔗 Occasional link sharer ({total_links} links in {casts_with_links} posts)")
     } else {
-        format!(
-            "Rarely shares links ({total_links} in {casts_with_links} posts)"
-        )
+        format!("Rarely shares links ({total_links} in {casts_with_links} posts)")
     };
 
     // Add top domains and categorize them

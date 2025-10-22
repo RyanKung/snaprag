@@ -1,8 +1,6 @@
-/// `UserDataAdd` message handler
-
-use crate::Result;
-
 use super::super::types::BatchedData;
+/// `UserDataAdd` message handler
+use crate::Result;
 
 /// Handle `UserDataAdd` message (type 11) - all 13 profile field types
 pub(super) fn handle_user_data_add(
@@ -54,4 +52,3 @@ pub(super) fn handle_user_data_add(
         }
     }
 }
-

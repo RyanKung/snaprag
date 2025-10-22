@@ -1,7 +1,15 @@
 //! Data query handlers (list, search, activity)
 
 use crate::cli::commands::DataType;
-use crate::cli::output::{print_list_header, print_fid_list, print_profile_list, print_cast_list, print_link_list, print_user_data_list, print_info, print_warning, print_error};
+use crate::cli::output::print_cast_list;
+use crate::cli::output::print_error;
+use crate::cli::output::print_fid_list;
+use crate::cli::output::print_info;
+use crate::cli::output::print_link_list;
+use crate::cli::output::print_list_header;
+use crate::cli::output::print_profile_list;
+use crate::cli::output::print_user_data_list;
+use crate::cli::output::print_warning;
 use crate::Result;
 use crate::SnapRag;
 
@@ -362,7 +370,10 @@ pub async fn handle_activity_command(
 
         // Format timestamp
         let timestamp_str = if activity.timestamp > 0 {
-            chrono::DateTime::from_timestamp(activity.timestamp, 0).map_or_else(|| activity.timestamp.to_string(), |dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+            chrono::DateTime::from_timestamp(activity.timestamp, 0).map_or_else(
+                || activity.timestamp.to_string(),
+                |dt| dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            )
         } else {
             "N/A".to_string()
         };

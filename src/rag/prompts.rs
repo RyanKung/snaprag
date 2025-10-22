@@ -1,7 +1,7 @@
 //! Enhanced prompts for RAG queries
 
 /// Build profile RAG prompt
-#[must_use] 
+#[must_use]
 pub fn build_profile_rag_prompt(question: &str, context: &str) -> String {
     format!(
         r"You are an expert assistant helping users discover and learn about Farcaster protocol users.
@@ -24,7 +24,7 @@ Answer:"
 }
 
 /// Build cast RAG prompt
-#[must_use] 
+#[must_use]
 pub fn build_cast_rag_prompt(question: &str, context: &str) -> String {
     format!(
         r#"You are an expert Farcaster analyst helping users understand discussions, trends, and community sentiment.
@@ -49,7 +49,7 @@ Answer:"#
 }
 
 /// Build trend analysis prompt
-#[must_use] 
+#[must_use]
 pub fn build_trend_analysis_prompt(casts: &str, time_period: &str) -> String {
     format!(
         r"You are a Farcaster trends analyst. Analyze the following casts from {time_period} and identify key trends.
@@ -72,7 +72,7 @@ Trend Analysis:"
 }
 
 /// Build user profiling prompt
-#[must_use] 
+#[must_use]
 pub fn build_user_profiling_prompt(username: &str, bio: &str, recent_casts: &str) -> String {
     format!(
         r"You are an expert at understanding user personas and community behavior.
@@ -99,7 +99,7 @@ Profile Analysis:"
 }
 
 /// Build content summarization prompt
-#[must_use] 
+#[must_use]
 pub fn build_summary_prompt(content: &str, max_length: usize) -> String {
     format!(
         r"Summarize the following Farcaster content concisely.
@@ -118,7 +118,7 @@ Summary:"
 }
 
 /// Build thread context prompt
-#[must_use] 
+#[must_use]
 pub fn build_thread_context_prompt(thread: &str) -> String {
     format!(
         r"You are analyzing a Farcaster conversation thread.
@@ -138,7 +138,7 @@ Thread Analysis:"
 }
 
 /// Build comparative analysis prompt
-#[must_use] 
+#[must_use]
 pub fn build_comparison_prompt(item1: &str, item2: &str, comparison_type: &str) -> String {
     format!(
         r"Compare and contrast the following two {comparison_type}:

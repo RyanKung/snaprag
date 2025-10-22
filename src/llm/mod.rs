@@ -48,7 +48,7 @@ pub struct LlmConfig {
 }
 
 impl LlmConfig {
-    #[must_use] 
+    #[must_use]
     pub fn from_app_config(config: &crate::config::AppConfig) -> Self {
         // Determine provider based on endpoint
         let provider = if config.llm_endpoint().contains("api.openai.com") {
@@ -153,13 +153,13 @@ impl LlmService {
     }
 
     /// Get the model name
-    #[must_use] 
+    #[must_use]
     pub fn model(&self) -> &str {
         &self.config.model
     }
 
     /// Get the provider
-    #[must_use] 
+    #[must_use]
     pub const fn provider(&self) -> LlmProvider {
         self.config.provider
     }

@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::{print_statistics, print_success, print_info, print_config};
+use crate::cli::output::print_config;
+use crate::cli::output::print_info;
+use crate::cli::output::print_statistics;
+use crate::cli::output::print_success;
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -34,9 +37,10 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
     // For small tables (user_profiles), use exact COUNT for accuracy
     // For large tables (casts, activities), use PostgreSQL statistics for speed
-    let total_profiles: i64 = sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
-        .fetch_one(pool)
-        .await?;
+    let total_profiles: i64 =
+        sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
+            .fetch_one(pool)
+            .await?;
 
     // Use pg_class.reltuples for large tables (instant vs minutes for COUNT)
     let large_table_stats: Vec<(String, i64)> = sqlx::query_as(
@@ -49,7 +53,9 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
     let mut total_casts = 0i64;
 
     for (table, count) in large_table_stats {
-        if table.as_str() == "casts" { total_casts = count }
+        if table.as_str() == "casts" {
+            total_casts = count
+        }
     }
 
     // Get profiles with username (fast partial index count)
@@ -71,11 +77,10 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
         .await?;
 
     // Latest activity from casts table
-    let latest_timestamp: Option<i64> = sqlx::query_scalar(
-        "SELECT timestamp FROM casts ORDER BY timestamp DESC LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await?;
+    let latest_timestamp: Option<i64> =
+        sqlx::query_scalar("SELECT timestamp FROM casts ORDER BY timestamp DESC LIMIT 1")
+            .fetch_optional(pool)
+            .await?;
 
     // Display results
     println!("📈 Database Statistics:");
@@ -129,24 +134,32 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
             match crate::sync::client::SnapchainClient::new(
                 &snaprag.config.sync.snapchain_http_endpoint,
                 &snaprag.config.sync.snapchain_grpc_endpoint,
-            ).await {
-                Ok(client) => {
-                    match client.get_info().await {
-                        Ok(info) => {
-                            tracing::info!("✅ Connected to Snapchain: {} shards", info.shard_infos.len());
-                            info.shard_infos.iter()
-                                .map(|s| {
-                                    tracing::debug!("Shard {}: maxHeight = {}", s.shard_id, s.max_height);
-                                    (s.shard_id, s.max_height)
-                                })
-                                .collect()
-                        }
-                        Err(e) => {
-                            tracing::warn!("⚠️  Could not get Snapchain info: {}", e);
-                            std::collections::HashMap::new()
-                        }
+            )
+            .await
+            {
+                Ok(client) => match client.get_info().await {
+                    Ok(info) => {
+                        tracing::info!(
+                            "✅ Connected to Snapchain: {} shards",
+                            info.shard_infos.len()
+                        );
+                        info.shard_infos
+                            .iter()
+                            .map(|s| {
+                                tracing::debug!(
+                                    "Shard {}: maxHeight = {}",
+                                    s.shard_id,
+                                    s.max_height
+                                );
+                                (s.shard_id, s.max_height)
+                            })
+                            .collect()
                     }
-                }
+                    Err(e) => {
+                        tracing::warn!("⚠️  Could not get Snapchain info: {}", e);
+                        std::collections::HashMap::new()
+                    }
+                },
                 Err(e) => {
                     tracing::warn!("⚠️  Could not create Snapchain client: {}", e);
                     std::collections::HashMap::new()
@@ -173,18 +186,19 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
             };
 
             // Get max height for this shard and calculate progress
-            let progress_info = if let Some(&max_height) = shard_max_heights.get(&(*shard_id as u32)) {
-                has_max_heights = true;
-                total_max_height += max_height;
-                let progress_pct = if max_height > 0 {
-                    (*height as f64 / max_height as f64 * 100.0).min(100.0)
+            let progress_info =
+                if let Some(&max_height) = shard_max_heights.get(&(*shard_id as u32)) {
+                    has_max_heights = true;
+                    total_max_height += max_height;
+                    let progress_pct = if max_height > 0 {
+                        (*height as f64 / max_height as f64 * 100.0).min(100.0)
+                    } else {
+                        0.0
+                    };
+                    format!(" [{progress_pct:.1}%]")
                 } else {
-                    0.0
+                    String::new()
                 };
-                format!(" [{progress_pct:.1}%]")
-            } else {
-                String::new()
-            };
 
             println!(
                 "  Shard {}: {} ({}) - {}{}",
@@ -198,61 +212,71 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
         // Calculate overall progress and ETA
         let avg_height = total_height / sync_info.len() as i64;
-        
+
         if has_max_heights && total_max_height > 0 {
             let avg_max_height = total_max_height / sync_info.len() as u64;
             let overall_progress = (avg_height as f64 / avg_max_height as f64 * 100.0).min(100.0);
-            
-            println!("  Avg Height: {} / {} ({:.1}%)", 
+
+            println!(
+                "  Avg Height: {} / {} ({:.1}%)",
                 format_number(avg_height),
                 format_number(avg_max_height as i64),
                 overall_progress
             );
 
             // Calculate ETA based on actual sync speed from database
-            if overall_progress < 99.9 && sync_info.iter().any(|(_, _, status, _)| status == "syncing") {
+            if overall_progress < 99.9
+                && sync_info
+                    .iter()
+                    .any(|(_, _, status, _)| status == "syncing")
+            {
                 let remaining_blocks = avg_max_height as i64 - avg_height;
-                
+
                 // Check how long sync has been running
-                let oldest_update = sync_info.iter()
+                let oldest_update = sync_info
+                    .iter()
                     .map(|(_, _, _, updated_at)| updated_at)
                     .min()
                     .copied();
-                
+
                 let sync_duration_secs = if let Some(start_time) = oldest_update {
-                    chrono::Utc::now().signed_duration_since(start_time).num_seconds()
+                    chrono::Utc::now()
+                        .signed_duration_since(start_time)
+                        .num_seconds()
                 } else {
                     0
                 };
-                
+
                 // Only calculate real-time ETA if syncing for at least 60 seconds
                 let use_realtime_calculation = sync_duration_secs >= 60;
-                
+
                 // Get historical progress to calculate actual speed
-                let historical_progress: std::result::Result<Vec<(i32, i64)>, sqlx::Error> = if use_realtime_calculation {
-                    // Query progress from 2-5 minutes ago (adaptive based on duration)
-                    let lookback_minutes = if sync_duration_secs < 300 { 1 } else { 5 };
-                    let lookback_time = chrono::Utc::now() - chrono::Duration::minutes(lookback_minutes);
-                    
-                    sqlx::query_as(
-                        "SELECT shard_id, last_processed_height 
+                let historical_progress: std::result::Result<Vec<(i32, i64)>, sqlx::Error> =
+                    if use_realtime_calculation {
+                        // Query progress from 2-5 minutes ago (adaptive based on duration)
+                        let lookback_minutes = if sync_duration_secs < 300 { 1 } else { 5 };
+                        let lookback_time =
+                            chrono::Utc::now() - chrono::Duration::minutes(lookback_minutes);
+
+                        sqlx::query_as(
+                            "SELECT shard_id, last_processed_height 
                          FROM sync_progress 
-                         WHERE updated_at < $1"
-                    )
-                    .bind(lookback_time)
-                    .fetch_all(snaprag.database.pool())
-                    .await
-                } else {
-                    Err(sqlx::Error::RowNotFound) // Skip calculation
-                };
-                
+                         WHERE updated_at < $1",
+                        )
+                        .bind(lookback_time)
+                        .fetch_all(snaprag.database.pool())
+                        .await
+                    } else {
+                        Err(sqlx::Error::RowNotFound) // Skip calculation
+                    };
+
                 // Try to calculate based on actual speed
                 let eta_str = if let Ok(hist) = historical_progress {
                     if hist.is_empty() {
                         // No historical data, use fixed estimate
                         let estimated_blocks_per_min = 500.0;
                         let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
-                        
+
                         if estimated_minutes < 60.0 {
                             format!("~{estimated_minutes:.0} minutes (estimated)")
                         } else if estimated_minutes < 1440.0 {
@@ -261,16 +285,17 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                             format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
                         }
                     } else {
-                        let hist_avg: i64 = hist.iter().map(|(_, h)| h).sum::<i64>() / hist.len() as i64;
+                        let hist_avg: i64 =
+                            hist.iter().map(|(_, h)| h).sum::<i64>() / hist.len() as i64;
                         let blocks_in_5min = avg_height - hist_avg;
-                        
+
                         if blocks_in_5min > 0 {
                             // Calculate blocks per minute from actual data
                             let blocks_per_min = blocks_in_5min as f64 / 5.0;
                             let estimated_minutes = remaining_blocks as f64 / blocks_per_min;
-                            
+
                             let speed_info = format!(" @ {blocks_per_min:.0} blocks/min");
-                            
+
                             if estimated_minutes < 60.0 {
                                 format!("~{estimated_minutes:.0} minutes{speed_info}")
                             } else if estimated_minutes < 1440.0 {
@@ -281,8 +306,9 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                         } else {
                             // Fallback to fixed estimate if no progress detected
                             let estimated_blocks_per_min = 500.0;
-                            let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
-                            
+                            let estimated_minutes =
+                                remaining_blocks as f64 / estimated_blocks_per_min;
+
                             if estimated_minutes < 60.0 {
                                 format!("~{estimated_minutes:.0} minutes (estimated)")
                             } else if estimated_minutes < 1440.0 {
@@ -296,7 +322,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                     // Query failed, use fixed estimate
                     let estimated_blocks_per_min = 500.0;
                     let estimated_minutes = remaining_blocks as f64 / estimated_blocks_per_min;
-                    
+
                     if estimated_minutes < 60.0 {
                         format!("~{estimated_minutes:.0} minutes (estimated)")
                     } else if estimated_minutes < 1440.0 {
@@ -305,13 +331,13 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
                         format!("~{:.1} days (estimated)", estimated_minutes / 1440.0)
                     }
                 };
-                
+
                 println!("  ETA: {eta_str}");
             }
         } else {
             println!("  Avg Height: {}", format_number(avg_height));
         }
-        
+
         println!();
     }
 

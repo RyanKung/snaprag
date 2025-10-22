@@ -266,7 +266,11 @@ async fn scan_message_types() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     let config = AppConfig::load()?;
-    let client = SnapchainClient::new(&config.sync.snapchain_http_endpoint, &config.sync.snapchain_grpc_endpoint).await?;
+    let client = SnapchainClient::new(
+        &config.sync.snapchain_http_endpoint,
+        &config.sync.snapchain_grpc_endpoint,
+    )
+    .await?;
 
     println!("\n🔍 Scanning for Message Type Distribution");
     println!("==========================================\n");
@@ -456,7 +460,11 @@ async fn scan_for_system_messages() -> Result<()> {
     println!("================================================\n");
 
     let config = AppConfig::load()?;
-    let client = SnapchainClient::new(&config.sync.snapchain_http_endpoint, &config.sync.snapchain_grpc_endpoint).await?;
+    let client = SnapchainClient::new(
+        &config.sync.snapchain_http_endpoint,
+        &config.sync.snapchain_grpc_endpoint,
+    )
+    .await?;
 
     // Focus on early blocks where FID registration happens
     let scan_ranges = vec![
@@ -599,7 +607,11 @@ async fn scan_latest_blocks() -> Result<()> {
     println!("Target: UsernameProof(12), FrameAction(13), LinkCompactState(14), LendStorage(15)\n");
 
     let config = AppConfig::load()?;
-    let client = SnapchainClient::new(&config.sync.snapchain_http_endpoint, &config.sync.snapchain_grpc_endpoint).await?;
+    let client = SnapchainClient::new(
+        &config.sync.snapchain_http_endpoint,
+        &config.sync.snapchain_grpc_endpoint,
+    )
+    .await?;
 
     let scan_ranges = vec![
         ("Recent 18M-19M", 18_000_000, 19_000_000, 5000),
@@ -681,7 +693,11 @@ async fn test_deterministic_block_contents() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     let config = AppConfig::load()?;
-    let client = SnapchainClient::new(&config.sync.snapchain_http_endpoint, &config.sync.snapchain_grpc_endpoint).await?;
+    let client = SnapchainClient::new(
+        &config.sync.snapchain_http_endpoint,
+        &config.sync.snapchain_grpc_endpoint,
+    )
+    .await?;
 
     let registry = DeterministicBlockRegistry::new();
 
@@ -866,7 +882,11 @@ async fn test_comprehensive_deterministic() -> Result<()> {
 /// Internal helper for block content validation
 async fn validate_block_contents_internal() -> Result<()> {
     let config = AppConfig::load()?;
-    let client = SnapchainClient::new(&config.sync.snapchain_http_endpoint, &config.sync.snapchain_grpc_endpoint).await?;
+    let client = SnapchainClient::new(
+        &config.sync.snapchain_http_endpoint,
+        &config.sync.snapchain_grpc_endpoint,
+    )
+    .await?;
 
     let registry = DeterministicBlockRegistry::new();
 
@@ -932,7 +952,11 @@ async fn process_and_verify_internal() -> Result<()> {
         println!("  🔄 Processing block {}...", det_block.block_number);
 
         // Get block info before processing for timestamp validation
-        let temp_client = SnapchainClient::new(&config.sync.snapchain_http_endpoint, &config.sync.snapchain_grpc_endpoint).await?;
+        let temp_client = SnapchainClient::new(
+            &config.sync.snapchain_http_endpoint,
+            &config.sync.snapchain_grpc_endpoint,
+        )
+        .await?;
         let request = proto::ShardChunksRequest {
             shard_id: det_block.shard_id,
             start_block_number: det_block.block_number,

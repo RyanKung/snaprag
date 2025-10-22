@@ -1,9 +1,7 @@
+use super::super::types::BatchedData;
 /// Verification message handlers (Add and Remove, ETH and Solana)
-
 use crate::models::ShardBlockInfo;
 use crate::Result;
-
-use super::super::types::BatchedData;
 
 /// Handle `VerificationAdd` message (type 7) - supports both ETH and Solana
 pub(super) fn handle_verification_add(
@@ -47,8 +45,8 @@ pub(super) fn handle_verification_add(
                     chain_id,
                     timestamp,
                     message_hash.to_vec(),
-                    None,  // removed_at (None for Add)
-                    None,  // removed_message_hash
+                    None, // removed_at (None for Add)
+                    None, // removed_message_hash
                     shard_block_info.clone(),
                 ));
 
@@ -63,7 +61,7 @@ pub(super) fn handle_verification_add(
         if let Some(address_str) = verification_body.get("address").and_then(|v| v.as_str()) {
             // Solana addresses are base58 encoded, store as-is
             let address = address_str.as_bytes().to_vec();
-            
+
             let claim_signature = verification_body
                 .get("claim_signature")
                 .and_then(|v| v.as_str())
@@ -79,21 +77,28 @@ pub(super) fn handle_verification_add(
                 address,
                 claim_signature,
                 block_hash,
-                Some(2), // verification_type=2 for Solana
+                Some(2),   // verification_type=2 for Solana
                 Some(900), // chain_id=900 for Solana (standard)
                 timestamp,
                 message_hash.to_vec(),
-                None,  // removed_at (None for Add)
-                None,  // removed_message_hash
+                None, // removed_at (None for Add)
+                None, // removed_message_hash
                 shard_block_info.clone(),
             ));
 
-            tracing::debug!("Collected Solana verification: FID {} verified address {}", fid, address_str);
+            tracing::debug!(
+                "Collected Solana verification: FID {} verified address {}",
+                fid,
+                address_str
+            );
         } else {
             tracing::warn!("Solana verification missing address for FID {}", fid);
         }
     } else {
-        tracing::warn!("VerificationAdd for FID {} has unknown verification body type", fid);
+        tracing::warn!(
+            "VerificationAdd for FID {} has unknown verification body type",
+            fid
+        );
     }
 }
 
@@ -108,25 +113,21 @@ pub(super) fn handle_verification_remove(
     if let Some(verification_body) = body.get("verification_remove_body") {
         if let Some(address_str) = verification_body.get("address").and_then(|v| v.as_str()) {
             // Try hex decode first (ETH address)
-            let address = hex::decode(address_str)
-                .unwrap_or_else(|_| address_str.as_bytes().to_vec());
+            let address =
+                hex::decode(address_str).unwrap_or_else(|_| address_str.as_bytes().to_vec());
 
-            batched.verification_removes.push((
-                fid,
-                address,
-                timestamp,
-                message_hash.to_vec(),
-            ));
+            batched
+                .verification_removes
+                .push((fid, address, timestamp, message_hash.to_vec()));
 
-            tracing::debug!(
-                "Collected verification remove: FID {} removed address",
-                fid
-            );
+            tracing::debug!("Collected verification remove: FID {} removed address", fid);
         } else {
             tracing::warn!("VerificationRemove for FID {} missing address", fid);
         }
     } else {
-        tracing::warn!("VerificationRemove for FID {} has no verification_remove_body", fid);
+        tracing::warn!(
+            "VerificationRemove for FID {} has no verification_remove_body",
+            fid
+        );
     }
 }
-

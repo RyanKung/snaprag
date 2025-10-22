@@ -13,7 +13,7 @@ const MAX_PARAMS: usize = 65000;
 // Batch sizes for different entity types
 const PROFILE_PARAMS_PER_ROW: usize = 5; // fid, field_name, field_value, timestamp, message_hash
 const ONCHAIN_PARAMS_PER_ROW: usize = 9; // fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data
-const USERNAME_PARAMS_PER_ROW: usize = 6; // fid, username, owner_address, signature, username_type, timestamp
+const USERNAME_PARAMS_PER_ROW: usize = 10; // fid, username, username_type, owner, signature, timestamp, message_hash, shard_id, block_height, transaction_fid
 const FRAME_PARAMS_PER_ROW: usize = 13; // fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_id, block_height, transaction_fid
 
 const PROFILE_CHUNK_SIZE: usize = MAX_PARAMS / PROFILE_PARAMS_PER_ROW;
@@ -70,7 +70,11 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
                     "(${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5
                 ));
             }
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
@@ -140,8 +144,16 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5,
-                    base + 6, base + 7, base + 8, base + 9, base + 10
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5,
+                    base + 6,
+                    base + 7,
+                    base + 8,
+                    base + 9,
+                    base + 10
                 ));
             }
 
@@ -151,8 +163,17 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions, shard_block_info) in
-                chunk
+            for (
+                fid,
+                text,
+                timestamp,
+                message_hash,
+                parent_hash,
+                root_hash,
+                embeds,
+                mentions,
+                shard_block_info,
+            ) in chunk
             {
                 q = q
                     .bind(fid)
@@ -193,15 +214,32 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4,
-                    base + 5, base + 6, base + 7, base + 8, base + 9
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5,
+                    base + 6,
+                    base + 7,
+                    base + 8,
+                    base + 9
                 ));
             }
 
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, target_fid, link_type, timestamp, message_hash, removed_at, removed_message_hash, shard_block_info) in chunk {
+            for (
+                fid,
+                target_fid,
+                link_type,
+                timestamp,
+                message_hash,
+                removed_at,
+                removed_message_hash,
+                shard_block_info,
+            ) in chunk
+            {
                 q = q
                     .bind(fid)
                     .bind(target_fid)
@@ -240,8 +278,17 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5,
-                    base + 6, base + 7, base + 8, base + 9, base + 10, base + 11
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5,
+                    base + 6,
+                    base + 7,
+                    base + 8,
+                    base + 9,
+                    base + 10,
+                    base + 11
                 ));
             }
 
@@ -304,8 +351,19 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5, base + 6,
-                    base + 7, base + 8, base + 9, base + 10, base + 11, base + 12, base + 13
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5,
+                    base + 6,
+                    base + 7,
+                    base + 8,
+                    base + 9,
+                    base + 10,
+                    base + 11,
+                    base + 12,
+                    base + 13
                 ));
             }
 
@@ -378,7 +436,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 original_count - deduped_count
             );
         }
-        
+
         for chunk in updates_list.chunks(PROFILE_CHUNK_SIZE) {
             let estimated_size = 200 + chunk.len() * 50;
             let mut query = String::with_capacity(estimated_size);
@@ -392,10 +450,15 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 write!(
                     &mut query,
                     "(${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5
-                ).expect("write! to String should not fail");
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5
+                )
+                .expect("write! to String should not fail");
             }
-            
+
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
@@ -453,15 +516,34 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 write!(
                     &mut query,
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5,
-                    base + 6, base + 7, base + 8, base + 9
-                ).expect("write! to String should not fail");
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5,
+                    base + 6,
+                    base + 7,
+                    base + 8,
+                    base + 9
+                )
+                .expect("write! to String should not fail");
             }
 
             query.push_str(" ON CONFLICT (transaction_hash, log_index) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data) in chunk {
+            for (
+                fid,
+                event_type,
+                chain_id,
+                block_number,
+                block_hash,
+                block_timestamp,
+                tx_hash,
+                log_index,
+                event_data,
+            ) in chunk
+            {
                 q = q
                     .bind(fid)
                     .bind(event_type)
@@ -482,27 +564,40 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     // Soft delete is recorded by inserting a new row with removed_at timestamp
     // This follows event-sourcing principles and avoids UPDATE locks entirely
     if !batched.link_removes.is_empty() {
-        tracing::debug!("🔗❌ Skipping {} link removes (handled as INSERT events in link handler)", batched.link_removes.len());
+        tracing::debug!(
+            "🔗❌ Skipping {} link removes (handled as INSERT events in link handler)",
+            batched.link_removes.len()
+        );
     }
 
     // 🚀 REMOVED: Reaction removes now handled as INSERT events (append-only mode)
     if !batched.reaction_removes.is_empty() {
-        tracing::debug!("❤️❌ Skipping {} reaction removes (handled as INSERT events)", batched.reaction_removes.len());
+        tracing::debug!(
+            "❤️❌ Skipping {} reaction removes (handled as INSERT events)",
+            batched.reaction_removes.len()
+        );
     }
 
     // 🚀 REMOVED: Verification removes now handled as INSERT events (append-only mode)
     if !batched.verification_removes.is_empty() {
-        tracing::debug!("✅❌ Skipping {} verification removes (handled as INSERT events)", batched.verification_removes.len());
+        tracing::debug!(
+            "✅❌ Skipping {} verification removes (handled as INSERT events)",
+            batched.verification_removes.len()
+        );
     }
 
     // Batch insert username proofs
     if !batched.username_proofs.is_empty() {
-        tracing::info!("👤 Batch inserting {} username proofs", batched.username_proofs.len());
+        tracing::info!(
+            "👤 Batch inserting {} username proofs",
+            batched.username_proofs.len()
+        );
 
         for chunk in batched.username_proofs.chunks(USERNAME_CHUNK_SIZE) {
-            let estimated_size = 300 + chunk.len() * 80;
+            let estimated_size = 350 + chunk.len() * 100;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO username_proofs (fid, username, owner_address, signature, username_type, timestamp) VALUES ");
+            // 🎯 Full schema with all tracking columns
+            query.push_str("INSERT INTO username_proofs (fid, username, username_type, owner, signature, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
 
             for i in 0..chunk.len() {
                 if i > 0 {
@@ -511,26 +606,47 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 let base = i * USERNAME_PARAMS_PER_ROW;
                 write!(
                     &mut query,
-                    "(${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5, base + 6
-                ).expect("write! to String should not fail");
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5,
+                    base + 6,
+                    base + 7,
+                    base + 8,
+                    base + 9,
+                    base + 10
+                )
+                .expect("write! to String should not fail");
             }
 
-            // 🚀 Pure INSERT mode - no UPDATE operations allowed
-            // If username changes, new row will be inserted (event-sourcing style)
+            // 🚀 Pure INSERT mode - match server constraint
             query.push_str(" ON CONFLICT (fid, username_type) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, username, owner, signature, username_type, timestamp, _message_hash, _shard_block_info) in chunk {
-                // Convert owner from Vec<u8> to hex string for VARCHAR(42) column
-                let owner_hex = format!("0x{}", hex::encode(owner));
+            for (
+                fid,
+                username,
+                owner,
+                signature,
+                username_type,
+                timestamp,
+                message_hash,
+                shard_block_info,
+            ) in chunk
+            {
                 q = q
                     .bind(fid)
                     .bind(username)
-                    .bind(owner_hex)
-                    .bind(signature)
                     .bind(username_type)
-                    .bind(timestamp);
+                    .bind(owner) // owner is BYTEA, no conversion needed
+                    .bind(signature)
+                    .bind(timestamp)
+                    .bind(message_hash)
+                    .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
             }
 
             q.execute(&mut *tx).await?;
@@ -539,7 +655,10 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
 
     // Batch insert frame actions
     if !batched.frame_actions.is_empty() {
-        tracing::info!("🖼️  Batch inserting {} frame actions", batched.frame_actions.len());
+        tracing::info!(
+            "🖼️  Batch inserting {} frame actions",
+            batched.frame_actions.len()
+        );
 
         for chunk in batched.frame_actions.chunks(FRAME_CHUNK_SIZE) {
             let estimated_size = 400 + chunk.len() * 100;
@@ -554,16 +673,40 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 write!(
                     &mut query,
                     "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5,
-                    base + 6, base + 7, base + 8, base + 9, base + 10,
-                    base + 11, base + 12, base + 13
-                ).expect("write! to String should not fail");
+                    base + 1,
+                    base + 2,
+                    base + 3,
+                    base + 4,
+                    base + 5,
+                    base + 6,
+                    base + 7,
+                    base + 8,
+                    base + 9,
+                    base + 10,
+                    base + 11,
+                    base + 12,
+                    base + 13
+                )
+                .expect("write! to String should not fail");
             }
 
             query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
-            for (fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_block_info) in chunk {
+            for (
+                fid,
+                url,
+                button_index,
+                cast_hash,
+                cast_fid,
+                input_text,
+                state,
+                transaction_id,
+                timestamp,
+                message_hash,
+                shard_block_info,
+            ) in chunk
+            {
                 q = q
                     .bind(fid)
                     .bind(url)

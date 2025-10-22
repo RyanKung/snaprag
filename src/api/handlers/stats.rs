@@ -5,7 +5,8 @@ use axum::Json;
 use tracing::info;
 
 use super::AppState;
-use crate::api::types::{ApiResponse, StatsResponse};
+use crate::api::types::ApiResponse;
+use crate::api::types::StatsResponse;
 
 /// Get stats
 pub async fn get_stats(
@@ -14,10 +15,11 @@ pub async fn get_stats(
     info!("GET /api/stats");
 
     // Get basic counts
-    let total_profiles = sqlx::query_scalar::<_, i64>("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
-        .fetch_one(state.database.pool())
-        .await
-        .unwrap_or(0);
+    let total_profiles =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(DISTINCT fid) FROM user_profile_changes")
+            .fetch_one(state.database.pool())
+            .await
+            .unwrap_or(0);
 
     let total_casts = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts")
         .fetch_one(state.database.pool())

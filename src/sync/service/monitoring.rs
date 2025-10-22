@@ -69,12 +69,10 @@ impl RealtimeMonitor {
                         let stats = process_shard_chunks(&self.database, shard_id, chunks).await?;
 
                         if stats.blocks_processed > 0 {
-                            let next_height = stats
-                                .last_block_number
-                                .map_or_else(
-                                    || last_processed_height.saturating_add(stats.blocks_processed),
-                                    |block| block.saturating_add(1)
-                                );
+                            let next_height = stats.last_block_number.map_or_else(
+                                || last_processed_height.saturating_add(stats.blocks_processed),
+                                |block| block.saturating_add(1),
+                            );
 
                             {
                                 let mut sm = self.state_manager.write().await;

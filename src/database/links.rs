@@ -1,5 +1,6 @@
 use super::Database;
-use crate::models::{LinkQuery, Link};
+use crate::models::Link;
+use crate::models::LinkQuery;
 use crate::Result;
 
 impl Database {

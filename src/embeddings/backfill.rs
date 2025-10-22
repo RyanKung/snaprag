@@ -162,7 +162,7 @@ pub struct BackfillStats {
 }
 
 impl BackfillStats {
-    #[must_use] 
+    #[must_use]
     pub fn success_rate(&self) -> f64 {
         if self.total_profiles == 0 {
             0.0

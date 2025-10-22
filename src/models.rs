@@ -319,8 +319,13 @@ pub struct ShardBlockInfo {
 }
 
 impl ShardBlockInfo {
-    #[must_use] 
-    pub const fn new(shard_id: u32, block_height: u64, transaction_fid: u64, timestamp: u64) -> Self {
+    #[must_use]
+    pub const fn new(
+        shard_id: u32,
+        block_height: u64,
+        transaction_fid: u64,
+        timestamp: u64,
+    ) -> Self {
         Self {
             shard_id,
             block_height,
