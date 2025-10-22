@@ -51,19 +51,6 @@ pub(super) fn handle_user_data_add(
                 timestamp,
                 message_hash.to_vec(),
             ));
-
-            let display_value = if value.len() > 50 {
-                format!("{}...", &value[..50])
-            } else {
-                value.to_string()
-            };
-            
-            tracing::debug!(
-                "Collected profile update: FID {} field {} = {}",
-                fid,
-                field,
-                display_value
-            );
         }
     }
 }

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::{print_info, print_success, print_error};
+use crate::cli::output::{print_info, print_success, print_error, truncate_str};
 use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
@@ -51,12 +51,7 @@ pub async fn handle_fetch_user(
         println!("   Display Name: {display_name}");
     }
     if let Some(bio) = &profile.bio {
-        let bio_preview = if bio.len() > 100 {
-            format!("{}...", &bio[..100])
-        } else {
-            bio.clone()
-        };
-        println!("   Bio: {bio_preview}");
+        println!("   Bio: {}", truncate_str(bio, 100));
     }
 
     // Fetch casts if requested
@@ -76,12 +71,7 @@ pub async fn handle_fetch_user(
             println!("\n📝 Recent casts:");
             for (idx, cast) in casts.iter().take(5).enumerate() {
                 if let Some(text) = &cast.text {
-                    let preview = if text.len() > 80 {
-                        format!("{}...", &text[..80])
-                    } else {
-                        text.clone()
-                    };
-                    println!("   {}. {}", idx + 1, preview);
+                    println!("   {}. {}", idx + 1, truncate_str(text, 80));
                 }
             }
             if casts.len() > 5 {

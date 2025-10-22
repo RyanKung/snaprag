@@ -5,6 +5,26 @@
 use crate::models::{UserProfile, Cast, Link, UserData, StatisticsResult};
 use crate::AppConfig;
 
+/// Safely truncate a string at character boundary (not byte boundary)
+/// 
+/// This prevents panics when truncating strings with multi-byte UTF-8 characters (emojis, etc.)
+/// 
+/// # Arguments
+/// * `s` - The string to truncate
+/// * `max_chars` - Maximum number of characters (not bytes)
+/// 
+/// # Returns
+/// Truncated string with "..." suffix if truncated, otherwise the original string
+#[must_use]
+pub fn truncate_str(s: &str, max_chars: usize) -> String {
+    if s.chars().count() > max_chars {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{truncated}...")
+    } else {
+        s.to_string()
+    }
+}
+
 /// Print a list header
 pub fn print_list_header(data_type: &str, limit: u32) {
     println!("📋 Listing {data_type} (limit: {limit})");

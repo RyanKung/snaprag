@@ -17,7 +17,7 @@ use crate::cli::handlers::ask::output::print_wrapped;
 use crate::cli::handlers::ask::retrieval::analyze_writing_style;
 use crate::cli::handlers::ask::retrieval::find_relevant_casts;
 use crate::cli::handlers::ask::retrieval::Spinner;
-use crate::cli::output::{print_info, print_error, print_warning, print_success};
+use crate::cli::output::{print_info, print_error, print_warning, print_success, truncate_str};
 use crate::database::Database;
 use crate::embeddings::EmbeddingService;
 use crate::llm::LlmService;
@@ -122,12 +122,7 @@ async fn load_user_data(
 
     println!("   ✅ Found: {display_name} ({username})");
     if let Some(bio) = &profile.bio {
-        let bio_preview = if bio.len() > 100 {
-            format!("{}...", &bio[..100])
-        } else {
-            bio.clone()
-        };
-        println!("   📝 Bio: {bio_preview}");
+        println!("   📝 Bio: {}", truncate_str(bio, 100));
     }
     println!();
 
@@ -313,13 +308,9 @@ async fn run_interactive_chat(
         "║  Chatting with: {display_name} ({username})                      "
     );
     if let Some(bio) = &profile.bio {
-        let bio_preview = if bio.len() > 50 {
-            format!("{}...", &bio[..50])
-        } else {
-            bio.clone()
-        };
         println!(
-            "║  Bio: {bio_preview}                                     "
+            "║  Bio: {}                                     ",
+            truncate_str(bio, 50)
         );
     }
     println!("║  Commands: 'exit', 'quit', 'style' (show style), Ctrl+C      ║");
