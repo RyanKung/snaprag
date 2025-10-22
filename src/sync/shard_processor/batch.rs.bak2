@@ -73,7 +73,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     base + 1, base + 2, base + 3, base + 4, base + 5
                 ));
             }
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for fid in chunk {
@@ -148,7 +148,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             // 🚀 CRITICAL FIX: Use DO NOTHING for re-sync performance
             // Casts are immutable - if message_hash exists, no need to update
             // This prevents 166M+ unnecessary updates on re-sync
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (fid, text, timestamp, message_hash, parent_hash, root_hash, embeds, mentions, shard_block_info) in
@@ -198,7 +198,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 ));
             }
 
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (fid, target_fid, link_type, timestamp, message_hash, shard_block_info) in chunk {
@@ -244,7 +244,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             }
 
             // Only check message_hash (composite constraint will be removed in migration 007)
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (
@@ -304,7 +304,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             }
 
             // Only check message_hash (composite constraint will be removed in migration 007)
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (
@@ -386,7 +386,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 ).expect("write! to String should not fail");
             }
             
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (fid, field_name, value, timestamp, message_hash) in chunk {
@@ -448,7 +448,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 ).expect("write! to String should not fail");
             }
 
-            query.push_str(" ON CONFLICT (transaction_hash, log_index) DO NOTHING");
+            // query.push_str(" ON CONFLICT (transaction_hash, log_index) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (fid, event_type, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, event_data) in chunk {
@@ -543,7 +543,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 ).expect("write! to String should not fail");
             }
 
-            query.push_str(" ON CONFLICT (fid, username_type) DO UPDATE SET username = EXCLUDED.username, owner_address = EXCLUDED.owner_address, signature = EXCLUDED.signature, timestamp = EXCLUDED.timestamp");
+            // query.push_str(" ON CONFLICT (fid, username_type) DO UPDATE SET username = EXCLUDED.username, owner_address = EXCLUDED.owner_address, signature = EXCLUDED.signature, timestamp = EXCLUDED.timestamp");
 
             let mut q = sqlx::query(&query);
             for (fid, username, owner, signature, username_type, timestamp, _message_hash, _shard_block_info) in chunk {
@@ -585,7 +585,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 ).expect("write! to String should not fail");
             }
 
-            query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
+            // query.push_str(" ON CONFLICT (message_hash) DO NOTHING");
 
             let mut q = sqlx::query(&query);
             for (fid, url, button_index, cast_hash, cast_fid, input_text, state, transaction_id, timestamp, message_hash, shard_block_info) in chunk {
