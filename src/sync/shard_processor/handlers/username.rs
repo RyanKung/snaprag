@@ -32,7 +32,7 @@ pub(super) fn handle_username_proof(
                 let username_type = username_proof_body
                     .get("type")
                     .and_then(serde_json::Value::as_i64)
-                    .map_or(1, |v| v as i16); // Default to FNAME
+                    .map_or(1, |v| i16::try_from(v).unwrap_or(1)); // Default to FNAME
                 
                 batched.username_proofs.push((
                     fid,

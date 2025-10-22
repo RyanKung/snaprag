@@ -31,12 +31,12 @@ pub(super) fn handle_verification_add(
                 let verification_type = verification_body
                     .get("verification_type")
                     .and_then(serde_json::Value::as_i64)
-                    .map(|v| v as i16);
+                    .and_then(|v| i16::try_from(v).ok());
 
                 let chain_id = verification_body
                     .get("chain_id")
                     .and_then(serde_json::Value::as_i64)
-                    .map(|v| v as i32);
+                    .and_then(|v| i32::try_from(v).ok());
 
                 batched.verifications.push((
                     fid,

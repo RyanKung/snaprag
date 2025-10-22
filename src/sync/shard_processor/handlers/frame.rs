@@ -24,7 +24,7 @@ pub(super) fn handle_frame_action(
         let button_index = frame_action_body
             .get("button_index")
             .and_then(serde_json::Value::as_i64)
-            .map(|v| v as i32);
+            .and_then(|v| i32::try_from(v).ok());
         
         let (cast_hash, cast_fid) = if let Some(cast_id) = frame_action_body.get("cast_id") {
             let hash = cast_id

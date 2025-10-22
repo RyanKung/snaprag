@@ -669,7 +669,7 @@ impl LifecycleManager {
                             total_messages += messages;
                             completed_tasks += 1;
 
-                            if completed_tasks.is_multiple_of(100) {
+                            if completed_tasks % 100 == 0 {
                                 let progress_pct = (completed_tasks as f64 / total_tasks as f64 * 100.0).min(100.0);
                                 info!(
                                     "Shard {}: {}/{} tasks ({:.1}%), {} blocks, {} msgs total",
