@@ -103,22 +103,35 @@ pub(super) fn handle_verification_add(
 }
 
 /// Handle `VerificationRemove` message (type 8)
+/// Pure INSERT mode: Creates a new record with removed_at set
 pub(super) fn handle_verification_remove(
     body: &serde_json::Value,
     fid: i64,
     timestamp: i64,
     message_hash: &[u8],
+    shard_block_info: &ShardBlockInfo,
     batched: &mut BatchedData,
 ) {
     if let Some(verification_body) = body.get("verification_remove_body") {
         if let Some(address_str) = verification_body.get("address").and_then(|v| v.as_str()) {
-            // Try hex decode first (ETH address)
+            // Try hex decode first (ETH address), fallback to bytes (Solana)
             let address =
                 hex::decode(address_str).unwrap_or_else(|_| address_str.as_bytes().to_vec());
 
-            batched
-                .verification_removes
-                .push((fid, address, timestamp, message_hash.to_vec()));
+            // Pure INSERT mode: Insert new record with removed_at set
+            batched.verifications.push((
+                fid,
+                address,
+                None, // claim_signature (not provided in remove)
+                None, // block_hash
+                None, // verification_type (unknown for remove)
+                None, // chain_id
+                timestamp,
+                message_hash.to_vec(),
+                Some(timestamp), // removed_at - marks this as a remove event
+                Some(message_hash.to_vec()), // removed_message_hash
+                shard_block_info.clone(),
+            ));
 
             tracing::debug!("Collected verification remove: FID {} removed address", fid);
         } else {

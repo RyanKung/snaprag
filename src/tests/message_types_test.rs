@@ -574,6 +574,171 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    async fn test_reaction_remove_type_4() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+        let add_hash = test_message_hash(4001);
+        let remove_hash = test_message_hash(4002);
+
+        cleanup_by_message_hash(&db, &add_hash).await;
+        cleanup_by_message_hash(&db, &remove_hash).await;
+
+        // Add a reaction
+        let mut batched = BatchedData::new();
+        batched.reactions.push((
+            99,
+            vec![0xAA; 20], // target_cast_hash
+            Some(100),      // target_fid
+            1,              // reaction_type (like)
+            1698765432,
+            add_hash.clone(),
+            None, // removed_at
+            None, // removed_message_hash
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush");
+
+        // Remove the reaction - INSERT with removed_at set
+        let mut batched = BatchedData::new();
+        batched.reactions.push((
+            99,
+            vec![0xAA; 20],
+            Some(100),
+            1,
+            1698765500,
+            remove_hash.clone(),
+            Some(1698765500),          // removed_at
+            Some(remove_hash.clone()), // removed_message_hash
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush remove");
+
+        // 🎯 STRICT VALIDATION: Verify remove event
+        let result: (i64, Vec<u8>, Option<i64>, i16, i64, Vec<u8>, Option<i64>, Option<Vec<u8>>) = sqlx::query_as(
+            "SELECT fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, removed_at, removed_message_hash
+             FROM reactions 
+             WHERE message_hash = $1"
+        )
+            .bind(&remove_hash)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to query reaction remove");
+
+        assert_eq!(result.0, 99, "FID should match");
+        assert_eq!(result.1, vec![0xAA; 20], "Target cast hash should match");
+        assert_eq!(result.2, Some(100), "Target FID should match");
+        assert_eq!(result.3, 1, "Reaction type should match");
+        assert_eq!(result.4, 1698765500, "Remove timestamp should match");
+        assert_eq!(
+            result.5,
+            remove_hash.clone(),
+            "Remove message hash should match"
+        );
+        assert_eq!(result.6, Some(1698765500), "removed_at should be set");
+        assert_eq!(
+            result.7,
+            Some(remove_hash.clone()),
+            "removed_message_hash should be set"
+        );
+
+        cleanup_by_message_hash(&db, &add_hash).await;
+        cleanup_by_message_hash(&db, &remove_hash).await;
+
+        println!("✅ Type 4 (ReactionRemove) test passed");
+    }
+
+    #[tokio::test]
+    async fn test_verification_remove_type_8() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+        let add_hash = test_message_hash(8001);
+        let remove_hash = test_message_hash(8002);
+
+        cleanup_by_message_hash(&db, &add_hash).await;
+        cleanup_by_message_hash(&db, &remove_hash).await;
+
+        // Add a verification
+        let mut batched = BatchedData::new();
+        batched.verifications.push((
+            99,
+            vec![0xBB; 20],       // address
+            Some(vec![0xCC; 65]), // claim_signature
+            Some(vec![0xDD; 32]), // block_hash
+            Some(0),              // verification_type (EOA)
+            Some(1),              // chain_id (Ethereum)
+            1698765432,
+            add_hash.clone(),
+            None, // removed_at
+            None, // removed_message_hash
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush");
+
+        // Remove the verification - INSERT with removed_at set
+        let mut batched = BatchedData::new();
+        batched.verifications.push((
+            99,
+            vec![0xBB; 20],
+            None, // claim_signature (not provided in remove)
+            None, // block_hash
+            None, // verification_type
+            None, // chain_id
+            1698765500,
+            remove_hash.clone(),
+            Some(1698765500),          // removed_at
+            Some(remove_hash.clone()), // removed_message_hash
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush remove");
+
+        // 🎯 STRICT VALIDATION: Verify remove event
+        let result: (i64, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>, Option<i16>, Option<i32>, i64, Vec<u8>, Option<i64>, Option<Vec<u8>>) = sqlx::query_as(
+            "SELECT fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, removed_at, removed_message_hash
+             FROM verifications 
+             WHERE message_hash = $1"
+        )
+            .bind(&remove_hash)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to query verification remove");
+
+        assert_eq!(result.0, 99, "FID should match");
+        assert_eq!(result.1, vec![0xBB; 20], "Address should match");
+        assert_eq!(result.2, None, "claim_signature should be None for remove");
+        assert_eq!(result.3, None, "block_hash should be None for remove");
+        assert_eq!(
+            result.4, None,
+            "verification_type should be None for remove"
+        );
+        assert_eq!(result.5, None, "chain_id should be None for remove");
+        assert_eq!(result.6, 1698765500, "Remove timestamp should match");
+        assert_eq!(
+            result.7,
+            remove_hash.clone(),
+            "Remove message hash should match"
+        );
+        assert_eq!(result.8, Some(1698765500), "removed_at should be set");
+        assert_eq!(
+            result.9,
+            Some(remove_hash.clone()),
+            "removed_message_hash should be set"
+        );
+
+        cleanup_by_message_hash(&db, &add_hash).await;
+        cleanup_by_message_hash(&db, &remove_hash).await;
+
+        println!("✅ Type 8 (VerificationRemove) test passed");
+    }
+
+    #[tokio::test]
     async fn test_idempotency_all_types() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();

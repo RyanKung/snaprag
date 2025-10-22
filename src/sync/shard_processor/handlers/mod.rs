@@ -150,6 +150,7 @@ pub(super) async fn collect_message_data(
                     fid,
                     timestamp,
                     &message_hash,
+                    shard_block_info,
                     batched,
                 );
             }
