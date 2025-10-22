@@ -142,10 +142,11 @@ pub struct UsernameProof {
     pub id: Uuid,
     pub fid: i64,
     pub username: String,
-    pub username_type: i32,
-    pub owner_address: String,
+    pub owner: Vec<u8>,
     pub signature: Vec<u8>,
     pub timestamp: i64,
+    pub username_type: i16,
+    pub message_hash: Vec<u8>,
     pub created_at: DateTime<Utc>,
     pub shard_id: Option<i32>,
     pub block_height: Option<i64>,
@@ -237,6 +238,7 @@ pub struct Link {
     pub fid: i64,
     pub target_fid: i64,
     pub link_type: String,
+    pub event_type: String, // 'add' or 'remove'
     pub timestamp: i64,
     pub message_hash: Vec<u8>,
     pub created_at: DateTime<Utc>,
@@ -283,6 +285,7 @@ pub struct Reaction {
     pub target_cast_hash: Vec<u8>,
     pub target_fid: Option<i64>,
     pub reaction_type: i16, // 1=like, 2=recast
+    pub event_type: String, // 'add' or 'remove'
     pub timestamp: i64,
     pub message_hash: Vec<u8>,
     pub created_at: DateTime<Utc>,
@@ -301,6 +304,7 @@ pub struct Verification {
     pub block_hash: Option<Vec<u8>>,
     pub verification_type: Option<i16>,
     pub chain_id: Option<i32>,
+    pub event_type: String, // 'add' or 'remove'
     pub timestamp: i64,
     pub message_hash: Vec<u8>,
     pub created_at: DateTime<Utc>,

@@ -474,11 +474,18 @@ impl Database {
         .fetch_all(&self.pool)
         .await?;
 
-        // Get activity statistics first (needed for username stats)
-        let total_activities =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM user_activity_timeline")
-                .fetch_one(&self.pool)
-                .await?;
+        // Get activity statistics from all tables
+        let total_activities = sqlx::query_scalar::<_, i64>(
+            r"
+            SELECT (
+                (SELECT COUNT(*) FROM casts) +
+                (SELECT COUNT(*) FROM links WHERE event_type = 'add') +
+                (SELECT COUNT(*) FROM reactions WHERE event_type = 'add')
+            )
+            ",
+        )
+        .fetch_one(&self.pool)
+        .await?;
 
         // Get top usernames with actual counts
         let top_usernames = sqlx::query_as::<_, crate::models::UsernameStats>(
@@ -514,10 +521,25 @@ impl Database {
 
         let activities_by_type = sqlx::query_as::<_, crate::models::ActivityTypeStats>(
             r"
-            SELECT 
-                activity_type,
-                COUNT(*) as count
-            FROM user_activity_timeline
+            WITH all_activity_types AS (
+                SELECT 'cast_add' as activity_type, COUNT(*) as count FROM casts
+                UNION ALL
+                SELECT 'link_add', COUNT(*) FROM (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY fid, target_fid ORDER BY timestamp DESC) as rn
+                    FROM links
+                ) l WHERE l.rn = 1 AND l.event_type = 'add'
+                UNION ALL
+                SELECT 'reaction_add', COUNT(*) FROM (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY fid, target_cast_hash ORDER BY timestamp DESC) as rn
+                    FROM reactions
+                ) r WHERE r.rn = 1 AND r.event_type = 'add'
+                UNION ALL
+                SELECT 'id_register', COUNT(*) FROM onchain_events WHERE event_type = 3
+                UNION ALL
+                SELECT 'storage_rent', COUNT(*) FROM onchain_events WHERE event_type = 4
+            )
+            SELECT activity_type, SUM(count)::bigint as count
+            FROM all_activity_types
             GROUP BY activity_type
             ORDER BY count DESC
             ",

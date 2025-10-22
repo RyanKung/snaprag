@@ -180,9 +180,14 @@ impl CastRetriever {
                 c.mentions,
                 1 - (ce.embedding <=> $1) as similarity,
                 (SELECT COUNT(*) FROM casts WHERE parent_hash = ce.message_hash) as reply_count,
-                (SELECT COUNT(*) FROM user_activity_timeline 
-                 WHERE message_hash = ce.message_hash 
-                 AND activity_type = 'reaction_add') as reaction_count
+                (SELECT COUNT(*) FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY fid, target_cast_hash 
+                        ORDER BY timestamp DESC
+                    ) as rn
+                    FROM reactions
+                    WHERE target_cast_hash = ce.message_hash
+                ) r WHERE r.rn = 1 AND r.event_type = 'add') as reaction_count
             FROM cast_embeddings ce
             INNER JOIN casts c ON ce.message_hash = c.message_hash
             WHERE ce.fid = $2 AND 1 - (ce.embedding <=> $1) > $3
@@ -246,9 +251,14 @@ impl CastRetriever {
                 c.mentions,
                 0.8 as similarity,
                 (SELECT COUNT(*) FROM casts WHERE parent_hash = c.message_hash) as reply_count,
-                (SELECT COUNT(*) FROM user_activity_timeline 
-                 WHERE message_hash = c.message_hash 
-                 AND activity_type = 'reaction_add') as reaction_count
+                (SELECT COUNT(*) FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY fid, target_cast_hash 
+                        ORDER BY timestamp DESC
+                    ) as rn
+                    FROM reactions
+                    WHERE target_cast_hash = c.message_hash
+                ) r WHERE r.rn = 1 AND r.event_type = 'add') as reaction_count
             FROM casts c
             WHERE c.text ILIKE $1
             ORDER BY c.timestamp DESC

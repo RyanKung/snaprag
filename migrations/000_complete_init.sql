@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS user_activities (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Note: user_activity_timeline table removed for performance optimization
+
 -- ==============================================================================
 -- 3. CASTS AND LINKS
 -- ==============================================================================
@@ -144,20 +146,24 @@ CREATE TABLE IF NOT EXISTS links (
     fid BIGINT NOT NULL,
     target_fid BIGINT NOT NULL,
     link_type VARCHAR(50) NOT NULL DEFAULT 'follow',
+    event_type VARCHAR(10) NOT NULL DEFAULT 'add',  -- 'add' or 'remove'
     timestamp BIGINT NOT NULL,
     message_hash BYTEA UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     shard_id INTEGER,
     block_height BIGINT,
-    transaction_fid BIGINT,
-    removed_at BIGINT,  -- Timestamp when link was removed
-    removed_message_hash BYTEA  -- Message hash of LinkRemove event
+    transaction_fid BIGINT
 );
 
 -- Add tracking columns if they don't exist
 ALTER TABLE links ADD COLUMN IF NOT EXISTS shard_id INTEGER;
 ALTER TABLE links ADD COLUMN IF NOT EXISTS block_height BIGINT;
 ALTER TABLE links ADD COLUMN IF NOT EXISTS transaction_fid BIGINT;
+
+-- Indexes for efficient window function queries
+CREATE INDEX IF NOT EXISTS idx_links_latest ON links(fid, target_fid, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_links_event_type ON links(event_type);
+CREATE INDEX IF NOT EXISTS idx_links_fid_type ON links(fid, link_type);
 
 CREATE TABLE IF NOT EXISTS user_data (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -187,14 +193,13 @@ CREATE TABLE IF NOT EXISTS reactions (
     target_cast_hash BYTEA NOT NULL,
     target_fid BIGINT,
     reaction_type SMALLINT NOT NULL,  -- 1=like, 2=recast
+    event_type VARCHAR(10) NOT NULL DEFAULT 'add',  -- 'add' or 'remove'
     timestamp BIGINT NOT NULL,
     message_hash BYTEA UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     shard_id INTEGER,
     block_height BIGINT,
-    transaction_fid BIGINT,
-    removed_at BIGINT,  -- Timestamp when reaction was removed (ReactionRemove)
-    removed_message_hash BYTEA  -- Message hash of ReactionRemove event
+    transaction_fid BIGINT
 );
 
 CREATE INDEX IF NOT EXISTS idx_reactions_fid ON reactions(fid);
@@ -202,6 +207,8 @@ CREATE INDEX IF NOT EXISTS idx_reactions_target_cast ON reactions(target_cast_ha
 CREATE INDEX IF NOT EXISTS idx_reactions_target_fid ON reactions(target_fid);
 CREATE INDEX IF NOT EXISTS idx_reactions_type ON reactions(reaction_type);
 CREATE INDEX IF NOT EXISTS idx_reactions_timestamp ON reactions(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_reactions_latest ON reactions(fid, target_cast_hash, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_reactions_event_type ON reactions(event_type);
 
 CREATE TABLE IF NOT EXISTS verifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -211,19 +218,20 @@ CREATE TABLE IF NOT EXISTS verifications (
     block_hash BYTEA,
     verification_type SMALLINT DEFAULT 0,
     chain_id INTEGER,
+    event_type VARCHAR(10) NOT NULL DEFAULT 'add',  -- 'add' or 'remove'
     timestamp BIGINT NOT NULL,
     message_hash BYTEA UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     shard_id INTEGER,
     block_height BIGINT,
-    transaction_fid BIGINT,
-    removed_at BIGINT,  -- Timestamp when verification was removed (VerificationRemove)
-    removed_message_hash BYTEA  -- Message hash of VerificationRemove event
+    transaction_fid BIGINT
 );
 
 CREATE INDEX IF NOT EXISTS idx_verifications_fid ON verifications(fid);
 CREATE INDEX IF NOT EXISTS idx_verifications_address ON verifications(address);
 CREATE INDEX IF NOT EXISTS idx_verifications_timestamp ON verifications(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_verifications_latest ON verifications(fid, address, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_verifications_event_type ON verifications(event_type);
 
 CREATE TABLE IF NOT EXISTS username_proofs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -384,17 +392,7 @@ CREATE TABLE IF NOT EXISTS user_profile_trends (
 -- 7. ESSENTIAL INDEXES ONLY (for write performance)
 -- ==============================================================================
 
--- user_profiles (already has UNIQUE index on fid)
-CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_display_name ON user_profiles(display_name);
-
--- user_activity_timeline (critical for sync)
-CREATE INDEX IF NOT EXISTS idx_activity_timeline_fid_timestamp 
-ON user_activity_timeline(fid, timestamp DESC);
-
-CREATE INDEX IF NOT EXISTS idx_activity_fid_register 
-ON user_activity_timeline(fid, activity_type) 
-WHERE activity_type = 'id_register';
+-- Note: user_profiles is a VIEW, indexes are on underlying tables
 
 -- casts (essential only)
 CREATE INDEX IF NOT EXISTS idx_casts_fid ON casts(fid);
@@ -426,20 +424,40 @@ CREATE INDEX IF NOT EXISTS idx_cast_embeddings_fid ON cast_embeddings(fid);
 -- 9. TABLE OPTIMIZATION
 -- ==============================================================================
 
--- Optimize autovacuum for high-write tables
-ALTER TABLE user_activity_timeline SET (
-    autovacuum_vacuum_scale_factor = 0.01,
-    autovacuum_analyze_scale_factor = 0.005
-);
+-- Disable autovacuum for high-write tables during bulk sync (better performance)
+-- To re-enable after sync: ALTER TABLE table_name SET (autovacuum_enabled = true);
+-- Or run: psql -f scripts/enable_autovacuum.sql
 
 ALTER TABLE casts SET (
-    autovacuum_vacuum_scale_factor = 0.02,
-    autovacuum_analyze_scale_factor = 0.01
+    autovacuum_enabled = false
 );
 
 ALTER TABLE processed_messages SET (
-    autovacuum_vacuum_scale_factor = 0.01,
-    autovacuum_analyze_scale_factor = 0.005
+    autovacuum_enabled = false
+);
+
+ALTER TABLE user_profile_changes SET (
+    autovacuum_enabled = false
+);
+
+ALTER TABLE links SET (
+    autovacuum_enabled = false
+);
+
+ALTER TABLE reactions SET (
+    autovacuum_enabled = false
+);
+
+ALTER TABLE verifications SET (
+    autovacuum_enabled = false
+);
+
+ALTER TABLE username_proofs SET (
+    autovacuum_enabled = false
+);
+
+ALTER TABLE frame_actions SET (
+    autovacuum_enabled = false
 );
 
 -- Update statistics

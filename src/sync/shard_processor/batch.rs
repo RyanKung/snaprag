@@ -26,7 +26,7 @@ const FRAME_CHUNK_SIZE: usize = MAX_PARAMS / FRAME_PARAMS_PER_ROW;
 pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Result<()> {
     let start = std::time::Instant::now();
     tracing::trace!(
-        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events, {} removes ({}L/{}R/{}V), {} username proofs, {} frame actions",
+        "Flushing batch: {} FIDs, {} casts, {} links, {} reactions, {} verifications, {} profile updates, {} onchain events, {} username proofs, {} frame actions",
         batched.fids_to_ensure.len(),
         batched.casts.len(),
         batched.links.len(),
@@ -34,10 +34,6 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
         batched.verifications.len(),
         batched.profile_updates.len(),
         batched.onchain_events.len(),
-        batched.link_removes.len() + batched.reaction_removes.len() + batched.verification_removes.len(),
-        batched.link_removes.len(),
-        batched.reaction_removes.len(),
-        batched.verification_removes.len(),
         batched.username_proofs.len(),
         batched.frame_actions.len()
     );
@@ -196,7 +192,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     if !batched.links.is_empty() {
         tracing::info!("📎 Batch inserting {} links", batched.links.len());
 
-        const PARAMS_PER_ROW: usize = 9; // fid, target_fid, link_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height
+        const PARAMS_PER_ROW: usize = 8; // fid, target_fid, link_type, event_type, timestamp, message_hash, shard_id, block_height
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
@@ -204,7 +200,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             // 🚀 Pre-allocate
             let estimated_size = 150 + chunk.len() * 60;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO links (fid, target_fid, link_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height) VALUES ");
+            query.push_str("INSERT INTO links (fid, target_fid, link_type, event_type, timestamp, message_hash, shard_id, block_height) VALUES ");
 
             // 🚀 Direct building
             for i in 0..chunk.len() {
@@ -213,7 +209,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 }
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1,
                     base + 2,
                     base + 3,
@@ -221,8 +217,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     base + 5,
                     base + 6,
                     base + 7,
-                    base + 8,
-                    base + 9
+                    base + 8
                 ));
             }
 
@@ -233,10 +228,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 fid,
                 target_fid,
                 link_type,
+                event_type,
                 timestamp,
                 message_hash,
-                removed_at,
-                removed_message_hash,
                 shard_block_info,
             ) in chunk
             {
@@ -244,10 +238,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(fid)
                     .bind(target_fid)
                     .bind(link_type)
+                    .bind(event_type)
                     .bind(timestamp)
                     .bind(message_hash)
-                    .bind(removed_at)
-                    .bind(removed_message_hash)
                     .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0));
             }
@@ -260,7 +253,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
     if !batched.reactions.is_empty() {
         tracing::info!("❤️  Batch inserting {} reactions", batched.reactions.len());
 
-        const PARAMS_PER_ROW: usize = 11; // fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid
+        const PARAMS_PER_ROW: usize = 10; // fid, target_cast_hash, target_fid, reaction_type, event_type, timestamp, message_hash, shard_id, block_height, transaction_fid
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
@@ -268,7 +261,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             // 🚀 Pre-allocate
             let estimated_size = 200 + chunk.len() * 75;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO reactions (fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid) VALUES ");
+            query.push_str("INSERT INTO reactions (fid, target_cast_hash, target_fid, reaction_type, event_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
 
             // 🚀 Direct building
             for i in 0..chunk.len() {
@@ -277,7 +270,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 }
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1,
                     base + 2,
                     base + 3,
@@ -287,8 +280,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     base + 7,
                     base + 8,
                     base + 9,
-                    base + 10,
-                    base + 11
+                    base + 10
                 ));
             }
 
@@ -301,10 +293,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 target_cast_hash,
                 target_fid,
                 reaction_type,
+                event_type,
                 timestamp,
                 message_hash,
-                removed_at,
-                removed_message_hash,
                 shard_block_info,
             ) in chunk
             {
@@ -313,10 +304,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(target_cast_hash)
                     .bind(target_fid)
                     .bind(reaction_type)
+                    .bind(event_type)
                     .bind(timestamp)
                     .bind(message_hash)
-                    .bind(removed_at)
-                    .bind(removed_message_hash)
                     .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
@@ -333,7 +323,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             batched.verifications.len()
         );
 
-        const PARAMS_PER_ROW: usize = 13; // fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid
+        const PARAMS_PER_ROW: usize = 12; // fid, address, claim_signature, block_hash, verification_type, chain_id, event_type, timestamp, message_hash, shard_id, block_height, transaction_fid
         const MAX_PARAMS: usize = 65000;
         const CHUNK_SIZE: usize = MAX_PARAMS / PARAMS_PER_ROW;
 
@@ -341,7 +331,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
             // 🚀 Pre-allocate
             let estimated_size = 250 + chunk.len() * 85;
             let mut query = String::with_capacity(estimated_size);
-            query.push_str("INSERT INTO verifications (fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, removed_at, removed_message_hash, shard_id, block_height, transaction_fid) VALUES ");
+            query.push_str("INSERT INTO verifications (fid, address, claim_signature, block_hash, verification_type, chain_id, event_type, timestamp, message_hash, shard_id, block_height, transaction_fid) VALUES ");
 
             // 🚀 Direct building
             for i in 0..chunk.len() {
@@ -350,7 +340,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 }
                 let base = i * PARAMS_PER_ROW;
                 query.push_str(&format!(
-                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
+                    "(${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${}, ${})",
                     base + 1,
                     base + 2,
                     base + 3,
@@ -362,8 +352,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     base + 9,
                     base + 10,
                     base + 11,
-                    base + 12,
-                    base + 13
+                    base + 12
                 ));
             }
 
@@ -378,10 +367,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                 block_hash,
                 verification_type,
                 chain_id,
+                event_type,
                 timestamp,
                 message_hash,
-                removed_at,
-                removed_message_hash,
                 shard_block_info,
             ) in chunk
             {
@@ -392,10 +380,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(block_hash)
                     .bind(verification_type)
                     .bind(chain_id)
+                    .bind(event_type)
                     .bind(timestamp)
                     .bind(message_hash)
-                    .bind(removed_at)
-                    .bind(removed_message_hash)
                     .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
                     .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
@@ -560,31 +547,7 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
         }
     }
 
-    // 🚀 REMOVED: Link removes now handled as INSERT events (append-only mode)
-    // Soft delete is recorded by inserting a new row with removed_at timestamp
-    // This follows event-sourcing principles and avoids UPDATE locks entirely
-    if !batched.link_removes.is_empty() {
-        tracing::debug!(
-            "🔗❌ Skipping {} link removes (handled as INSERT events in link handler)",
-            batched.link_removes.len()
-        );
-    }
-
-    // 🚀 REMOVED: Reaction removes now handled as INSERT events (append-only mode)
-    if !batched.reaction_removes.is_empty() {
-        tracing::debug!(
-            "❤️❌ Skipping {} reaction removes (handled as INSERT events)",
-            batched.reaction_removes.len()
-        );
-    }
-
-    // 🚀 REMOVED: Verification removes now handled as INSERT events (append-only mode)
-    if !batched.verification_removes.is_empty() {
-        tracing::debug!(
-            "✅❌ Skipping {} verification removes (handled as INSERT events)",
-            batched.verification_removes.len()
-        );
-    }
+    // ✅ Removes now handled as INSERT events with event_type='remove' (pure event-sourcing)
 
     // Batch insert username proofs
     if !batched.username_proofs.is_empty() {

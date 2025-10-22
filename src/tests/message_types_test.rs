@@ -183,10 +183,9 @@ mod message_types_tests {
             vec![5, 6, 7, 8],  // target_cast_hash
             Some(100),         // target_fid
             1,                 // reaction_type (like)
+            "add".to_string(), // event_type
             1698765432,        // timestamp
             test_hash.clone(), // message_hash
-            None,              // removed_at
-            None,              // removed_message_hash
             shard_info.clone(),
         ));
 
@@ -195,8 +194,8 @@ mod message_types_tests {
             .expect("Failed to flush");
 
         // 🎯 STRICT VALIDATION: Verify ALL fields
-        let result: (i64, Vec<u8>, Option<i64>, i16, i64, Vec<u8>, Option<i64>, Option<Vec<u8>>) = sqlx::query_as(
-            "SELECT fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, removed_at, removed_message_hash
+        let result: (i64, Vec<u8>, Option<i64>, i16, String, i64, Vec<u8>) = sqlx::query_as(
+            "SELECT fid, target_cast_hash, target_fid, reaction_type, event_type, timestamp, message_hash
              FROM reactions 
              WHERE message_hash = $1"
         )
@@ -209,13 +208,9 @@ mod message_types_tests {
         assert_eq!(result.1, vec![5, 6, 7, 8], "Target cast hash should match");
         assert_eq!(result.2, Some(100), "Target FID should match");
         assert_eq!(result.3, 1, "Reaction type should be 1 (like)");
-        assert_eq!(result.4, 1698765432, "Timestamp should match");
-        assert_eq!(result.5, test_hash.clone(), "Message hash should match");
-        assert_eq!(result.6, None, "Removed_at should be None for Add");
-        assert_eq!(
-            result.7, None,
-            "Removed_message_hash should be None for Add"
-        );
+        assert_eq!(result.4, "add", "Event type should be 'add'");
+        assert_eq!(result.5, 1698765432, "Timestamp should match");
+        assert_eq!(result.6, test_hash.clone(), "Message hash should match");
 
         // Cleanup after test
         cleanup_by_message_hash(&db, &test_hash).await;
@@ -239,10 +234,9 @@ mod message_types_tests {
             99,                   // fid
             100,                  // target_fid
             "follow".to_string(), // link_type
+            "add".to_string(),    // event_type
             1698765432,           // timestamp
             test_hash.clone(),    // message_hash
-            None,                 // removed_at
-            None,                 // removed_message_hash
             shard_info.clone(),
         ));
 
@@ -251,26 +245,22 @@ mod message_types_tests {
             .expect("Failed to flush");
 
         // 🎯 STRICT VALIDATION: Verify ALL fields
-        let result: (i64, i64, String, i64, Vec<u8>, Option<i64>, Option<Vec<u8>>) = sqlx::query_as(
-            "SELECT fid, target_fid, link_type, timestamp, message_hash, removed_at, removed_message_hash
+        let result: (i64, i64, String, String, i64, Vec<u8>) = sqlx::query_as(
+            "SELECT fid, target_fid, link_type, event_type, timestamp, message_hash
              FROM links 
-             WHERE message_hash = $1"
+             WHERE message_hash = $1",
         )
-            .bind(&test_hash)
-            .fetch_one(db.pool())
-            .await
-            .expect("Failed to query link");
+        .bind(&test_hash)
+        .fetch_one(db.pool())
+        .await
+        .expect("Failed to query link");
 
         assert_eq!(result.0, 99, "FID should match");
         assert_eq!(result.1, 100, "Target FID should match");
         assert_eq!(result.2, "follow", "Link type should match");
-        assert_eq!(result.3, 1698765432, "Timestamp should match");
-        assert_eq!(result.4, test_hash.clone(), "Message hash should match");
-        assert_eq!(result.5, None, "Removed_at should be None for Add");
-        assert_eq!(
-            result.6, None,
-            "Removed_message_hash should be None for Add"
-        );
+        assert_eq!(result.3, "add", "Event type should be 'add'");
+        assert_eq!(result.4, 1698765432, "Timestamp should match");
+        assert_eq!(result.5, test_hash.clone(), "Message hash should match");
 
         // Cleanup after test
         cleanup_by_message_hash(&db, &test_hash).await;
@@ -297,10 +287,9 @@ mod message_types_tests {
             Some(vec![0xEF; 32]), // block_hash
             Some(0),              // verification_type (EOA)
             Some(1),              // chain_id (Ethereum mainnet)
+            "add".to_string(),    // event_type
             1698765432,           // timestamp
             test_hash.clone(),    // message_hash
-            None,                 // removed_at
-            None,                 // removed_message_hash
             shard_info.clone(),
         ));
 
@@ -309,8 +298,8 @@ mod message_types_tests {
             .expect("Failed to flush");
 
         // 🎯 STRICT VALIDATION: Verify ALL fields
-        let result: (i64, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>, Option<i16>, Option<i32>, i64, Vec<u8>, Option<i64>, Option<Vec<u8>>) = sqlx::query_as(
-            "SELECT fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, removed_at, removed_message_hash
+        let result: (i64, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>, Option<i16>, Option<i32>, String, i64, Vec<u8>) = sqlx::query_as(
+            "SELECT fid, address, claim_signature, block_hash, verification_type, chain_id, event_type, timestamp, message_hash
              FROM verifications 
              WHERE message_hash = $1"
         )
@@ -329,13 +318,9 @@ mod message_types_tests {
         assert_eq!(result.3, Some(vec![0xEF; 32]), "Block hash should match");
         assert_eq!(result.4, Some(0), "Verification type should be 0 (EOA)");
         assert_eq!(result.5, Some(1), "Chain ID should be 1 (Ethereum)");
-        assert_eq!(result.6, 1698765432, "Timestamp should match");
-        assert_eq!(result.7, test_hash.clone(), "Message hash should match");
-        assert_eq!(result.8, None, "Removed_at should be None for Add");
-        assert_eq!(
-            result.9, None,
-            "Removed_message_hash should be None for Add"
-        );
+        assert_eq!(result.6, "add", "Event type should be 'add'");
+        assert_eq!(result.7, 1698765432, "Timestamp should match");
+        assert_eq!(result.8, test_hash.clone(), "Message hash should match");
 
         // Cleanup after test
         cleanup_by_message_hash(&db, &test_hash).await;
@@ -526,44 +511,41 @@ mod message_types_tests {
             99,
             100,
             "follow".to_string(),
+            "add".to_string(), // event_type
             1698765432,
             test_hash_add.clone(),
-            None, // removed_at
-            None, // removed_message_hash
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched_add)
             .await
             .expect("Failed to flush add");
 
-        // Then, remove it - NOW INSERTS a new row (not UPDATE)
+        // Then, remove it - NOW INSERTS a new row with event_type='remove'
         let mut batched_remove = BatchedData::new();
         batched_remove.links.push((
-            99,                             // fid
-            100,                            // target_fid
-            "follow".to_string(),           // link_type
-            1698765500,                     // timestamp
-            test_hash_remove.clone(),       // message_hash for remove event
-            Some(1698765500),               // removed_at (set for Remove)
-            Some(test_hash_remove.clone()), // removed_message_hash
+            99,                       // fid
+            100,                      // target_fid
+            "follow".to_string(),     // link_type
+            "remove".to_string(),     // event_type
+            1698765500,               // timestamp
+            test_hash_remove.clone(), // message_hash for remove event
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched_remove)
             .await
             .expect("Failed to flush remove");
 
-        // Verify soft delete - check the REMOVE row exists
-        let result: (Option<i64>,) =
-            sqlx::query_as("SELECT removed_at FROM links WHERE message_hash = $1")
+        // Verify remove event - check the REMOVE row exists
+        let result: (String,) =
+            sqlx::query_as("SELECT event_type FROM links WHERE message_hash = $1")
                 .bind(&test_hash_remove) // Check the remove event's message_hash
                 .fetch_one(db.pool())
                 .await
                 .expect("Failed to query");
 
         assert_eq!(
-            result.0,
-            Some(1698765500),
-            "Link remove event should be recorded"
+            result.0, "remove",
+            "Link remove event should have event_type='remove'"
         );
 
         // Cleanup after test
@@ -587,30 +569,28 @@ mod message_types_tests {
         let mut batched = BatchedData::new();
         batched.reactions.push((
             99,
-            vec![0xAA; 20], // target_cast_hash
-            Some(100),      // target_fid
-            1,              // reaction_type (like)
+            vec![0xAA; 20],    // target_cast_hash
+            Some(100),         // target_fid
+            1,                 // reaction_type (like)
+            "add".to_string(), // event_type
             1698765432,
             add_hash.clone(),
-            None, // removed_at
-            None, // removed_message_hash
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched)
             .await
             .expect("Failed to flush");
 
-        // Remove the reaction - INSERT with removed_at set
+        // Remove the reaction - INSERT with event_type='remove'
         let mut batched = BatchedData::new();
         batched.reactions.push((
             99,
             vec![0xAA; 20],
             Some(100),
             1,
+            "remove".to_string(), // event_type
             1698765500,
             remove_hash.clone(),
-            Some(1698765500),          // removed_at
-            Some(remove_hash.clone()), // removed_message_hash
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched)
@@ -618,8 +598,8 @@ mod message_types_tests {
             .expect("Failed to flush remove");
 
         // 🎯 STRICT VALIDATION: Verify remove event
-        let result: (i64, Vec<u8>, Option<i64>, i16, i64, Vec<u8>, Option<i64>, Option<Vec<u8>>) = sqlx::query_as(
-            "SELECT fid, target_cast_hash, target_fid, reaction_type, timestamp, message_hash, removed_at, removed_message_hash
+        let result: (i64, Vec<u8>, Option<i64>, i16, String, i64, Vec<u8>) = sqlx::query_as(
+            "SELECT fid, target_cast_hash, target_fid, reaction_type, event_type, timestamp, message_hash
              FROM reactions 
              WHERE message_hash = $1"
         )
@@ -632,18 +612,9 @@ mod message_types_tests {
         assert_eq!(result.1, vec![0xAA; 20], "Target cast hash should match");
         assert_eq!(result.2, Some(100), "Target FID should match");
         assert_eq!(result.3, 1, "Reaction type should match");
-        assert_eq!(result.4, 1698765500, "Remove timestamp should match");
-        assert_eq!(
-            result.5,
-            remove_hash.clone(),
-            "Remove message hash should match"
-        );
-        assert_eq!(result.6, Some(1698765500), "removed_at should be set");
-        assert_eq!(
-            result.7,
-            Some(remove_hash.clone()),
-            "removed_message_hash should be set"
-        );
+        assert_eq!(result.4, "remove", "Event type should be 'remove'");
+        assert_eq!(result.5, 1698765500, "Timestamp should match");
+        assert_eq!(result.6, remove_hash.clone(), "Message hash should match");
 
         cleanup_by_message_hash(&db, &add_hash).await;
         cleanup_by_message_hash(&db, &remove_hash).await;
@@ -670,29 +641,27 @@ mod message_types_tests {
             Some(vec![0xDD; 32]), // block_hash
             Some(0),              // verification_type (EOA)
             Some(1),              // chain_id (Ethereum)
+            "add".to_string(),    // event_type
             1698765432,
             add_hash.clone(),
-            None, // removed_at
-            None, // removed_message_hash
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched)
             .await
             .expect("Failed to flush");
 
-        // Remove the verification - INSERT with removed_at set
+        // Remove the verification - INSERT with event_type='remove'
         let mut batched = BatchedData::new();
         batched.verifications.push((
             99,
             vec![0xBB; 20],
-            None, // claim_signature (not provided in remove)
-            None, // block_hash
-            None, // verification_type
-            None, // chain_id
+            None,                 // claim_signature (not provided in remove)
+            None,                 // block_hash
+            None,                 // verification_type
+            None,                 // chain_id
+            "remove".to_string(), // event_type
             1698765500,
             remove_hash.clone(),
-            Some(1698765500),          // removed_at
-            Some(remove_hash.clone()), // removed_message_hash
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched)
@@ -700,8 +669,8 @@ mod message_types_tests {
             .expect("Failed to flush remove");
 
         // 🎯 STRICT VALIDATION: Verify remove event
-        let result: (i64, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>, Option<i16>, Option<i32>, i64, Vec<u8>, Option<i64>, Option<Vec<u8>>) = sqlx::query_as(
-            "SELECT fid, address, claim_signature, block_hash, verification_type, chain_id, timestamp, message_hash, removed_at, removed_message_hash
+        let result: (i64, Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>, Option<i16>, Option<i32>, String, i64, Vec<u8>) = sqlx::query_as(
+            "SELECT fid, address, claim_signature, block_hash, verification_type, chain_id, event_type, timestamp, message_hash
              FROM verifications 
              WHERE message_hash = $1"
         )
@@ -719,18 +688,9 @@ mod message_types_tests {
             "verification_type should be None for remove"
         );
         assert_eq!(result.5, None, "chain_id should be None for remove");
-        assert_eq!(result.6, 1698765500, "Remove timestamp should match");
-        assert_eq!(
-            result.7,
-            remove_hash.clone(),
-            "Remove message hash should match"
-        );
-        assert_eq!(result.8, Some(1698765500), "removed_at should be set");
-        assert_eq!(
-            result.9,
-            Some(remove_hash.clone()),
-            "removed_message_hash should be set"
-        );
+        assert_eq!(result.6, "remove", "Event type should be 'remove'");
+        assert_eq!(result.7, 1698765500, "Timestamp should match");
+        assert_eq!(result.8, remove_hash.clone(), "Message hash should match");
 
         cleanup_by_message_hash(&db, &add_hash).await;
         cleanup_by_message_hash(&db, &remove_hash).await;
@@ -765,10 +725,9 @@ mod message_types_tests {
             test_fid,
             100,
             "follow".to_string(),
+            "add".to_string(), // event_type
             1698765432,
             hash1.clone(),
-            None,
-            None,
             shard_info.clone(),
         ));
 
@@ -777,32 +736,29 @@ mod message_types_tests {
             test_fid,
             101,
             "follow".to_string(),
+            "add".to_string(), // event_type
             1698765433,
             hash2.clone(),
-            None,
-            None,
             shard_info.clone(),
         ));
 
-        // Link 3: Added then Removed
+        // Link 3: Added then Removed (using event_type)
         batched.links.push((
             test_fid,
             102,
             "follow".to_string(),
+            "add".to_string(), // event_type
             1698765434,
             hash3_add.clone(),
-            None,
-            None,
             shard_info.clone(),
         ));
         batched.links.push((
             test_fid,
             102,
             "follow".to_string(),
+            "remove".to_string(), // event_type
             1698765500,
             hash3_remove.clone(),
-            Some(1698765500),
-            Some(hash3_remove.clone()),
             shard_info.clone(),
         ));
 
@@ -810,12 +766,21 @@ mod message_types_tests {
             .await
             .expect("Failed to flush");
 
-        // 🎯 CRITICAL TEST: Query active links only (removed_at IS NULL)
-        // Note: hash3_add is also active (removed_at IS NULL), but there's also hash3_remove (removed_at IS NOT NULL)
+        // 🎯 CRITICAL TEST: Query active links only (using window function to get latest event)
         let active_links: Vec<(i64, Vec<u8>)> = sqlx::query_as(
-            "SELECT target_fid, message_hash FROM links 
-             WHERE fid = $1 AND removed_at IS NULL AND message_hash IN ($2, $3, $4, $5)
-             ORDER BY target_fid",
+            r"
+            WITH latest_events AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY fid, target_fid 
+                    ORDER BY timestamp DESC
+                ) as rn
+                FROM links 
+                WHERE fid = $1 AND message_hash IN ($2, $3, $4, $5)
+            )
+            SELECT target_fid, message_hash FROM latest_events
+            WHERE rn = 1 AND event_type = 'add'
+            ORDER BY target_fid
+            ",
         )
         .bind(test_fid)
         .bind(&hash1)
@@ -826,9 +791,13 @@ mod message_types_tests {
         .await
         .expect("Failed to query active links");
 
-        // Should return 3: hash1 (100), hash2 (101), hash3_add (102)
-        // hash3_remove (102) has removed_at set, so it's filtered out
-        assert_eq!(active_links.len(), 3, "Should return 3 active Add records");
+        // Should return 2: hash1 (100), hash2 (101)
+        // For target_fid=102, the latest event is hash3_remove (event_type='remove'), so it's filtered out
+        assert_eq!(
+            active_links.len(),
+            2,
+            "Should return 2 active links (100, 101)"
+        );
         assert_eq!(
             active_links[0].0, 100,
             "First active link should be target_fid 100"
@@ -837,15 +806,12 @@ mod message_types_tests {
             active_links[1].0, 101,
             "Second active link should be target_fid 101"
         );
-        assert_eq!(
-            active_links[2].0, 102,
-            "Third active link should be target_fid 102 (the Add event)"
-        );
 
-        // 🎯 Verify removed link is still in DB but marked
-        let removed_links: Vec<(i64, Option<i64>)> = sqlx::query_as(
-            "SELECT target_fid, removed_at FROM links 
-             WHERE fid = $1 AND target_fid = 102 AND message_hash IN ($2, $3)",
+        // 🎯 Verify removed link is still in DB (both add and remove events)
+        let removed_links: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT target_fid, event_type FROM links 
+             WHERE fid = $1 AND target_fid = 102 AND message_hash IN ($2, $3)
+             ORDER BY timestamp ASC",
         )
         .bind(test_fid)
         .bind(&hash3_add)
@@ -857,16 +823,12 @@ mod message_types_tests {
         assert_eq!(
             removed_links.len(),
             2,
-            "Should have both Add and Remove records for target_fid 102"
+            "Should have both Add and Remove events for target_fid 102"
         );
-
-        // Check that one has removed_at set
-        let has_removed = removed_links
-            .iter()
-            .any(|(_, removed_at)| removed_at.is_some());
-        assert!(
-            has_removed,
-            "At least one record should have removed_at set"
+        assert_eq!(removed_links[0].1, "add", "First event should be 'add'");
+        assert_eq!(
+            removed_links[1].1, "remove",
+            "Second event should be 'remove'"
         );
 
         cleanup_by_message_hash(&db, &hash1).await;
@@ -1286,10 +1248,9 @@ mod message_types_tests {
                 99,
                 100,
                 "follow".to_string(),
+                "add".to_string(), // event_type
                 1698765432,
                 link_hash.clone(),
-                None,
-                None,
                 shard_info.clone(),
             ));
             flush_batched_data(&db, b).await.ok();
@@ -1312,10 +1273,9 @@ mod message_types_tests {
                 vec![0xAA; 20],
                 Some(100),
                 1,
+                "add".to_string(), // event_type
                 1698765432,
                 reaction_hash.clone(),
-                None,
-                None,
                 shard_info.clone(),
             ));
             flush_batched_data(&db, b).await.ok();
@@ -1341,10 +1301,9 @@ mod message_types_tests {
                 None,
                 Some(0),
                 Some(1),
+                "add".to_string(), // event_type
                 1698765432,
                 verification_hash.clone(),
-                None,
-                None,
                 shard_info.clone(),
             ));
             flush_batched_data(&db, b).await.ok();

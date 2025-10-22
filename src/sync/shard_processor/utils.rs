@@ -48,8 +48,8 @@ pub(super) async fn batch_verify_fids(
     let verified_fids = sqlx::query_scalar::<_, i64>(
         r"
         SELECT DISTINCT fid 
-        FROM user_activity_timeline 
-        WHERE fid = ANY($1) AND activity_type = 'id_register'
+        FROM onchain_events 
+        WHERE fid = ANY($1) AND event_type = 3
         ",
     )
     .bind(&fid_vec)

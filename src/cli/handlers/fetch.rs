@@ -317,13 +317,20 @@ pub async fn handle_fetch_popular(
     let snapchain_client = Arc::new(SnapchainClient::from_config(config).await?);
     let lazy_loader = LazyLoader::new(database.clone(), snapchain_client);
 
-    // Get popular FIDs from activity timeline
+    // Get popular FIDs from all tables (casts, links, reactions)
     let popular_fids = sqlx::query_scalar::<_, i64>(
         r"
-        SELECT fid
-        FROM user_activity_timeline
+        WITH all_activity AS (
+            SELECT fid FROM casts
+            UNION ALL
+            SELECT fid FROM links WHERE event_type = 'add'
+            UNION ALL
+            SELECT fid FROM reactions WHERE event_type = 'add'
+        )
+        SELECT fid, COUNT(*) as activity_count
+        FROM all_activity
         GROUP BY fid
-        ORDER BY COUNT(*) DESC
+        ORDER BY activity_count DESC
         LIMIT $1
         ",
     )

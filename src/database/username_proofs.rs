@@ -10,18 +10,18 @@ impl Database {
         fid: i64,
         username: String,
         username_type: UsernameType,
-        owner_address: String,
+        owner: Vec<u8>,
         signature: Vec<u8>,
         timestamp: i64,
     ) -> Result<UsernameProof> {
         let proof = sqlx::query_as::<_, UsernameProof>(
             r"
-            INSERT INTO username_proofs (fid, username, username_type, owner_address, signature, timestamp)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO username_proofs (fid, username, username_type, owner, signature, timestamp, message_hash)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (fid, username_type)
             DO UPDATE SET
                 username = EXCLUDED.username,
-                owner_address = EXCLUDED.owner_address,
+                owner = EXCLUDED.owner,
                 signature = EXCLUDED.signature,
                 timestamp = EXCLUDED.timestamp,
                 created_at = NOW()
@@ -30,10 +30,11 @@ impl Database {
         )
         .bind(fid)
         .bind(username)
-        .bind(username_type as i32)
-        .bind(owner_address)
+        .bind(username_type as i16)
+        .bind(owner)
         .bind(signature)
         .bind(timestamp)
+        .bind(vec![0u8; 32]) // Placeholder message_hash
         .fetch_one(&self.pool)
         .await?;
 

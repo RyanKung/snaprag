@@ -135,6 +135,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
         "processed_messages",
         "sync_progress",
         "sync_stats",
+        // Note: user_activity_timeline removed for performance
     ];
 
     for table in &tables {
@@ -345,7 +346,6 @@ async fn create_optimized_indexes(snaprag: &SnapRag) -> Result<()> {
     let pool = snaprag.database().pool();
 
     // Only create essential indexes for write-heavy workload
-
     // Note: user_activity_timeline table removed for performance
 
     // 1. casts (essential for message lookups)

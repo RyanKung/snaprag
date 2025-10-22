@@ -100,7 +100,14 @@ pub(super) async fn collect_message_data(
         4 => {
             // ReactionRemove
             if let Some(body) = &data.body {
-                reaction::handle_reaction_remove(body, fid, timestamp, &message_hash, batched);
+                reaction::handle_reaction_remove(
+                    body,
+                    fid,
+                    timestamp,
+                    &message_hash,
+                    shard_block_info,
+                    batched,
+                );
             }
         }
         5 => {

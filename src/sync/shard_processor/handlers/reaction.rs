@@ -32,15 +32,14 @@ pub(super) fn handle_reaction_add(
                         target_hash,
                         target_fid,
                         reaction_type,
+                        "add".to_string(), // event_type
                         timestamp,
                         message_hash.to_vec(),
-                        None, // removed_at (None for Add)
-                        None, // removed_message_hash
                         shard_block_info.clone(),
                     ));
 
                     tracing::debug!(
-                        "Collected reaction: FID {} -> cast (type: {})",
+                        "Collected reaction: FID {} -> cast (type: {}) [ADD]",
                         fid,
                         reaction_type
                     );
@@ -58,15 +57,14 @@ pub(super) fn handle_reaction_add(
                 url_hash,
                 None, // No target_fid for URLs
                 reaction_type,
+                "add".to_string(), // event_type
                 timestamp,
                 message_hash.to_vec(),
-                None, // removed_at (None for Add)
-                None, // removed_message_hash
                 shard_block_info.clone(),
             ));
 
             tracing::debug!(
-                "Collected URL reaction: FID {} -> {} (type: {})",
+                "Collected URL reaction: FID {} -> {} (type: {}) [ADD]",
                 fid,
                 target_url,
                 reaction_type
@@ -80,12 +78,13 @@ pub(super) fn handle_reaction_add(
     }
 }
 
-/// Handle `ReactionRemove` message (type 4)
+/// Handle `ReactionRemove` message (type 4) - Pure INSERT mode with event_type
 pub(super) fn handle_reaction_remove(
     body: &serde_json::Value,
     fid: i64,
     timestamp: i64,
     message_hash: &[u8],
+    shard_block_info: &ShardBlockInfo,
     batched: &mut BatchedData,
 ) {
     if let Some(reaction_body) = body.get("reaction_body") {
@@ -96,17 +95,26 @@ pub(super) fn handle_reaction_remove(
 
         // Try to get target cast hash
         if let Some(target_cast_id) = reaction_body.get("target_cast_id") {
+            let target_fid = target_cast_id
+                .get("fid")
+                .and_then(serde_json::Value::as_i64);
+
             if let Some(target_hash_str) = target_cast_id.get("hash").and_then(|v| v.as_str()) {
                 if let Ok(target_hash) = hex::decode(target_hash_str) {
-                    batched.reaction_removes.push((
+                    // 🚀 Pure INSERT mode with event_type='remove'
+                    batched.reactions.push((
                         fid,
                         target_hash,
+                        target_fid,
+                        reaction_type,
+                        "remove".to_string(), // event_type
                         timestamp,
                         message_hash.to_vec(),
+                        shard_block_info.clone(),
                     ));
 
                     tracing::debug!(
-                        "Collected reaction remove: FID {} unliked cast (type: {})",
+                        "Collected reaction remove: FID {} unliked cast (type: {}) [REMOVE]",
                         fid,
                         reaction_type
                     );
@@ -116,11 +124,18 @@ pub(super) fn handle_reaction_remove(
         // Handle target_url removes
         else if let Some(target_url) = reaction_body.get("target_url").and_then(|v| v.as_str()) {
             let url_hash = format!("url_{target_url}").as_bytes().to_vec();
-            batched
-                .reaction_removes
-                .push((fid, url_hash, timestamp, message_hash.to_vec()));
+            batched.reactions.push((
+                fid,
+                url_hash,
+                None,
+                reaction_type,
+                "remove".to_string(), // event_type
+                timestamp,
+                message_hash.to_vec(),
+                shard_block_info.clone(),
+            ));
             tracing::debug!(
-                "Collected URL reaction remove: FID {} unliked URL {} (type: {})",
+                "Collected URL reaction remove: FID {} unliked URL {} (type: {}) [REMOVE]",
                 fid,
                 target_url,
                 reaction_type

@@ -334,9 +334,14 @@ impl Database {
                 c.mentions,
                 1 - (ce.embedding <=> $1::vector) as similarity,
                 (SELECT COUNT(*) FROM casts WHERE parent_hash = ce.message_hash) as reply_count,
-                (SELECT COUNT(*) FROM user_activity_timeline 
-                 WHERE message_hash = ce.message_hash 
-                 AND activity_type = 'reaction_add') as reaction_count
+                (SELECT COUNT(*) FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY fid, target_cast_hash 
+                        ORDER BY timestamp DESC
+                    ) as rn
+                    FROM reactions
+                    WHERE target_cast_hash = ce.message_hash
+                ) r WHERE r.rn = 1 AND r.event_type = 'add') as reaction_count
             FROM cast_embeddings ce
             INNER JOIN casts c ON ce.message_hash = c.message_hash
             WHERE 1 - (ce.embedding <=> $1::vector) > $2
@@ -376,12 +381,22 @@ impl Database {
             SELECT 
                 $1 as message_hash,
                 (SELECT COUNT(*) FROM casts WHERE parent_hash = $1) as reply_count,
-                (SELECT COUNT(*) FROM user_activity_timeline 
-                 WHERE message_hash = $1 
-                 AND activity_type = 'reaction_add') as reaction_count,
-                (SELECT COUNT(DISTINCT fid) FROM user_activity_timeline 
-                 WHERE message_hash = $1 
-                 AND activity_type = 'reaction_add') as unique_reactors
+                (SELECT COUNT(*) FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY fid, target_cast_hash 
+                        ORDER BY timestamp DESC
+                    ) as rn
+                    FROM reactions
+                    WHERE target_cast_hash = $1
+                ) r WHERE r.rn = 1 AND r.event_type = 'add') as reaction_count,
+                (SELECT COUNT(DISTINCT fid) FROM (
+                    SELECT fid, ROW_NUMBER() OVER (
+                        PARTITION BY fid, target_cast_hash 
+                        ORDER BY timestamp DESC
+                    ) as rn
+                    FROM reactions
+                    WHERE target_cast_hash = $1
+                ) r WHERE r.rn = 1 AND r.event_type = 'add') as unique_reactors
             ",
         )
         .bind(message_hash)

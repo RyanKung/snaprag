@@ -8,8 +8,7 @@ impl Database {
     pub async fn is_schema_initialized(&self) -> Result<bool> {
         // Check for essential tables
         let required_tables = vec![
-            "user_profiles",
-            "user_activity_timeline",
+            "user_profile_changes", // Event-sourcing table
             "casts",
             "links",
             "processed_messages",
@@ -35,22 +34,22 @@ impl Database {
             }
         }
 
-        // Check if shard_id column exists in user_activity_timeline (key indicator of complete schema)
-        let has_shard_id = sqlx::query_scalar::<_, bool>(
+        // Check if event_type column exists in links (key indicator of new event-sourcing schema)
+        let has_event_type = sqlx::query_scalar::<_, bool>(
             r"
             SELECT EXISTS (
                 SELECT FROM information_schema.columns 
                 WHERE table_schema = 'public' 
-                AND table_name = 'user_activity_timeline' 
-                AND column_name = 'shard_id'
+                AND table_name = 'links' 
+                AND column_name = 'event_type'
             )
             ",
         )
         .fetch_one(&self.pool)
         .await?;
 
-        if !has_shard_id {
-            tracing::debug!("user_activity_timeline missing shard_id column");
+        if !has_event_type {
+            tracing::debug!("links missing event_type column - old schema detected");
             return Ok(false);
         }
 
@@ -165,18 +164,22 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
-        // Create username_proofs table
+        // Create username_proofs table (updated to match 000_complete_init.sql)
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS username_proofs (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 fid BIGINT NOT NULL,
-                username VARCHAR(255) NOT NULL,
-                username_type SMALLINT NOT NULL,
-                owner_address VARCHAR(42) NOT NULL,
+                username TEXT NOT NULL,
+                owner BYTEA NOT NULL,
                 signature BYTEA NOT NULL,
                 timestamp BIGINT NOT NULL,
+                username_type SMALLINT NOT NULL,
+                message_hash BYTEA UNIQUE NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                shard_id INTEGER,
+                block_height BIGINT,
+                transaction_fid BIGINT,
                 UNIQUE(fid, username_type)
             )
             ",
@@ -184,22 +187,8 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
-        // Create user_activity_timeline table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_activity_timeline (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                fid BIGINT NOT NULL,
-                activity_type VARCHAR(50) NOT NULL,
-                activity_data JSONB,
-                timestamp BIGINT NOT NULL,
-                message_hash BYTEA,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
+        // ❌ user_activity_timeline table removed for performance
+        // All activity data is in specialized tables (casts, links, reactions, etc.)
 
         // Create user_profile_trends table
         sqlx::query(
@@ -241,15 +230,6 @@ impl Database {
         sqlx::query("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_profile_snapshots_fid_timestamp ON user_profile_snapshots(fid, snapshot_timestamp DESC)")
             .execute(&self.pool)
             .await.ok(); // Ignore errors if already exists
-
-        // Activity timeline - most critical for sync
-        sqlx::query("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activity_timeline_fid_timestamp ON user_activity_timeline(fid, timestamp DESC)")
-            .execute(&self.pool)
-            .await.ok();
-
-        sqlx::query("CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activity_timeline_type_timestamp ON user_activity_timeline(activity_type, timestamp DESC)")
-            .execute(&self.pool)
-            .await.ok();
 
         tracing::debug!("Essential indexes ensured");
         Ok(())

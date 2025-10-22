@@ -43,10 +43,9 @@ pub(super) fn handle_verification_add(
                     block_hash,
                     verification_type,
                     chain_id,
+                    "add".to_string(), // event_type
                     timestamp,
                     message_hash.to_vec(),
-                    None, // removed_at (None for Add)
-                    None, // removed_message_hash
                     shard_block_info.clone(),
                 ));
 
@@ -77,12 +76,11 @@ pub(super) fn handle_verification_add(
                 address,
                 claim_signature,
                 block_hash,
-                Some(2),   // verification_type=2 for Solana
-                Some(900), // chain_id=900 for Solana (standard)
+                Some(2),           // verification_type=2 for Solana
+                Some(900),         // chain_id=900 for Solana (standard)
+                "add".to_string(), // event_type
                 timestamp,
                 message_hash.to_vec(),
-                None, // removed_at (None for Add)
-                None, // removed_message_hash
                 shard_block_info.clone(),
             ));
 
@@ -103,7 +101,7 @@ pub(super) fn handle_verification_add(
 }
 
 /// Handle `VerificationRemove` message (type 8)
-/// Pure INSERT mode: Creates a new record with removed_at set
+/// Pure INSERT mode: Creates a new record with event_type='remove'
 pub(super) fn handle_verification_remove(
     body: &serde_json::Value,
     fid: i64,
@@ -118,22 +116,24 @@ pub(super) fn handle_verification_remove(
             let address =
                 hex::decode(address_str).unwrap_or_else(|_| address_str.as_bytes().to_vec());
 
-            // Pure INSERT mode: Insert new record with removed_at set
+            // 🚀 Pure INSERT mode with event_type='remove'
             batched.verifications.push((
                 fid,
                 address,
-                None, // claim_signature (not provided in remove)
-                None, // block_hash
-                None, // verification_type (unknown for remove)
-                None, // chain_id
+                None,                 // claim_signature (not provided in remove)
+                None,                 // block_hash
+                None,                 // verification_type (unknown for remove)
+                None,                 // chain_id
+                "remove".to_string(), // event_type
                 timestamp,
                 message_hash.to_vec(),
-                Some(timestamp), // removed_at - marks this as a remove event
-                Some(message_hash.to_vec()), // removed_message_hash
                 shard_block_info.clone(),
             ));
 
-            tracing::debug!("Collected verification remove: FID {} removed address", fid);
+            tracing::debug!(
+                "Collected verification remove: FID {} removed address [REMOVE]",
+                fid
+            );
         } else {
             tracing::warn!("VerificationRemove for FID {} missing address", fid);
         }

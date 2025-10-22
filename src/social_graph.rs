@@ -164,9 +164,19 @@ impl SocialGraphAnalyzer {
 
     /// Get list of users this FID follows (with lazy loading from Snapchain)
     async fn get_following(&self, fid: i64) -> Result<Vec<i64>> {
-        // Try database first - only get active links (not removed)
+        // Try database first - only get active links (using window function)
         let links = sqlx::query_scalar::<_, i64>(
-            "SELECT target_fid FROM links WHERE fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
+            r"
+            WITH latest_events AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY fid, target_fid 
+                    ORDER BY timestamp DESC
+                ) as rn
+                FROM links
+                WHERE fid = $1 AND link_type = 'follow'
+            )
+            SELECT target_fid FROM latest_events WHERE rn = 1 AND event_type = 'add'
+            ",
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -224,7 +234,17 @@ impl SocialGraphAnalyzer {
     /// Count following for a user (optimized - only returns count, not data)
     pub async fn count_following(&self, fid: i64) -> Result<usize> {
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM links WHERE fid = $1 AND link_type = 'follow' AND removed_at IS NULL"
+            r"
+            WITH latest_events AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY fid, target_fid 
+                    ORDER BY timestamp DESC
+                ) as rn
+                FROM links
+                WHERE fid = $1 AND link_type = 'follow'
+            )
+            SELECT COUNT(*) FROM latest_events WHERE rn = 1 AND event_type = 'add'
+            ",
         )
         .bind(fid)
         .fetch_one(self.database.pool())
@@ -235,9 +255,19 @@ impl SocialGraphAnalyzer {
 
     /// Get list of users who follow this FID (with lazy loading from Snapchain)
     async fn get_followers(&self, fid: i64) -> Result<Vec<i64>> {
-        // Try database first - only get active followers (not removed)
+        // Try database first - only get active followers (using window function)
         let followers = sqlx::query_scalar::<_, i64>(
-            "SELECT fid FROM links WHERE target_fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
+            r"
+            WITH latest_events AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY fid, target_fid 
+                    ORDER BY timestamp DESC
+                ) as rn
+                FROM links
+                WHERE target_fid = $1 AND link_type = 'follow'
+            )
+            SELECT fid FROM latest_events WHERE rn = 1 AND event_type = 'add'
+            ",
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -283,7 +313,17 @@ impl SocialGraphAnalyzer {
     /// Count followers for a user (optimized - only returns count, not data)
     pub async fn count_followers(&self, fid: i64) -> Result<usize> {
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM links WHERE target_fid = $1 AND link_type = 'follow' AND removed_at IS NULL"
+            r"
+            WITH latest_events AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY fid, target_fid 
+                    ORDER BY timestamp DESC
+                ) as rn
+                FROM links
+                WHERE target_fid = $1 AND link_type = 'follow'
+            )
+            SELECT COUNT(*) FROM latest_events WHERE rn = 1 AND event_type = 'add'
+            ",
         )
         .bind(fid)
         .fetch_one(self.database.pool())
@@ -300,7 +340,17 @@ impl SocialGraphAnalyzer {
 
         // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
         let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
-            "SELECT message_hash FROM links WHERE fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
+            r"
+            WITH latest_events AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY fid, target_fid 
+                    ORDER BY timestamp DESC
+                ) as rn
+                FROM links
+                WHERE fid = $1 AND link_type = 'follow'
+            )
+            SELECT message_hash FROM latest_events WHERE rn = 1 AND event_type = 'add'
+            ",
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -455,7 +505,17 @@ impl SocialGraphAnalyzer {
 
         // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
         let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
-            "SELECT message_hash FROM links WHERE target_fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
+            r"
+            WITH latest_events AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY fid, target_fid 
+                    ORDER BY timestamp DESC
+                ) as rn
+                FROM links
+                WHERE target_fid = $1 AND link_type = 'follow'
+            )
+            SELECT message_hash FROM latest_events WHERE rn = 1 AND event_type = 'add'
+            ",
         )
         .bind(fid)
         .fetch_all(self.database.pool())

@@ -39,15 +39,14 @@ pub(super) fn handle_link_add(
                 fid,
                 target_fid,
                 link_type.to_string(),
+                "add".to_string(), // event_type
                 timestamp,
                 message_hash.to_vec(),
-                None, // removed_at (None for LinkAdd)
-                None, // removed_message_hash
                 shard_block_info.clone(),
             ));
 
             tracing::debug!(
-                "Collected link: FID {} -> {} ({})",
+                "Collected link: FID {} -> {} ({}) [ADD]",
                 fid,
                 target_fid,
                 link_type
@@ -77,21 +76,20 @@ pub(super) fn handle_link_remove(
             .unwrap_or(0);
 
         if target_fid > 0 {
-            // 🚀 Pure INSERT mode: Record remove as a new link event with removed_at set
+            // 🚀 Pure INSERT mode: Record remove as a new link event with event_type='remove'
             // This is append-only, no UPDATE needed
             batched.links.push((
                 fid,
                 target_fid,
                 link_type.to_string(),
+                "remove".to_string(), // event_type
                 timestamp,
                 message_hash.to_vec(),
-                Some(timestamp),             // removed_at (set for LinkRemove)
-                Some(message_hash.to_vec()), // removed_message_hash
                 shard_block_info.clone(),
             ));
 
             tracing::debug!(
-                "Collected link remove as INSERT: FID {} unfollowed {} ({})",
+                "Collected link remove as INSERT: FID {} unfollowed {} ({}) [REMOVE]",
                 fid,
                 target_fid,
                 link_type
