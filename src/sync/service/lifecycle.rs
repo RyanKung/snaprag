@@ -398,8 +398,8 @@ impl LifecycleManager {
                 let semaphore = Arc::new(Semaphore::new(workers_per_shard as usize));
                 let current_block = Arc::new(AtomicU64::new(shard_from_block));
                 let should_stop = Arc::new(AtomicBool::new(false));
-                // Track completed batches to find minimum continuous progress
-                let completed_batches = Arc::new(tokio::sync::Mutex::new(std::collections::BTreeSet::new()));
+                // 🚀 LOCK-FREE: Use DashMap instead of Mutex<BTreeSet> for zero-contention tracking
+                let completed_batches = Arc::new(dashmap::DashSet::new());
                 let mut task_handles = vec![];
                 
                 // Spawn a background task to periodically save progress
@@ -415,15 +415,13 @@ impl LifecycleManager {
                             break;
                         }
                         
-                        // Calculate continuous progress
-                        let batches = progress_saver_batches.lock().await;
+                        // 🚀 LOCK-FREE: Calculate continuous progress without blocking
                         let mut continuous_progress = shard_from_block;
                         let batch_size_u64 = u64::from(config.batch_size);
                         
-                        while batches.contains(&continuous_progress) {
+                        while progress_saver_batches.contains(&continuous_progress) {
                             continuous_progress += batch_size_u64;
                         }
-                        drop(batches);
                         
                         // Only update if progress changed
                         if continuous_progress > last_saved_progress {
@@ -528,7 +526,8 @@ impl LifecycleManager {
                                                 }
 
                                                 // ✅ Success - mark batch as completed (progress saver will handle DB update)
-                                                completed_batches_shared.lock().await.insert(batch_start);
+                                                // 🚀 LOCK-FREE: Insert without blocking other workers
+                                                completed_batches_shared.insert(batch_start);
 
                                                 return Ok::<(u64, u64), crate::SnapRagError>((
                                                     chunks.len() as u64,
@@ -683,14 +682,12 @@ impl LifecycleManager {
                             // Signal all workers to stop (already set by the failed worker, but set again to be safe)
                             should_stop.store(true, Ordering::SeqCst);
                             
-                            // Calculate and save final continuous progress
-                            let batches = completed_batches.lock().await;
+                            // 🚀 LOCK-FREE: Calculate final continuous progress
                             let mut continuous_progress = shard_from_block;
                             let batch_size_u64 = u64::from(config.batch_size);
-                            while batches.contains(&continuous_progress) {
+                            while completed_batches.contains(&continuous_progress) {
                                 continuous_progress += batch_size_u64;
                             }
-                            drop(batches);
                             
                             if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
                                 error!("Failed to save progress: {}", save_err);
@@ -720,14 +717,12 @@ impl LifecycleManager {
                             // Signal all workers to stop
                             should_stop.store(true, Ordering::SeqCst);
                             
-                            // Calculate and save final continuous progress
-                            let batches = completed_batches.lock().await;
+                            // 🚀 LOCK-FREE: Calculate final continuous progress
                             let mut continuous_progress = shard_from_block;
                             let batch_size_u64 = u64::from(config.batch_size);
-                            while batches.contains(&continuous_progress) {
+                            while completed_batches.contains(&continuous_progress) {
                                 continuous_progress += batch_size_u64;
                             }
-                            drop(batches);
                             
                             if let Err(save_err) = database.update_last_processed_height(shard_id, continuous_progress).await {
                                 error!("Failed to save progress: {}", save_err);
