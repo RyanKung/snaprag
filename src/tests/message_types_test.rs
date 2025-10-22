@@ -1272,7 +1272,52 @@ mod message_types_tests {
         // Cleanup after test
         cleanup_by_message_hash(&db, &test_hash).await;
 
-        println!("✅ Idempotency test passed for all types");
+        println!("✅ Idempotency test passed");
+        
+        // 🚀 Extended tests for other types
+        println!("  Extended: Testing Link/Reaction/Verification idempotency...");
+        
+        // Link idempotency
+        let link_hash = test_message_hash(9991);
+        cleanup_by_message_hash(&db, &link_hash).await;
+        for _ in 0..2 {
+            let mut b = BatchedData::new();
+            b.links.push((99, 100, "follow".to_string(), 1698765432, link_hash.clone(), None, None, shard_info.clone()));
+            flush_batched_data(&db, b).await.ok();
+        }
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM links WHERE message_hash = $1")
+            .bind(&link_hash).fetch_one(db.pool()).await.unwrap();
+        assert_eq!(count.0, 1, "Link: Only 1 record");
+        cleanup_by_message_hash(&db, &link_hash).await;
+        
+        // Reaction idempotency
+        let reaction_hash = test_message_hash(9992);
+        cleanup_by_message_hash(&db, &reaction_hash).await;
+        for _ in 0..2 {
+            let mut b = BatchedData::new();
+            b.reactions.push((99, vec![0xAA; 20], Some(100), 1, 1698765432, reaction_hash.clone(), None, None, shard_info.clone()));
+            flush_batched_data(&db, b).await.ok();
+        }
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM reactions WHERE message_hash = $1")
+            .bind(&reaction_hash).fetch_one(db.pool()).await.unwrap();
+        assert_eq!(count.0, 1, "Reaction: Only 1 record");
+        cleanup_by_message_hash(&db, &reaction_hash).await;
+        
+        // Verification idempotency
+        let verification_hash = test_message_hash(9993);
+        cleanup_by_message_hash(&db, &verification_hash).await;
+        for _ in 0..2 {
+            let mut b = BatchedData::new();
+            b.verifications.push((99, vec![0xBB; 20], None, None, Some(0), Some(1), 1698765432, verification_hash.clone(), None, None, shard_info.clone()));
+            flush_batched_data(&db, b).await.ok();
+        }
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM verifications WHERE message_hash = $1")
+            .bind(&verification_hash).fetch_one(db.pool()).await.unwrap();
+        assert_eq!(count.0, 1, "Verification: Only 1 record");
+        cleanup_by_message_hash(&db, &verification_hash).await;
+        
+        println!("  ✅ Extended idempotency verified for Link/Reaction/Verification");
+        println!("✅ All idempotency tests passed (4/4 types)");
     }
 
     #[tokio::test]
