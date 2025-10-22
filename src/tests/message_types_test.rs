@@ -159,6 +159,8 @@ mod message_types_tests {
             1, // reaction_type (like)
             1698765432, // timestamp
             test_hash.clone(), // message_hash
+            None, // removed_at
+            None, // removed_message_hash
             shard_info.clone(),
         ));
 
@@ -196,6 +198,8 @@ mod message_types_tests {
             "follow".to_string(), // link_type
             1698765432, // timestamp
             test_hash.clone(), // message_hash
+            None, // removed_at
+            None, // removed_message_hash
             shard_info.clone(),
         ));
 
@@ -236,6 +240,8 @@ mod message_types_tests {
             Some(1), // chain_id (Ethereum mainnet)
             1698765432, // timestamp
             test_hash.clone(), // message_hash
+            None, // removed_at
+            None, // removed_message_hash
             shard_info.clone(),
         ));
 
@@ -399,30 +405,36 @@ mod message_types_tests {
             "follow".to_string(),
             1698765432,
             test_hash_add.clone(),
+            None, // removed_at
+            None, // removed_message_hash
             shard_info.clone(),
         ));
         flush_batched_data(&db, batched_add).await.expect("Failed to flush add");
 
-        // Then, remove it
+        // Then, remove it - NOW INSERTS a new row (not UPDATE)
         let mut batched_remove = BatchedData::new();
-        batched_remove.link_removes.push((
+        batched_remove.links.push((
             99, // fid
             100, // target_fid
-            1698765500, // removed_at
-            test_hash_remove.clone(), // removed_message_hash
+            "follow".to_string(), // link_type
+            1698765500, // timestamp
+            test_hash_remove.clone(), // message_hash for remove event
+            Some(1698765500), // removed_at (set for Remove)
+            Some(test_hash_remove.clone()), // removed_message_hash
+            shard_info.clone(),
         ));
         flush_batched_data(&db, batched_remove).await.expect("Failed to flush remove");
 
-        // Verify soft delete
+        // Verify soft delete - check the REMOVE row exists
         let result: (Option<i64>,) = sqlx::query_as(
             "SELECT removed_at FROM links WHERE message_hash = $1"
         )
-            .bind(&test_hash_add)
+            .bind(&test_hash_remove) // Check the remove event's message_hash
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
 
-        assert_eq!(result.0, Some(1698765500), "Link should be soft deleted");
+        assert_eq!(result.0, Some(1698765500), "Link remove event should be recorded");
         
         // Cleanup after test
         cleanup_by_message_hash(&db, &test_hash_add).await;

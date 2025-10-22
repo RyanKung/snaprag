@@ -164,9 +164,9 @@ impl SocialGraphAnalyzer {
 
     /// Get list of users this FID follows (with lazy loading from Snapchain)
     async fn get_following(&self, fid: i64) -> Result<Vec<i64>> {
-        // Try database first
+        // Try database first - only get active links (not removed)
         let links = sqlx::query_scalar::<_, i64>(
-            "SELECT target_fid FROM links WHERE fid = $1 AND link_type = 'follow'",
+            "SELECT target_fid FROM links WHERE fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -235,9 +235,9 @@ impl SocialGraphAnalyzer {
 
     /// Get list of users who follow this FID (with lazy loading from Snapchain)
     async fn get_followers(&self, fid: i64) -> Result<Vec<i64>> {
-        // Try database first
+        // Try database first - only get active followers (not removed)
         let followers = sqlx::query_scalar::<_, i64>(
-            "SELECT fid FROM links WHERE target_fid = $1 AND link_type = 'follow'",
+            "SELECT fid FROM links WHERE target_fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -300,7 +300,7 @@ impl SocialGraphAnalyzer {
 
         // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
         let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
-            "SELECT message_hash FROM links WHERE fid = $1 AND link_type = 'follow'",
+            "SELECT message_hash FROM links WHERE fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
         )
         .bind(fid)
         .fetch_all(self.database.pool())
@@ -455,7 +455,7 @@ impl SocialGraphAnalyzer {
 
         // Step 1: 先获取数据库中已有的 message_hash，避免重复获取
         let existing_hashes: std::collections::HashSet<Vec<u8>> = sqlx::query_scalar::<_, Vec<u8>>(
-            "SELECT message_hash FROM links WHERE target_fid = $1 AND link_type = 'follow'",
+            "SELECT message_hash FROM links WHERE target_fid = $1 AND link_type = 'follow' AND removed_at IS NULL",
         )
         .bind(fid)
         .fetch_all(self.database.pool())

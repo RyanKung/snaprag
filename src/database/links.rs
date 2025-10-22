@@ -8,11 +8,11 @@ impl Database {
         let limit = query.limit.unwrap_or(100);
         let offset = query.offset.unwrap_or(0);
 
-        // Execute query with parameters
+        // Execute query with parameters - only return active links (not removed)
         let links = match (query.fid, query.target_fid) {
             (Some(fid), Some(target_fid)) => {
                 sqlx::query_as::<_, Link>(
-                    "SELECT * FROM links WHERE fid = $1 AND target_fid = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
+                    "SELECT * FROM links WHERE fid = $1 AND target_fid = $2 AND removed_at IS NULL ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
                 )
                 .bind(fid)
                 .bind(target_fid)
@@ -23,7 +23,7 @@ impl Database {
             }
             (Some(fid), None) => {
                 sqlx::query_as::<_, Link>(
-                    "SELECT * FROM links WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+                    "SELECT * FROM links WHERE fid = $1 AND removed_at IS NULL ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
                 )
                 .bind(fid)
                 .bind(limit)
@@ -33,7 +33,7 @@ impl Database {
             }
             (None, Some(target_fid)) => {
                 sqlx::query_as::<_, Link>(
-                    "SELECT * FROM links WHERE target_fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+                    "SELECT * FROM links WHERE target_fid = $1 AND removed_at IS NULL ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
                 )
                 .bind(target_fid)
                 .bind(limit)
@@ -43,7 +43,7 @@ impl Database {
             }
             (None, None) => {
                 sqlx::query_as::<_, Link>(
-                    "SELECT * FROM links ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
+                    "SELECT * FROM links WHERE removed_at IS NULL ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
                 )
                 .bind(limit)
                 .bind(offset)
@@ -66,7 +66,7 @@ impl Database {
         let offset = offset.unwrap_or(0);
 
         let links = sqlx::query_as::<_, Link>(
-            "SELECT * FROM links WHERE fid = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
+            "SELECT * FROM links WHERE fid = $1 AND removed_at IS NULL ORDER BY timestamp DESC LIMIT $2 OFFSET $3",
         )
         .bind(fid)
         .bind(limit)
@@ -77,7 +77,7 @@ impl Database {
         Ok(links)
     }
 
-    /// Get followers for a user
+    /// Get followers for a user (only active, not removed)
     pub async fn get_followers(
         &self,
         target_fid: i64,
@@ -88,7 +88,7 @@ impl Database {
         let offset = offset.unwrap_or(0);
 
         let links = sqlx::query_as::<_, Link>(
-            "SELECT * FROM links WHERE target_fid = $1 AND link_type = 'follow' ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+            "SELECT * FROM links WHERE target_fid = $1 AND link_type = 'follow' AND removed_at IS NULL ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
         )
         .bind(target_fid)
         .bind(limit)
@@ -99,7 +99,7 @@ impl Database {
         Ok(links)
     }
 
-    /// Get following for a user
+    /// Get following for a user (only active, not removed)
     pub async fn get_following(
         &self,
         fid: i64,
@@ -110,7 +110,7 @@ impl Database {
         let offset = offset.unwrap_or(0);
 
         let links = sqlx::query_as::<_, Link>(
-            "SELECT * FROM links WHERE fid = $1 AND link_type = 'follow' ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+            "SELECT * FROM links WHERE fid = $1 AND link_type = 'follow' AND removed_at IS NULL ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
         )
         .bind(fid)
         .bind(limit)
