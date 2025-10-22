@@ -1058,6 +1058,164 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    async fn test_unique_constraint_conflicts() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+
+        println!("🧪 Testing UNIQUE constraint conflict handling...");
+
+        // Test 1: message_hash UNIQUE constraint with ON CONFLICT DO NOTHING
+        println!("  1. Testing message_hash UNIQUE with idempotent inserts");
+        let test_hash = test_message_hash(9001);
+        cleanup_by_message_hash(&db, &test_hash).await;
+
+        let mut batched1 = BatchedData::new();
+        batched1.casts.push((
+            99,
+            Some("First insert".to_string()),
+            1698765432,
+            test_hash.clone(),
+            None,
+            None,
+            None,
+            None,
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched1)
+            .await
+            .expect("First insert should succeed");
+
+        // Try to insert again with SAME message_hash but DIFFERENT data
+        let mut batched2 = BatchedData::new();
+        batched2.casts.push((
+            99,
+            Some("Second insert DIFFERENT TEXT".to_string()),
+            1698765999,        // Different timestamp
+            test_hash.clone(), // SAME message_hash
+            None,
+            None,
+            None,
+            None,
+            shard_info.clone(),
+        ));
+
+        // ON CONFLICT DO NOTHING should silently skip
+        flush_batched_data(&db, batched2)
+            .await
+            .expect("Second insert should not fail (ON CONFLICT DO NOTHING)");
+
+        // Verify ONLY first record exists (not updated)
+        let result: (i64, Option<String>, i64) = sqlx::query_as(
+            "SELECT COUNT(*), text, timestamp FROM casts WHERE message_hash = $1 GROUP BY text, timestamp"
+        )
+            .bind(&test_hash)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to query");
+
+        assert_eq!(result.0, 1, "Should have exactly 1 record");
+        assert_eq!(
+            result.1,
+            Some("First insert".to_string()),
+            "Text should NOT be updated"
+        );
+        assert_eq!(result.2, 1698765432, "Timestamp should NOT be updated");
+        cleanup_by_message_hash(&db, &test_hash).await;
+        println!("     ✅ message_hash UNIQUE + ON CONFLICT DO NOTHING works correctly");
+
+        // Test 2: username_proofs UNIQUE(fid, username_type) constraint
+        println!("  2. Testing username_proofs UNIQUE(fid, username_type)");
+        let hash_fname1 = test_message_hash(9002);
+        let hash_fname2 = test_message_hash(9003);
+        let hash_ens = test_message_hash(9004);
+
+        let test_fid = 888888_i64;
+
+        // Insert FNAME proof (username_type=1)
+        let mut batched = BatchedData::new();
+        batched.fids_to_ensure.insert(test_fid);
+        batched.username_proofs.push((
+            test_fid,
+            "firstuser".to_string(),
+            vec![0x11; 20], // owner
+            vec![0x22; 65], // signature
+            1,              // username_type = FNAME
+            1698765432,
+            hash_fname1.clone(),
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("First FNAME should succeed");
+
+        // Try to insert ANOTHER FNAME (should conflict and be silently skipped)
+        let mut batched = BatchedData::new();
+        batched.username_proofs.push((
+            test_fid,
+            "seconduser".to_string(), // Different username
+            vec![0x33; 20],           // Different owner
+            vec![0x44; 65],           // Different signature
+            1,                        // SAME username_type = FNAME
+            1698765999,
+            hash_fname2.clone(),
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Second FNAME should not fail (ON CONFLICT DO NOTHING)");
+
+        // Verify only FIRST FNAME exists
+        let result: (String,) = sqlx::query_as(
+            "SELECT username FROM username_proofs WHERE fid = $1 AND username_type = 1",
+        )
+        .bind(test_fid)
+        .fetch_one(db.pool())
+        .await
+        .expect("Failed to query FNAME");
+
+        assert_eq!(
+            result.0, "firstuser",
+            "Should keep first FNAME (not update)"
+        );
+
+        // But ENS (username_type=2) should be allowed for SAME FID
+        let mut batched = BatchedData::new();
+        batched.username_proofs.push((
+            test_fid,
+            "ensname".to_string(),
+            vec![0x55; 20],
+            vec![0x66; 65],
+            2, // username_type = ENS (different from FNAME)
+            1698766000,
+            hash_ens.clone(),
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("ENS should succeed (different username_type)");
+
+        // Verify BOTH FNAME and ENS exist for same FID
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM username_proofs WHERE fid = $1")
+            .bind(test_fid)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to count");
+
+        assert_eq!(count.0, 2, "Should have 2 proofs: 1 FNAME + 1 ENS");
+
+        // Cleanup
+        sqlx::query("DELETE FROM username_proofs WHERE fid = $1")
+            .bind(test_fid)
+            .execute(db.pool())
+            .await
+            .ok();
+
+        println!("     ✅ UNIQUE(fid, username_type) allows FNAME + ENS coexistence");
+
+        println!("✅ All UNIQUE constraint conflict tests passed (2/2)");
+    }
+
+    #[tokio::test]
     async fn test_idempotency_all_types() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();

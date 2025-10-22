@@ -9,6 +9,7 @@ pub mod rag_integration_test;
 pub mod strict_test_config;
 pub mod strict_test_runner;
 pub mod strict_test_validation;
+// TODO: Add real_data_test module (requires Snapchain config refactoring)
 // REMOVED: strict_validation_tests (outdated Config structure)
 
 use crate::config::AppConfig;
