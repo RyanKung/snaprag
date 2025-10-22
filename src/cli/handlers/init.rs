@@ -101,9 +101,15 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
     let pool = snaprag.database().pool();
 
     // 🚀 DROP all views and tables (complete reset)
-    // Drop views first
-    for view_name in ["user_profiles", "user_profiles_with_embeddings"] {
-        sqlx::query(&format!("DROP VIEW IF EXISTS {view_name} CASCADE"))
+    // Drop views and tables that might be either (schema evolution)
+    for name in ["user_profiles", "user_profiles_with_embeddings"] {
+        // Try as VIEW first
+        sqlx::query(&format!("DROP VIEW IF EXISTS {name} CASCADE"))
+            .execute(pool)
+            .await
+            .ok();
+        // Also try as TABLE (in case it was created as table in old schema)
+        sqlx::query(&format!("DROP TABLE IF EXISTS {name} CASCADE"))
             .execute(pool)
             .await
             .ok();
