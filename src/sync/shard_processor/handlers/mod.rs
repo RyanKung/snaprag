@@ -151,7 +151,6 @@ pub(super) async fn collect_message_data(
     Ok(())
 }
 
-#[cfg(test)]
-#[path = "../message_handlers_test.rs"]
-mod tests;
+// REMOVED: message_handlers_test.rs was outdated and deleted
+// Tests are now in src/tests/message_types_test.rs
 

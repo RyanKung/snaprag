@@ -12,7 +12,7 @@ use crate::Result;
 #[ignore] // Run manually: cargo test --test cross_batch_duplicates_test -- --ignored
 async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
     // Initialize client
-    let config = crate::config::load_config()?;
+    let config = crate::config::AppConfig::load()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -67,11 +67,13 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 
                     // Extract FID from message data
                     if let Some(msg_data) = &msg.data {
-                        if let Ok(body) = serde_json::from_slice::<serde_json::Value>(&msg_data.body) {
-                            if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
-                                all_fids.entry(fid)
-                                    .or_default()
-                                    .push((batch_num, message_hash.clone()));
+                        if let Some(body_value) = &msg_data.body {
+                            if let Ok(body) = serde_json::from_value::<serde_json::Value>(body_value.clone()) {
+                                if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
+                                    all_fids.entry(fid)
+                                        .or_default()
+                                        .push((batch_num, message_hash.clone()));
+                                }
                             }
                         }
                     }
@@ -153,7 +155,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 #[ignore]
 async fn test_same_fid_across_batches() -> Result<()> {
     // Simpler test: just check if same FID appears in consecutive batches
-    let config = crate::config::load_config()?;
+    let config = crate::config::AppConfig::load()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -186,9 +188,11 @@ async fn test_same_fid_across_batches() -> Result<()> {
         for tx in &chunk.transactions {
             for msg in &tx.user_messages {
                 if let Some(msg_data) = &msg.data {
-                    if let Ok(body) = serde_json::from_slice::<serde_json::Value>(&msg_data.body) {
-                        if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
-                            fids_batch1.insert(fid);
+                    if let Some(body_value) = &msg_data.body {
+                        if let Ok(body) = serde_json::from_value::<serde_json::Value>(body_value.clone()) {
+                            if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
+                                fids_batch1.insert(fid);
+                            }
                         }
                     }
                 }
@@ -200,9 +204,11 @@ async fn test_same_fid_across_batches() -> Result<()> {
         for tx in &chunk.transactions {
             for msg in &tx.user_messages {
                 if let Some(msg_data) = &msg.data {
-                    if let Ok(body) = serde_json::from_slice::<serde_json::Value>(&msg_data.body) {
-                        if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
-                            fids_batch2.insert(fid);
+                    if let Some(body_value) = &msg_data.body {
+                        if let Ok(body) = serde_json::from_value::<serde_json::Value>(body_value.clone()) {
+                            if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
+                                fids_batch2.insert(fid);
+                            }
                         }
                     }
                 }

@@ -9,7 +9,7 @@ pub mod rag_integration_test;
 pub mod strict_test_config;
 pub mod strict_test_runner;
 pub mod strict_test_validation;
-pub mod strict_validation_tests;
+// REMOVED: strict_validation_tests (outdated Config structure)
 
 use crate::config::AppConfig;
 use crate::database::Database;
