@@ -72,48 +72,8 @@ impl Database {
 
     /// Initialize database schema
     pub async fn init_schema(&self) -> Result<()> {
-        // Create user_profiles table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_profiles (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                fid BIGINT UNIQUE NOT NULL,
-                username VARCHAR(255),
-                display_name VARCHAR(255),
-                bio TEXT,
-                pfp_url TEXT,
-                banner_url TEXT,
-                location VARCHAR(255),
-                website_url TEXT,
-                twitter_username VARCHAR(255),
-                github_username VARCHAR(255),
-                primary_address_ethereum VARCHAR(42),
-                primary_address_solana VARCHAR(44),
-                profile_token VARCHAR(255),
-                profile_embedding VECTOR(1536),
-                bio_embedding VECTOR(1536),
-                interests_embedding VECTOR(1536),
-                last_updated_timestamp BIGINT NOT NULL,
-                last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                shard_id INTEGER,
-                block_height BIGINT,
-                transaction_fid BIGINT
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Add tracking columns if they don't exist (for existing tables)
-        sqlx::query("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS shard_id INTEGER")
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS block_height BIGINT")
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS transaction_fid BIGINT")
-            .execute(&self.pool)
-            .await?;
+        // Note: user_profiles is created as a VIEW in migrations/000_complete_init.sql
+        // We don't create it here to avoid conflict
 
         // Create user_profile_snapshots table
         sqlx::query(
