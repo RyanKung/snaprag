@@ -739,6 +739,325 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    async fn test_soft_delete_query_filtering() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+
+        // Use unique test FID to avoid conflicts with other tests or real data
+        let test_fid = 777777_i64; // Unique test FID
+
+        // Setup: Insert 3 links - 2 active, 1 removed
+        let hash1 = test_message_hash(7001);
+        let hash2 = test_message_hash(7002);
+        let hash3_add = test_message_hash(7003);
+        let hash3_remove = test_message_hash(7004);
+
+        cleanup_by_message_hash(&db, &hash1).await;
+        cleanup_by_message_hash(&db, &hash2).await;
+        cleanup_by_message_hash(&db, &hash3_add).await;
+        cleanup_by_message_hash(&db, &hash3_remove).await;
+
+        let mut batched = BatchedData::new();
+        batched.fids_to_ensure.insert(test_fid);
+
+        // Link 1: Active
+        batched.links.push((
+            test_fid,
+            100,
+            "follow".to_string(),
+            1698765432,
+            hash1.clone(),
+            None,
+            None,
+            shard_info.clone(),
+        ));
+
+        // Link 2: Active
+        batched.links.push((
+            test_fid,
+            101,
+            "follow".to_string(),
+            1698765433,
+            hash2.clone(),
+            None,
+            None,
+            shard_info.clone(),
+        ));
+
+        // Link 3: Added then Removed
+        batched.links.push((
+            test_fid,
+            102,
+            "follow".to_string(),
+            1698765434,
+            hash3_add.clone(),
+            None,
+            None,
+            shard_info.clone(),
+        ));
+        batched.links.push((
+            test_fid,
+            102,
+            "follow".to_string(),
+            1698765500,
+            hash3_remove.clone(),
+            Some(1698765500),
+            Some(hash3_remove.clone()),
+            shard_info.clone(),
+        ));
+
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush");
+
+        // 🎯 CRITICAL TEST: Query active links only (removed_at IS NULL)
+        // Note: hash3_add is also active (removed_at IS NULL), but there's also hash3_remove (removed_at IS NOT NULL)
+        let active_links: Vec<(i64, Vec<u8>)> = sqlx::query_as(
+            "SELECT target_fid, message_hash FROM links 
+             WHERE fid = $1 AND removed_at IS NULL AND message_hash IN ($2, $3, $4, $5)
+             ORDER BY target_fid",
+        )
+        .bind(test_fid)
+        .bind(&hash1)
+        .bind(&hash2)
+        .bind(&hash3_add)
+        .bind(&hash3_remove)
+        .fetch_all(db.pool())
+        .await
+        .expect("Failed to query active links");
+
+        // Should return 3: hash1 (100), hash2 (101), hash3_add (102)
+        // hash3_remove (102) has removed_at set, so it's filtered out
+        assert_eq!(active_links.len(), 3, "Should return 3 active Add records");
+        assert_eq!(
+            active_links[0].0, 100,
+            "First active link should be target_fid 100"
+        );
+        assert_eq!(
+            active_links[1].0, 101,
+            "Second active link should be target_fid 101"
+        );
+        assert_eq!(
+            active_links[2].0, 102,
+            "Third active link should be target_fid 102 (the Add event)"
+        );
+
+        // 🎯 Verify removed link is still in DB but marked
+        let removed_links: Vec<(i64, Option<i64>)> = sqlx::query_as(
+            "SELECT target_fid, removed_at FROM links 
+             WHERE fid = $1 AND target_fid = 102 AND message_hash IN ($2, $3)",
+        )
+        .bind(test_fid)
+        .bind(&hash3_add)
+        .bind(&hash3_remove)
+        .fetch_all(db.pool())
+        .await
+        .expect("Failed to query removed link");
+
+        assert_eq!(
+            removed_links.len(),
+            2,
+            "Should have both Add and Remove records for target_fid 102"
+        );
+
+        // Check that one has removed_at set
+        let has_removed = removed_links
+            .iter()
+            .any(|(_, removed_at)| removed_at.is_some());
+        assert!(
+            has_removed,
+            "At least one record should have removed_at set"
+        );
+
+        cleanup_by_message_hash(&db, &hash1).await;
+        cleanup_by_message_hash(&db, &hash2).await;
+        cleanup_by_message_hash(&db, &hash3_add).await;
+        cleanup_by_message_hash(&db, &hash3_remove).await;
+
+        println!("✅ Soft delete query filtering test passed");
+    }
+
+    #[tokio::test]
+    async fn test_boundary_conditions() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+
+        println!("🧪 Testing boundary conditions...");
+
+        // Test 1: None values for optional fields
+        println!("  1. Testing None values for optional fields");
+        let hash1 = test_message_hash(8001);
+        cleanup_by_message_hash(&db, &hash1).await;
+
+        let mut batched = BatchedData::new();
+        batched.casts.push((
+            99,
+            None, // ⭐ No text (NULL)
+            1698765432,
+            hash1.clone(),
+            None, // No parent_hash
+            None, // No root_hash
+            None, // No embeds
+            None, // No mentions
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush cast with None values");
+
+        let result: (i64, Option<String>, i64) =
+            sqlx::query_as("SELECT fid, text, timestamp FROM casts WHERE message_hash = $1")
+                .bind(&hash1)
+                .fetch_one(db.pool())
+                .await
+                .expect("Failed to query");
+
+        assert_eq!(result.0, 99);
+        assert_eq!(result.1, None, "Text should be None");
+        assert_eq!(result.2, 1698765432);
+        cleanup_by_message_hash(&db, &hash1).await;
+        println!("     ✅ None values handled correctly");
+
+        // Test 2: Empty string
+        println!("  2. Testing empty string");
+        let hash2 = test_message_hash(8002);
+        cleanup_by_message_hash(&db, &hash2).await;
+
+        let mut batched = BatchedData::new();
+        batched.casts.push((
+            99,
+            Some("".to_string()), // ⭐ Empty string
+            1698765432,
+            hash2.clone(),
+            None,
+            None,
+            None,
+            None,
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush cast with empty string");
+
+        let result: (Option<String>,) =
+            sqlx::query_as("SELECT text FROM casts WHERE message_hash = $1")
+                .bind(&hash2)
+                .fetch_one(db.pool())
+                .await
+                .expect("Failed to query");
+
+        assert_eq!(
+            result.0,
+            Some("".to_string()),
+            "Empty string should be preserved"
+        );
+        cleanup_by_message_hash(&db, &hash2).await;
+        println!("     ✅ Empty string handled correctly");
+
+        // Test 3: Very long text (10KB)
+        println!("  3. Testing very long text (10KB)");
+        let hash3 = test_message_hash(8003);
+        cleanup_by_message_hash(&db, &hash3).await;
+
+        let long_text = "x".repeat(10_000); // 10KB text
+        let mut batched = BatchedData::new();
+        batched.casts.push((
+            99,
+            Some(long_text.clone()),
+            1698765432,
+            hash3.clone(),
+            None,
+            None,
+            None,
+            None,
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush cast with long text");
+
+        let result: (Option<String>,) =
+            sqlx::query_as("SELECT text FROM casts WHERE message_hash = $1")
+                .bind(&hash3)
+                .fetch_one(db.pool())
+                .await
+                .expect("Failed to query");
+
+        assert_eq!(
+            result.0.as_ref().map(|s| s.len()),
+            Some(10_000),
+            "Long text should be preserved"
+        );
+        cleanup_by_message_hash(&db, &hash3).await;
+        println!("     ✅ Long text (10KB) handled correctly");
+
+        // Test 4: Zero timestamp
+        println!("  4. Testing zero timestamp");
+        let hash4 = test_message_hash(8004);
+        cleanup_by_message_hash(&db, &hash4).await;
+
+        let mut batched = BatchedData::new();
+        batched.casts.push((
+            99,
+            Some("Test".to_string()),
+            0, // ⭐ Zero timestamp
+            hash4.clone(),
+            None,
+            None,
+            None,
+            None,
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush cast with zero timestamp");
+
+        let result: (i64,) = sqlx::query_as("SELECT timestamp FROM casts WHERE message_hash = $1")
+            .bind(&hash4)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to query");
+
+        assert_eq!(result.0, 0, "Zero timestamp should be preserved");
+        cleanup_by_message_hash(&db, &hash4).await;
+        println!("     ✅ Zero timestamp handled correctly");
+
+        // Test 5: Maximum i64 timestamp
+        println!("  5. Testing maximum i64 timestamp");
+        let hash5 = test_message_hash(8005);
+        cleanup_by_message_hash(&db, &hash5).await;
+
+        let max_timestamp = i64::MAX;
+        let mut batched = BatchedData::new();
+        batched.casts.push((
+            99,
+            Some("Test".to_string()),
+            max_timestamp, // ⭐ Max i64
+            hash5.clone(),
+            None,
+            None,
+            None,
+            None,
+            shard_info.clone(),
+        ));
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush cast with max timestamp");
+
+        let result: (i64,) = sqlx::query_as("SELECT timestamp FROM casts WHERE message_hash = $1")
+            .bind(&hash5)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to query");
+
+        assert_eq!(result.0, max_timestamp, "Max timestamp should be preserved");
+        cleanup_by_message_hash(&db, &hash5).await;
+        println!("     ✅ Maximum timestamp handled correctly");
+
+        println!("✅ All boundary conditions tests passed (5/5)");
+    }
+
+    #[tokio::test]
     async fn test_idempotency_all_types() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
