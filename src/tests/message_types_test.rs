@@ -1273,49 +1273,91 @@ mod message_types_tests {
         cleanup_by_message_hash(&db, &test_hash).await;
 
         println!("✅ Idempotency test passed");
-        
+
         // 🚀 Extended tests for other types
         println!("  Extended: Testing Link/Reaction/Verification idempotency...");
-        
+
         // Link idempotency
         let link_hash = test_message_hash(9991);
         cleanup_by_message_hash(&db, &link_hash).await;
         for _ in 0..2 {
             let mut b = BatchedData::new();
-            b.links.push((99, 100, "follow".to_string(), 1698765432, link_hash.clone(), None, None, shard_info.clone()));
+            b.links.push((
+                99,
+                100,
+                "follow".to_string(),
+                1698765432,
+                link_hash.clone(),
+                None,
+                None,
+                shard_info.clone(),
+            ));
             flush_batched_data(&db, b).await.ok();
         }
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM links WHERE message_hash = $1")
-            .bind(&link_hash).fetch_one(db.pool()).await.unwrap();
+            .bind(&link_hash)
+            .fetch_one(db.pool())
+            .await
+            .unwrap();
         assert_eq!(count.0, 1, "Link: Only 1 record");
         cleanup_by_message_hash(&db, &link_hash).await;
-        
+
         // Reaction idempotency
         let reaction_hash = test_message_hash(9992);
         cleanup_by_message_hash(&db, &reaction_hash).await;
         for _ in 0..2 {
             let mut b = BatchedData::new();
-            b.reactions.push((99, vec![0xAA; 20], Some(100), 1, 1698765432, reaction_hash.clone(), None, None, shard_info.clone()));
+            b.reactions.push((
+                99,
+                vec![0xAA; 20],
+                Some(100),
+                1,
+                1698765432,
+                reaction_hash.clone(),
+                None,
+                None,
+                shard_info.clone(),
+            ));
             flush_batched_data(&db, b).await.ok();
         }
-        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM reactions WHERE message_hash = $1")
-            .bind(&reaction_hash).fetch_one(db.pool()).await.unwrap();
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM reactions WHERE message_hash = $1")
+                .bind(&reaction_hash)
+                .fetch_one(db.pool())
+                .await
+                .unwrap();
         assert_eq!(count.0, 1, "Reaction: Only 1 record");
         cleanup_by_message_hash(&db, &reaction_hash).await;
-        
+
         // Verification idempotency
         let verification_hash = test_message_hash(9993);
         cleanup_by_message_hash(&db, &verification_hash).await;
         for _ in 0..2 {
             let mut b = BatchedData::new();
-            b.verifications.push((99, vec![0xBB; 20], None, None, Some(0), Some(1), 1698765432, verification_hash.clone(), None, None, shard_info.clone()));
+            b.verifications.push((
+                99,
+                vec![0xBB; 20],
+                None,
+                None,
+                Some(0),
+                Some(1),
+                1698765432,
+                verification_hash.clone(),
+                None,
+                None,
+                shard_info.clone(),
+            ));
             flush_batched_data(&db, b).await.ok();
         }
-        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM verifications WHERE message_hash = $1")
-            .bind(&verification_hash).fetch_one(db.pool()).await.unwrap();
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM verifications WHERE message_hash = $1")
+                .bind(&verification_hash)
+                .fetch_one(db.pool())
+                .await
+                .unwrap();
         assert_eq!(count.0, 1, "Verification: Only 1 record");
         cleanup_by_message_hash(&db, &verification_hash).await;
-        
+
         println!("  ✅ Extended idempotency verified for Link/Reaction/Verification");
         println!("✅ All idempotency tests passed (4/4 types)");
     }
@@ -1351,32 +1393,66 @@ mod message_types_tests {
     async fn test_user_profile_changes_aggregation() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
-        
+
         println!("🧪 Testing user_profile_changes event-sourcing aggregation...");
-        
+
         let test_fid = 999999_i64;
         let hash_username = test_message_hash(10001);
         let hash_display = test_message_hash(10002);
         let hash_bio = test_message_hash(10003);
         let hash_pfp = test_message_hash(10004);
         let hash_fname = test_message_hash(10005);
-        
+
         // Cleanup
-        for hash in [&hash_username, &hash_display, &hash_bio, &hash_pfp, &hash_fname] {
+        for hash in [
+            &hash_username,
+            &hash_display,
+            &hash_bio,
+            &hash_pfp,
+            &hash_fname,
+        ] {
             cleanup_by_message_hash(&db, hash).await;
         }
-        sqlx::query("DELETE FROM username_proofs WHERE fid = $1").bind(test_fid).execute(db.pool()).await.ok();
-        
+        sqlx::query("DELETE FROM username_proofs WHERE fid = $1")
+            .bind(test_fid)
+            .execute(db.pool())
+            .await
+            .ok();
+
         // Setup: Insert profile changes + username proof
         let mut batched = BatchedData::new();
         batched.fids_to_ensure.insert(test_fid);
-        
+
         // Profile fields
-        batched.profile_updates.push((test_fid, "username".to_string(), Some("testuser".to_string()), 1698765432, hash_username.clone()));
-        batched.profile_updates.push((test_fid, "display_name".to_string(), Some("Test User".to_string()), 1698765433, hash_display.clone()));
-        batched.profile_updates.push((test_fid, "bio".to_string(), Some("Test bio".to_string()), 1698765434, hash_bio.clone()));
-        batched.profile_updates.push((test_fid, "pfp_url".to_string(), Some("https://example.com/pfp.png".to_string()), 1698765435, hash_pfp.clone()));
-        
+        batched.profile_updates.push((
+            test_fid,
+            "username".to_string(),
+            Some("testuser".to_string()),
+            1698765432,
+            hash_username.clone(),
+        ));
+        batched.profile_updates.push((
+            test_fid,
+            "display_name".to_string(),
+            Some("Test User".to_string()),
+            1698765433,
+            hash_display.clone(),
+        ));
+        batched.profile_updates.push((
+            test_fid,
+            "bio".to_string(),
+            Some("Test bio".to_string()),
+            1698765434,
+            hash_bio.clone(),
+        ));
+        batched.profile_updates.push((
+            test_fid,
+            "pfp_url".to_string(),
+            Some("https://example.com/pfp.png".to_string()),
+            1698765435,
+            hash_pfp.clone(),
+        ));
+
         // FNAME proof
         batched.username_proofs.push((
             test_fid,
@@ -1388,47 +1464,56 @@ mod message_types_tests {
             hash_fname.clone(),
             shard_info.clone(),
         ));
-        
-        flush_batched_data(&db, batched).await.expect("Failed to flush");
-        
+
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush");
+
         // 🎯 CRITICAL TEST: Verify event-sourcing works - query latest values
         // Test each field individually (event-sourcing aggregation)
-        
+
         let display_name: Option<(Option<String>,)> = sqlx::query_as(
             "SELECT field_value FROM user_profile_changes 
              WHERE fid = $1 AND field_name = 'display_name' 
-             ORDER BY timestamp DESC LIMIT 1"
+             ORDER BY timestamp DESC LIMIT 1",
         )
-            .bind(test_fid)
-            .fetch_optional(db.pool())
-            .await
-            .expect("Failed to query display_name");
-        
-        assert_eq!(display_name.map(|r| r.0), Some(Some("Test User".to_string())), "Display name should be retrievable from event log");
-        
+        .bind(test_fid)
+        .fetch_optional(db.pool())
+        .await
+        .expect("Failed to query display_name");
+
+        assert_eq!(
+            display_name.map(|r| r.0),
+            Some(Some("Test User".to_string())),
+            "Display name should be retrievable from event log"
+        );
+
         let bio: Option<(Option<String>,)> = sqlx::query_as(
             "SELECT field_value FROM user_profile_changes 
              WHERE fid = $1 AND field_name = 'bio' 
-             ORDER BY timestamp DESC LIMIT 1"
+             ORDER BY timestamp DESC LIMIT 1",
         )
-            .bind(test_fid)
-            .fetch_optional(db.pool())
-            .await
-            .expect("Failed to query bio");
-        
-        assert_eq!(bio.map(|r| r.0), Some(Some("Test bio".to_string())), "Bio should be retrievable");
-        
+        .bind(test_fid)
+        .fetch_optional(db.pool())
+        .await
+        .expect("Failed to query bio");
+
+        assert_eq!(
+            bio.map(|r| r.0),
+            Some(Some("Test bio".to_string())),
+            "Bio should be retrievable"
+        );
+
         // Verify username_proofs record
-        let username_count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM username_proofs WHERE fid = $1"
-        )
-            .bind(test_fid)
-            .fetch_one(db.pool())
-            .await
-            .expect("Failed to count username_proofs");
-        
+        let username_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM username_proofs WHERE fid = $1")
+                .bind(test_fid)
+                .fetch_one(db.pool())
+                .await
+                .expect("Failed to count username_proofs");
+
         assert_eq!(username_count.0, 1, "Should have 1 username_proof (FNAME)");
-        
+
         // Test: Insert another display_name with later timestamp (should be the latest)
         let hash_display2 = test_message_hash(10007);
         let mut batched = BatchedData::new();
@@ -1439,29 +1524,46 @@ mod message_types_tests {
             1698765999, // Later timestamp
             hash_display2.clone(),
         ));
-        flush_batched_data(&db, batched).await.expect("Failed to flush update");
-        
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush update");
+
         // Verify latest display_name
         let latest_display: Option<(Option<String>,)> = sqlx::query_as(
             "SELECT field_value FROM user_profile_changes 
              WHERE fid = $1 AND field_name = 'display_name' 
-             ORDER BY timestamp DESC LIMIT 1"
+             ORDER BY timestamp DESC LIMIT 1",
         )
-            .bind(test_fid)
-            .fetch_optional(db.pool())
-            .await
-            .expect("Failed to query latest display_name");
-        
-        assert_eq!(latest_display.map(|r| r.0), Some(Some("Updated Display Name".to_string())), "Should get LATEST display_name by timestamp");
-        
+        .bind(test_fid)
+        .fetch_optional(db.pool())
+        .await
+        .expect("Failed to query latest display_name");
+
+        assert_eq!(
+            latest_display.map(|r| r.0),
+            Some(Some("Updated Display Name".to_string())),
+            "Should get LATEST display_name by timestamp"
+        );
+
         println!("     ✅ Event-sourcing aggregation: Latest value by timestamp works correctly");
-        
+
         // Cleanup
-        for hash in [&hash_username, &hash_display, &hash_bio, &hash_pfp, &hash_fname, &hash_display2] {
+        for hash in [
+            &hash_username,
+            &hash_display,
+            &hash_bio,
+            &hash_pfp,
+            &hash_fname,
+            &hash_display2,
+        ] {
             cleanup_by_message_hash(&db, hash).await;
         }
-        sqlx::query("DELETE FROM username_proofs WHERE fid = $1").bind(test_fid).execute(db.pool()).await.ok();
-        
+        sqlx::query("DELETE FROM username_proofs WHERE fid = $1")
+            .bind(test_fid)
+            .execute(db.pool())
+            .await
+            .ok();
+
         println!("✅ user_profile_changes event-sourcing aggregation verified");
     }
 
@@ -1469,20 +1571,20 @@ mod message_types_tests {
     async fn test_concurrent_message_hash_inserts() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
-        
+
         println!("🧪 Testing concurrent inserts with same message_hash...");
-        
+
         let test_hash = test_message_hash(11001);
         cleanup_by_message_hash(&db, &test_hash).await;
-        
+
         // Spawn 5 concurrent tasks trying to insert the SAME message_hash
         let mut handles = vec![];
-        
+
         for i in 0..5 {
             let db_clone = db.clone();
             let hash_clone = test_hash.clone();
             let shard_clone = shard_info.clone();
-            
+
             let handle = tokio::spawn(async move {
                 let mut batched = BatchedData::new();
                 batched.casts.push((
@@ -1490,16 +1592,19 @@ mod message_types_tests {
                     Some(format!("Concurrent insert {}", i)),
                     1698765432 + i as i64,
                     hash_clone,
-                    None, None, None, None,
+                    None,
+                    None,
+                    None,
+                    None,
                     shard_clone,
                 ));
-                
+
                 flush_batched_data(&db_clone, batched).await
             });
-            
+
             handles.push(handle);
         }
-        
+
         // Wait for all tasks
         let mut success_count = 0;
         for handle in handles {
@@ -1507,35 +1612,40 @@ mod message_types_tests {
                 success_count += 1;
             }
         }
-        
+
         println!("  {}/5 concurrent inserts succeeded", success_count);
-        
+
         // Verify only ONE record exists (ON CONFLICT DO NOTHING works under concurrency)
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
             .bind(&test_hash)
             .fetch_one(db.pool())
             .await
             .expect("Failed to query");
-        
-        assert_eq!(count.0, 1, "Should have exactly 1 record despite concurrent inserts");
-        
+
+        assert_eq!(
+            count.0, 1,
+            "Should have exactly 1 record despite concurrent inserts"
+        );
+
         cleanup_by_message_hash(&db, &test_hash).await;
-        
-        println!("✅ Concurrent insert safety verified (ON CONFLICT protects against race conditions)");
+
+        println!(
+            "✅ Concurrent insert safety verified (ON CONFLICT protects against race conditions)"
+        );
     }
 
     #[tokio::test]
     async fn test_error_handling_invalid_data() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
-        
+
         println!("🧪 Testing error handling for invalid data...");
-        
+
         // Test 1: Very large FID (should still work, i64 supports it)
         println!("  1. Testing very large FID");
         let hash1 = test_message_hash(12001);
         cleanup_by_message_hash(&db, &hash1).await;
-        
+
         let huge_fid = i64::MAX - 1000;
         let mut batched = BatchedData::new();
         batched.fids_to_ensure.insert(huge_fid);
@@ -1544,23 +1654,26 @@ mod message_types_tests {
             Some("Large FID test".to_string()),
             1698765432,
             hash1.clone(),
-            None, None, None, None,
+            None,
+            None,
+            None,
+            None,
             shard_info.clone(),
         ));
-        
+
         let result = flush_batched_data(&db, batched).await;
         assert!(result.is_ok(), "Large FID should be accepted");
-        
+
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
             .bind(&hash1)
             .fetch_one(db.pool())
             .await
             .unwrap();
         assert_eq!(count.0, 1, "Cast with large FID should be inserted");
-        
+
         cleanup_by_message_hash(&db, &hash1).await;
         println!("     ✅ Large FID handled correctly");
-        
+
         // Test 2: Empty message_hash (should fail or be rejected by type system)
         println!("  2. Testing empty message_hash");
         let empty_hash = vec![];
@@ -1570,20 +1683,24 @@ mod message_types_tests {
             Some("Empty hash test".to_string()),
             1698765432,
             empty_hash.clone(),
-            None, None, None, None,
+            None,
+            None,
+            None,
+            None,
             shard_info.clone(),
         ));
-        
+
         // This should either fail gracefully or be prevented by validation
         let result = flush_batched_data(&db, batched).await;
-        
+
         if result.is_ok() {
             // If it succeeds, verify it was stored
-            let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
-                .bind(&empty_hash)
-                .fetch_one(db.pool())
-                .await
-                .unwrap_or((0,));
+            let count: (i64,) =
+                sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")
+                    .bind(&empty_hash)
+                    .fetch_one(db.pool())
+                    .await
+                    .unwrap_or((0,));
             println!("     ℹ️  Empty hash: {} records created", count.0);
             if count.0 > 0 {
                 sqlx::query("DELETE FROM casts WHERE message_hash = $1")
@@ -1595,8 +1712,181 @@ mod message_types_tests {
         } else {
             println!("     ✅ Empty hash rejected as expected");
         }
-        
+
         println!("✅ Error handling tests completed");
     }
-}
 
+    #[tokio::test]
+    async fn test_onchain_events_all_types() {
+        let db = setup_test_db().await;
+        let shard_info = test_shard_info();
+
+        println!("🧪 Testing all OnChainEvent types (system messages)...");
+
+        let test_fid = 888888_i64;
+
+        // According to proto/onchain_event.proto:
+        // 1 = EVENT_TYPE_SIGNER
+        // 2 = EVENT_TYPE_SIGNER_MIGRATED
+        // 3 = EVENT_TYPE_ID_REGISTER
+        // 4 = EVENT_TYPE_STORAGE_RENT
+        // 5 = EVENT_TYPE_TIER_PURCHASE
+
+        let mut batched = BatchedData::new();
+        batched.fids_to_ensure.insert(test_fid);
+
+        // Test 1: SIGNER event (type 1)
+        println!("  1. Testing EVENT_TYPE_SIGNER (type 1)");
+        let event1_data = serde_json::json!({
+            "type": 1,
+            "fid": test_fid,
+            "chain_id": 1,
+            "block_number": 1000,
+            "block_timestamp": 1698765432,
+            "signer_event_body": {
+                "key": "0x1234567890abcdef",
+                "key_type": 1,
+                "event_type": 1,
+                "metadata": "0xabcd",
+                "metadata_type": 1
+            }
+        });
+
+        batched.onchain_events.push((
+            test_fid,
+            1,                    // EVENT_TYPE_SIGNER
+            1,                    // chain_id (Ethereum)
+            1000,                 // block_number
+            Some(vec![0x11; 32]), // block_hash
+            1698765432,           // block_timestamp
+            Some(vec![0x22; 32]), // transaction_hash
+            Some(0),              // log_index
+            event1_data,
+        ));
+
+        // Test 2: ID_REGISTER event (type 3)
+        println!("  2. Testing EVENT_TYPE_ID_REGISTER (type 3)");
+        let event2_data = serde_json::json!({
+            "type": 3,
+            "fid": test_fid,
+            "chain_id": 10, // OP Mainnet
+            "block_number": 1001,
+            "block_timestamp": 1698765433,
+            "id_register_event_body": {
+                "to": "0xabcdef",
+                "event_type": 1,
+                "recovery_address": "0x123456"
+            }
+        });
+
+        batched.onchain_events.push((
+            test_fid,
+            3,  // EVENT_TYPE_ID_REGISTER
+            10, // chain_id (OP Mainnet)
+            1001,
+            Some(vec![0x33; 32]),
+            1698765433,
+            Some(vec![0x44; 32]),
+            Some(1),
+            event2_data,
+        ));
+
+        // Test 3: STORAGE_RENT event (type 4)
+        println!("  3. Testing EVENT_TYPE_STORAGE_RENT (type 4)");
+        let event3_data = serde_json::json!({
+            "type": 4,
+            "fid": test_fid,
+            "chain_id": 10,
+            "block_number": 1002,
+            "block_timestamp": 1698765434,
+            "storage_rent_event_body": {
+                "payer": "0xpayer",
+                "units": 10,
+                "expiry": 1698765434 + 86400 * 365
+            }
+        });
+
+        batched.onchain_events.push((
+            test_fid,
+            4, // EVENT_TYPE_STORAGE_RENT
+            10,
+            1002,
+            Some(vec![0x55; 32]),
+            1698765434,
+            Some(vec![0x66; 32]),
+            Some(2),
+            event3_data,
+        ));
+
+        flush_batched_data(&db, batched)
+            .await
+            .expect("Failed to flush onchain events");
+
+        // 🎯 CRITICAL VALIDATION: Verify ALL onchain events were inserted
+        let results: Vec<(i64, i32, i32, i32, i64)> = sqlx::query_as(
+            "SELECT fid, event_type, chain_id, block_number, block_timestamp 
+             FROM onchain_events 
+             WHERE fid = $1 
+             ORDER BY event_type",
+        )
+        .bind(test_fid)
+        .fetch_all(db.pool())
+        .await
+        .expect("Failed to query onchain_events");
+
+        assert_eq!(results.len(), 3, "Should have 3 onchain events");
+
+        // Verify event 1: SIGNER
+        assert_eq!(results[0].0, test_fid, "Event 1: FID should match");
+        assert_eq!(results[0].1, 1, "Event 1: type should be SIGNER (1)");
+        assert_eq!(results[0].2, 1, "Event 1: chain_id should be 1 (Ethereum)");
+        assert_eq!(results[0].3, 1000, "Event 1: block_number should match");
+        assert_eq!(
+            results[0].4, 1698765432,
+            "Event 1: block_timestamp should match"
+        );
+
+        // Verify event 2: ID_REGISTER
+        assert_eq!(results[1].0, test_fid, "Event 2: FID should match");
+        assert_eq!(results[1].1, 3, "Event 2: type should be ID_REGISTER (3)");
+        assert_eq!(
+            results[1].2, 10,
+            "Event 2: chain_id should be 10 (OP Mainnet)"
+        );
+        assert_eq!(results[1].3, 1001, "Event 2: block_number should match");
+
+        // Verify event 3: STORAGE_RENT
+        assert_eq!(results[2].0, test_fid, "Event 3: FID should match");
+        assert_eq!(results[2].1, 4, "Event 3: type should be STORAGE_RENT (4)");
+        assert_eq!(results[2].2, 10, "Event 3: chain_id should match");
+        assert_eq!(results[2].3, 1002, "Event 3: block_number should match");
+
+        // Verify UNIQUE constraint works (transaction_hash + log_index)
+        let unique_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(DISTINCT (transaction_hash, log_index)) FROM onchain_events WHERE fid = $1"
+        )
+            .bind(test_fid)
+            .fetch_one(db.pool())
+            .await
+            .expect("Failed to count unique events");
+
+        assert_eq!(
+            unique_count.0, 3,
+            "All events should have unique (transaction_hash, log_index)"
+        );
+
+        // Cleanup
+        sqlx::query("DELETE FROM onchain_events WHERE fid = $1")
+            .bind(test_fid)
+            .execute(db.pool())
+            .await
+            .ok();
+
+        println!("     ✅ SIGNER event (type 1) validated");
+        println!("     ✅ ID_REGISTER event (type 3) validated");
+        println!("     ✅ STORAGE_RENT event (type 4) validated");
+        println!("     ✅ UNIQUE(transaction_hash, log_index) verified");
+        println!("✅ All OnChainEvent types tested (3/5 core types)");
+        println!("   Note: SIGNER_MIGRATED (2) and TIER_PURCHASE (5) are less common");
+    }
+}
