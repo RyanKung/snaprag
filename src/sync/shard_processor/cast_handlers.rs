@@ -12,7 +12,7 @@ pub(super) async fn collect_cast_add(
     shard_block_info: &ShardBlockInfo,
     batched: &mut BatchedData,
 ) -> Result<()> {
-    let fid = data.fid as i64;
+    let fid = i64::try_from(data.fid).unwrap_or(0);
     let timestamp = i64::from(data.timestamp);
 
     // Parse cast data from the body

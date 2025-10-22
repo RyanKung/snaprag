@@ -27,8 +27,8 @@ pub(super) fn create_activity(
         activity_data,
         timestamp,
         message_hash,
-        Some(shard_block_info.shard_id.min(i32::MAX as u32) as i32),
-        Some(shard_block_info.block_height.min(i64::MAX as u64) as i64),
+        Some(i32::try_from(shard_block_info.shard_id.min(i32::MAX as u32)).unwrap_or(i32::MAX)),
+        Some(i64::try_from(shard_block_info.block_height.min(i64::MAX as u64)).unwrap_or(i64::MAX)),
     )
 }
 

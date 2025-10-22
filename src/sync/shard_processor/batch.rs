@@ -163,8 +163,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(root_hash)
                     .bind(embeds)
                     .bind(mentions)
-                    .bind(shard_block_info.shard_id as i32)
-                    .bind(shard_block_info.block_height as i64);
+                    .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0));
             }
 
             q.execute(&mut *tx).await?;
@@ -208,8 +208,8 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(link_type)
                     .bind(timestamp)
                     .bind(message_hash)
-                    .bind(shard_block_info.shard_id as i32)
-                    .bind(shard_block_info.block_height as i64);
+                    .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0));
             }
 
             q.execute(&mut *tx).await?;
@@ -264,9 +264,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(reaction_type)
                     .bind(timestamp)
                     .bind(message_hash)
-                    .bind(shard_block_info.shard_id as i32)
-                    .bind(shard_block_info.block_height as i64)
-                    .bind(shard_block_info.transaction_fid as i64);
+                    .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
             }
 
             q.execute(&mut *tx).await?;
@@ -328,9 +328,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(chain_id)
                     .bind(timestamp)
                     .bind(message_hash)
-                    .bind(shard_block_info.shard_id as i32)
-                    .bind(shard_block_info.block_height as i64)
-                    .bind(shard_block_info.transaction_fid as i64);
+                    .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
             }
 
             q.execute(&mut *tx).await?;
@@ -563,9 +563,9 @@ pub async fn flush_batched_data(database: &Database, batched: BatchedData) -> Re
                     .bind(transaction_id)
                     .bind(timestamp)
                     .bind(message_hash)
-                    .bind(shard_block_info.shard_id as i32)
-                    .bind(shard_block_info.block_height as i64)
-                    .bind(shard_block_info.transaction_fid as i64);
+                    .bind(i32::try_from(shard_block_info.shard_id).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.block_height).unwrap_or(0))
+                    .bind(i64::try_from(shard_block_info.transaction_fid).unwrap_or(0));
             }
 
             q.execute(&mut *tx).await?;

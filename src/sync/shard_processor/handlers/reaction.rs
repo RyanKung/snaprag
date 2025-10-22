@@ -15,10 +15,12 @@ pub(super) fn handle_reaction_add(
     batched: &mut BatchedData,
 ) {
     if let Some(reaction_body) = body.get("reaction_body") {
-        let reaction_type = reaction_body
-            .get("type")
-            .and_then(serde_json::Value::as_i64)
-            .unwrap_or(1) as i16; // 1=like, 2=recast
+        let reaction_type = i16::try_from(
+            reaction_body
+                .get("type")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(1)
+        ).unwrap_or(1); // 1=like, 2=recast
 
         // Handle target_cast_id (reaction to a cast)
         if let Some(target) = reaction_body.get("target_cast_id") {
@@ -84,7 +86,7 @@ pub(super) fn handle_reaction_remove(
         let reaction_type = reaction_body
             .get("type")
             .and_then(serde_json::Value::as_i64)
-            .map_or(1, |v| v as i16);
+            .map_or(1, |v| i16::try_from(v).unwrap_or(1));
 
         // Try to get target cast hash
         if let Some(target_cast_id) = reaction_body.get("target_cast_id") {
