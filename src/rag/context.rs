@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use crate::cli::output::truncate_str;
 use crate::rag::SearchResult;
 
 /// Assembler for creating context from search results
@@ -115,13 +116,7 @@ impl ContextAssembler {
                 .profile
                 .bio
                 .as_deref()
-                .map(|b| {
-                    if b.len() > 100 {
-                        format!("{}...", &b[..100])
-                    } else {
-                        b.to_string()
-                    }
-                })
+                .map(|b| truncate_str(b, 100))
                 .unwrap_or_default();
 
             summary.push_str(&format!(
@@ -232,11 +227,7 @@ impl CastContextAssembler {
         let mut summary = format!("Found {} relevant cast(s):\n\n", results.len());
 
         for (idx, result) in results.iter().enumerate().take(5) {
-            let text_preview = if result.text.len() > 100 {
-                format!("{}...", &result.text[..100])
-            } else {
-                result.text.clone()
-            };
+            let text_preview = truncate_str(&result.text, 100);
 
             summary.push_str(&format!(
                 "{}. FID {} - Similarity: {:.2}%\n   {}\n\n",

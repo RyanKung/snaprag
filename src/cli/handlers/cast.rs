@@ -1,6 +1,6 @@
 //! Cast-related command handlers
 
-use crate::cli::output::{print_info, print_warning, print_error};
+use crate::cli::output::{print_info, print_warning, print_error, truncate_str};
 use crate::AppConfig;
 use crate::Result;
 use crate::SnapRag;
@@ -76,8 +76,8 @@ pub async fn handle_cast_search(
         );
 
         // Show cast text (truncate if needed)
-        let display_text = if result.text.len() > 200 && !detailed {
-            format!("{}...", &result.text[..200])
+        let display_text = if !detailed && result.text.chars().count() > 200 {
+            truncate_str(&result.text, 200)
         } else {
             result.text.clone()
         };
@@ -197,11 +197,7 @@ pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -
 
             println!("{indent}📝 {author_name}");
             if let Some(text) = &parent.text {
-                let display_text = if text.len() > 100 {
-                    format!("{}...", &text[..100])
-                } else {
-                    text.clone()
-                };
+                let display_text = truncate_str(text, 100);
                 println!("{indent}   {display_text}");
             }
             println!("{indent}   ↓");
@@ -243,11 +239,7 @@ pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -
 
             println!("{}. ↳ {}", idx + 1, author_name);
             if let Some(text) = &reply.text {
-                let display_text = if text.len() > 100 {
-                    format!("{}...", &text[..100])
-                } else {
-                    text.clone()
-                };
+                let display_text = truncate_str(text, 100);
                 println!("      {display_text}");
             }
             println!();

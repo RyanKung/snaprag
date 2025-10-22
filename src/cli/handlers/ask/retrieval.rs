@@ -129,11 +129,7 @@ pub async fn find_relevant_casts(
             .as_secs() as i64;
 
         for (idx, result) in user_relevant_casts.iter().take(5).enumerate() {
-            let preview = if result.text.len() > 80 {
-                format!("{}...", &result.text[..80])
-            } else {
-                result.text.clone()
-            };
+            let preview = truncate_str(&result.text, 80);
 
             // Calculate days ago
             let age_days = ((now - result.timestamp) as f32) / 86400.0;

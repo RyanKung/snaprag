@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::cli::output::{print_info, print_warning};
+use crate::cli::output::{print_info, print_warning, truncate_str};
 use crate::database::Database;
 use crate::AppConfig;
 use crate::Result;
@@ -163,11 +163,7 @@ pub async fn handle_rag_query(
 
         if verbose {
             if let Some(bio) = &source.profile.bio {
-                let bio_preview = if bio.len() > 100 {
-                    format!("{}...", &bio[..100])
-                } else {
-                    bio.clone()
-                };
+                let bio_preview = truncate_str(bio, 100);
                 println!("     Bio: {bio_preview}");
             }
         }
@@ -227,11 +223,7 @@ pub async fn handle_rag_search(
         );
 
         if let Some(bio) = &result.profile.bio {
-            let bio_preview = if bio.len() > 150 {
-                format!("{}...", &bio[..150])
-            } else {
-                bio.clone()
-            };
+            let bio_preview = truncate_str(bio, 150);
             println!("   Bio: {bio_preview}");
         }
 
