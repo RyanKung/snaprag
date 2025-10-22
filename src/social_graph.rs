@@ -601,24 +601,24 @@ impl SocialGraphAnalyzer {
     /// Analyze users mentioned in casts
     async fn analyze_mentions(&self, fid: i64) -> Result<Vec<UserMention>> {
         // Get casts with mentions
-        let casts = sqlx::query!(
+        let casts = sqlx::query_as::<_, (Option<serde_json::Value>,)>(
             r#"
             SELECT mentions
             FROM casts
             WHERE fid = $1 AND mentions IS NOT NULL
             ORDER BY timestamp DESC
             LIMIT 100
-            "#,
-            fid
+            "#
         )
+        .bind(fid)
         .fetch_all(self.database.pool())
         .await?;
 
         // Count mention frequency
         let mut mention_counts: HashMap<i64, usize> = HashMap::new();
 
-        for cast in casts {
-            if let Some(mentions_json) = cast.mentions {
+        for (mentions_json,) in casts {
+            if let Some(mentions_json) = mentions_json {
                 if let Some(mentions_array) = mentions_json.as_array() {
                     for mention in mentions_array {
                         if let Some(mentioned_fid) = mention.as_i64() {

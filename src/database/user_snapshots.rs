@@ -5,23 +5,23 @@ use crate::Result;
 impl Database {
     /// Create a user profile snapshot
     pub async fn create_user_profile_snapshot(&self, snapshot: &UserProfileSnapshot) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO user_profile_snapshots (
                 fid, username, display_name, bio, pfp_url, website_url,
                 snapshot_timestamp, message_hash
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            "#,
-            snapshot.fid,
-            snapshot.username,
-            snapshot.display_name,
-            snapshot.bio,
-            snapshot.pfp_url,
-            snapshot.website_url,
-            snapshot.snapshot_timestamp,
-            snapshot.message_hash
+            "#
         )
+        .bind(snapshot.fid)
+        .bind(&snapshot.username)
+        .bind(&snapshot.display_name)
+        .bind(&snapshot.bio)
+        .bind(&snapshot.pfp_url)
+        .bind(&snapshot.website_url)
+        .bind(snapshot.snapshot_timestamp)
+        .bind(&snapshot.message_hash)
         .execute(&self.pool)
         .await?;
 
