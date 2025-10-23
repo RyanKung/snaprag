@@ -8,6 +8,7 @@ use futures::stream::StreamExt;
 use futures::stream::{
     self,
 };
+use rayon::prelude::*;  // CPU parallel processing
 use tracing::debug;
 use tracing::info;
 use tracing::warn;
@@ -231,44 +232,44 @@ async fn process_casts_with_separated_concurrency(
 ) -> Vec<ProcessResult> {
     use futures::stream::StreamExt;
     
-    // Step 0: CPU parallel preprocessing (utilize 56 virtual cores)
+    // Step 0: CPU parallel preprocessing using rayon for true CPU parallelism
     let cpu_concurrency = std::cmp::min(56, casts.len()); // Use all available CPU cores
-    let preprocessed_casts: Vec<(crate::models::Cast, bool)> = 
-        stream::iter(casts)
-            .map(|cast| {
-                async move {
-                    // Simplified preprocessing with debugging
-                    let text_len = cast.text.as_ref().map(|t| t.len()).unwrap_or(0);
-                    let text_preview = cast.text.as_ref()
-                        .map(|t| t.chars().take(50).collect::<String>())
-                        .unwrap_or_else(|| "None".to_string());
-                    
-                    info!("Cast {}: text_len={}, preview='{}'", 
-                          hex::encode(&cast.message_hash), text_len, text_preview);
-                    
-                    let is_valid = cast.text.is_some() && 
-                                  !cast.text.as_ref().unwrap().trim().is_empty();
-                    
-                    if is_valid {
-                        let text = cast.text.as_ref().unwrap();
-                        // Minimal processing - just trim and basic cleanup
-                        let processed_text = text.trim().to_string();
-                        
-                        if !processed_text.is_empty() {
-                            let mut processed_cast = cast;
-                            processed_cast.text = Some(processed_text);
-                            (processed_cast, true)
-                        } else {
-                            (cast, false)
-                        }
-                    } else {
-                        (cast, false)
-                    }
+    
+    info!("Starting CPU parallel preprocessing with {} cores for {} casts", cpu_concurrency, casts.len());
+    
+    // Use rayon for true CPU parallel processing
+    let preprocessed_casts: Vec<(crate::models::Cast, bool)> = casts
+        .into_par_iter()  // Parallel iteration using rayon
+        .map(|cast| {
+            // Simplified preprocessing with debugging
+            let text_len = cast.text.as_ref().map(|t| t.len()).unwrap_or(0);
+            let text_preview = cast.text.as_ref()
+                .map(|t| t.chars().take(50).collect::<String>())
+                .unwrap_or_else(|| "None".to_string());
+            
+            debug!("Cast {}: text_len={}, preview='{}'", 
+                   hex::encode(&cast.message_hash), text_len, text_preview);
+            
+            let is_valid = cast.text.is_some() && 
+                          !cast.text.as_ref().unwrap().trim().is_empty();
+            
+            if is_valid {
+                let text = cast.text.as_ref().unwrap();
+                // Minimal processing - just trim and basic cleanup
+                let processed_text = text.trim().to_string();
+                
+                if !processed_text.is_empty() {
+                    let mut processed_cast = cast;
+                    processed_cast.text = Some(processed_text);
+                    (processed_cast, true)
+                } else {
+                    (cast, false)
                 }
-            })
-            .buffered(cpu_concurrency) // High CPU concurrency for preprocessing
-            .collect()
-            .await;
+            } else {
+                (cast, false)
+            }
+        })
+        .collect();
     
     // Filter out invalid casts and collect stats
     let total_casts = preprocessed_casts.len();
@@ -281,6 +282,9 @@ async fn process_casts_with_separated_concurrency(
           total_casts, valid_casts.len());
     
     // Step 1: Generate embeddings with high GPU concurrency
+    info!("Starting GPU embedding generation for {} casts with {} GPU concurrency", 
+          valid_casts.len(), gpu_concurrency);
+    
     let embedding_results: Vec<(crate::models::Cast, crate::errors::Result<Vec<f32>>)> = 
         stream::iter(valid_casts)
             .map(|cast| {
@@ -293,6 +297,8 @@ async fn process_casts_with_separated_concurrency(
             .buffered(gpu_concurrency) // High concurrency for GPU computation
             .collect()
             .await;
+    
+    info!("Completed GPU embedding generation, starting database storage");
     
     // Step 2: Store embeddings with lower DB concurrency
     let db_concurrency = std::cmp::min(50, gpu_concurrency / 4); // Much lower DB concurrency
