@@ -14,6 +14,8 @@ use candle_core::{Device, Tensor, Module, DType};
 use candle_core::IndexOp;
 #[cfg(feature = "local-gpu")]
 use candle_nn::{VarBuilder, Embedding, Linear, LayerNorm, Dropout};
+#[cfg(feature = "local-gpu")]
+use candle_transformers::models::bert::{BertModel, Config as BertConfig};
 
 #[cfg(feature = "local-gpu")]
 use hf_hub::api::tokio::Api;
@@ -33,6 +35,7 @@ pub struct LocalGPUClient {
     device: Device,
     model_path: PathBuf,
     embedding_dim: usize,
+    model: BertModel,
 }
 
 #[cfg(feature = "local-gpu")]
@@ -64,11 +67,15 @@ impl LocalGPUClient {
         // Load tokenizer
         let tokenizer = Self::load_tokenizer(&model_path)?;
 
+        // Load BERT model
+        let model = Self::load_bert_model(&model_path, &device)?;
+
         Ok(Self {
             tokenizer,
             device,
             model_path,
             embedding_dim,
+            model,
         })
     }
 
@@ -243,6 +250,30 @@ impl LocalGPUClient {
         )))
     }
 
+    /// Load BERT model from downloaded files
+    fn load_bert_model(model_path: &PathBuf, device: &Device) -> Result<BertModel> {
+        info!("Loading BERT model from: {:?}", model_path);
+        
+        // Load config
+        let config_path = model_path.join("config.json");
+        let config_content = std::fs::read_to_string(&config_path)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to read config: {}", e)))?;
+        
+        let config: BertConfig = serde_json::from_str(&config_content)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse config: {}", e)))?;
+        
+        // Load model weights
+        let model_file = model_path.join("model.safetensors");
+        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[&model_file], DType::F32, device)? };
+        
+        // Create model
+        let model = BertModel::load(vb, &config)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to load BERT model: {}", e)))?;
+        
+        info!("BERT model loaded successfully");
+        Ok(model)
+    }
+
     /// Generate embedding for a single text using BGE model
     pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         debug!("Generating embedding for text: {}", text);
@@ -263,9 +294,8 @@ impl LocalGPUClient {
         let input_ids = input_ids.unsqueeze(0)?;
         let attention_mask = attention_mask.unsqueeze(0)?;
 
-        // For now, we'll use a simple approach: load the model weights and compute embeddings
-        // This is a simplified implementation - in production you'd want to use candle-transformers
-        let embeddings = self.compute_embeddings_simple(&input_ids, &attention_mask)?;
+        // Use the real BERT model for embedding computation
+        let embeddings = self.compute_embeddings_real(&input_ids, &attention_mask)?;
 
         // Mean pooling
         let pooled = self.mean_pooling(&embeddings, &attention_mask)?;
@@ -342,8 +372,8 @@ impl LocalGPUClient {
         let attention_mask =
             Tensor::new(attention_mask.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
 
-        // Generate embeddings
-        let embeddings = self.compute_embeddings_simple(&input_ids, &attention_mask)?;
+        // Generate embeddings using real BERT model
+        let embeddings = self.compute_embeddings_real(&input_ids, &attention_mask)?;
 
         // Mean pooling for each item in batch
         let mut results = Vec::with_capacity(batch_size);
@@ -359,22 +389,14 @@ impl LocalGPUClient {
         Ok(results)
     }
 
-    /// Simple embedding computation - this is a placeholder implementation
-    /// In production, you would load the full BERT model using candle-transformers
-    fn compute_embeddings_simple(&self, input_ids: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
-        // This is a simplified implementation
-        // For now, we'll create random embeddings as a placeholder
-        // In production, you would load the actual BERT model weights and compute real embeddings
+    /// Real embedding computation using BERT model
+    fn compute_embeddings_real(&self, input_ids: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
+        // Forward pass through BERT model
+        // BERT forward takes: input_ids, attention_mask, token_type_ids (optional)
+        let hidden_states = self.model.forward(input_ids, attention_mask, None)?;
         
-        let batch_size = input_ids.dim(0)?;
-        let seq_len = input_ids.dim(1)?;
-        let hidden_size = self.embedding_dim;
-        
-        // Create random embeddings as placeholder
-        // TODO: Replace with actual BERT model loading and computation
-        let embeddings = Tensor::randn(0f32, 1f32, (batch_size, seq_len, hidden_size), &self.device)?;
-        
-        Ok(embeddings)
+        // Return the last hidden states (shape: [batch_size, seq_len, hidden_size])
+        Ok(hidden_states)
     }
 
     /// Mean pooling of embeddings
