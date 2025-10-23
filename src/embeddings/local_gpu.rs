@@ -84,15 +84,32 @@ impl LocalGPUClient {
         match gpu_device_id {
             Some(device_id) => {
                 // User specified a GPU device ID
-                info!("Attempting to use CUDA device {}", device_id);
-                match Device::cuda_if_available(device_id) {
-                    Ok(device) => {
-                        info!("Successfully using CUDA device {}", device_id);
-                        Ok(device)
+                #[cfg(target_os = "macos")]
+                {
+                    info!("Attempting to use Metal device {}", device_id);
+                    match Device::new_metal(device_id) {
+                        Ok(device) => {
+                            info!("Successfully using Metal device {}", device_id);
+                            Ok(device)
+                        }
+                        Err(e) => {
+                            warn!("Failed to use Metal device {}: {}. Falling back to best available device.", device_id, e);
+                            Self::get_best_device()
+                        }
                     }
-                    Err(e) => {
-                        warn!("Failed to use CUDA device {}: {}. Falling back to best available device.", device_id, e);
-                        Self::get_best_device()
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    info!("Attempting to use CUDA device {}", device_id);
+                    match Device::cuda_if_available(device_id) {
+                        Ok(device) => {
+                            info!("Successfully using CUDA device {}", device_id);
+                            Ok(device)
+                        }
+                        Err(e) => {
+                            warn!("Failed to use CUDA device {}: {}. Falling back to best available device.", device_id, e);
+                            Self::get_best_device()
+                        }
                     }
                 }
             }
@@ -105,15 +122,25 @@ impl LocalGPUClient {
 
     /// Get the best available device (CUDA > Metal > CPU)
     fn get_best_device() -> Result<Device> {
-        if Device::cuda_if_available(0).is_ok() {
-            info!("Using CUDA device 0");
-            Ok(Device::cuda_if_available(0)?)
-        } else if Device::new_metal(0).is_ok() {
-            info!("Using Metal device");
-            Ok(Device::new_metal(0)?)
-        } else {
-            info!("Using CPU device");
-            Ok(Device::Cpu)
+        match Device::cuda_if_available(0) {
+            Ok(device) => {
+                info!("Using CUDA device 0");
+                Ok(device)
+            }
+            Err(e) => {
+                warn!("CUDA device 0 not available: {}. Trying Metal...", e);
+                match Device::new_metal(0) {
+                    Ok(device) => {
+                        info!("Using Metal device");
+                        Ok(device)
+                    }
+                    Err(e) => {
+                        warn!("Metal device not available: {}. Falling back to CPU.", e);
+                        info!("Using CPU device");
+                        Ok(Device::Cpu)
+                    }
+                }
+            }
         }
     }
 
@@ -302,34 +329,64 @@ impl LocalGPUClient {
     pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         debug!("Generating embedding for text: {}", text);
 
+        // Input validation to prevent CUDA errors
+        if text.is_empty() {
+            return Err(SnapragError::EmbeddingError("Empty text provided".to_string()));
+        }
+        
+        if text.len() > 10000 {
+            return Err(SnapragError::EmbeddingError("Text too long (max 10000 chars)".to_string()));
+        }
+
         // BGE models work well without task prefixes for general text
         let processed_text = text;
 
-        // Tokenize input
+        // Tokenize input with error handling
         let encoding = self
             .tokenizer
             .encode(processed_text.to_string(), true)
             .map_err(|e| SnapragError::EmbeddingError(format!("Tokenization failed: {}", e)))?;
 
-        let input_ids = Tensor::new(encoding.get_ids(), &self.device)?;
-        let attention_mask = Tensor::new(encoding.get_attention_mask(), &self.device)?;
+        // Validate tokenization results
+        let input_ids = encoding.get_ids();
+        let attention_mask = encoding.get_attention_mask();
+        
+        if input_ids.is_empty() {
+            return Err(SnapragError::EmbeddingError("No tokens generated".to_string()));
+        }
+        
+        if input_ids.len() > 512 {
+            return Err(SnapragError::EmbeddingError("Too many tokens (max 512)".to_string()));
+        }
+
+        let input_ids_tensor = Tensor::new(input_ids, &self.device)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to create input_ids tensor: {}", e)))?;
+        let attention_mask_tensor = Tensor::new(attention_mask, &self.device)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to create attention_mask tensor: {}", e)))?;
 
         // Add batch dimension
-        let input_ids = input_ids.unsqueeze(0)?;
-        let attention_mask = attention_mask.unsqueeze(0)?;
+        let input_ids = input_ids_tensor.unsqueeze(0)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to add batch dimension to input_ids: {}", e)))?;
+        let attention_mask = attention_mask_tensor.unsqueeze(0)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to add batch dimension to attention_mask: {}", e)))?;
 
-        // Use the real BERT model for embedding computation
-        let embeddings = self.compute_embeddings_real(&input_ids, &attention_mask)?;
+        // Use the real BERT model for embedding computation with error handling
+        let embeddings = self.compute_embeddings_real(&input_ids, &attention_mask)
+            .map_err(|e| SnapragError::EmbeddingError(format!("BERT forward pass failed: {}", e)))?;
 
         // Mean pooling
-        let pooled = self.mean_pooling(&embeddings, &attention_mask)?;
+        let pooled = self.mean_pooling(&embeddings, &attention_mask)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Mean pooling failed: {}", e)))?;
 
         // Normalize - squeeze to remove batch dimension
-        let pooled_squeezed = pooled.squeeze(0)?;
-        let normalized = self.normalize(&pooled_squeezed)?;
+        let pooled_squeezed = pooled.squeeze(0)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to squeeze pooled tensor: {}", e)))?;
+        let normalized = self.normalize(&pooled_squeezed)
+            .map_err(|e| SnapragError::EmbeddingError(format!("Normalization failed: {}", e)))?;
 
         // Convert to Vec<f32>
-        let embedding_vec: Vec<f32> = normalized.to_vec1()?;
+        let embedding_vec: Vec<f32> = normalized.to_vec1()
+            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to convert tensor to vector: {}", e)))?;
         
         debug!(
             "Generated embedding with {} dimensions",

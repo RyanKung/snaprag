@@ -86,16 +86,8 @@ pub async fn backfill_cast_embeddings_with_config(
             stats.success as f64 / start_time.elapsed().as_secs_f64()
         );
 
-        // Process casts in parallel within the batch
-        let results = stream::iter(casts)
-            .map(|cast| {
-                let db = Arc::clone(&db);
-                let embedding_service = Arc::clone(&embedding_service);
-                async move { process_single_cast_with_retry(cast, db, embedding_service, 3).await }
-            })
-            .buffered(parallel_tasks) // Configurable parallelism based on hardware
-            .collect::<Vec<_>>()
-            .await;
+        // Process casts with separated GPU computation and DB insertion concurrency
+        let results = process_casts_with_separated_concurrency(casts, &db, &embedding_service, parallel_tasks).await;
 
         // Aggregate results
         for result in results {
@@ -228,4 +220,122 @@ impl CastBackfillStats {
             self.success as f64 / self.processed() as f64
         }
     }
+}
+
+/// Process casts with separated GPU computation and DB insertion concurrency
+async fn process_casts_with_separated_concurrency(
+    casts: Vec<crate::models::Cast>,
+    db: &Arc<Database>,
+    embedding_service: &Arc<EmbeddingService>,
+    gpu_concurrency: usize,
+) -> Vec<ProcessResult> {
+    use futures::stream::StreamExt;
+    
+    // Step 0: CPU parallel preprocessing (utilize 56 virtual cores)
+    let cpu_concurrency = std::cmp::min(56, casts.len()); // Use all available CPU cores
+    let preprocessed_casts: Vec<(crate::models::Cast, bool)> = 
+        stream::iter(casts)
+            .map(|cast| {
+                async move {
+                    // CPU-intensive preprocessing with stronger validation
+                    let is_valid = cast.text.is_some() && 
+                                  !cast.text.as_ref().unwrap().trim().is_empty() &&
+                                  cast.text.as_ref().unwrap().len() > 10 && // Minimum text length
+                                  cast.text.as_ref().unwrap().len() < 10000; // Maximum text length to prevent GPU issues
+                    
+                    // Additional CPU preprocessing if valid
+                    if is_valid {
+                        let text = cast.text.as_ref().unwrap();
+                        // CPU-intensive text processing with safety checks
+                        let processed_text = text
+                            .trim()
+                            .replace('\n', " ")  // Replace newlines with spaces
+                            .replace('\r', " ")  // Replace carriage returns
+                            .replace('\t', " ")  // Replace tabs
+                            .chars()
+                            .filter(|c| c.is_ascii() || c.is_alphanumeric() || c.is_whitespace()) // Filter out problematic characters
+                            .collect::<String>()
+                            .split_whitespace()  // Split into words
+                            .filter(|word| !word.is_empty()) // Remove empty words
+                            .take(512) // Limit to 512 words to prevent GPU memory issues
+                            .collect::<Vec<&str>>()
+                            .join(" ");  // Rejoin with single spaces
+                        
+                        // Final validation
+                        if processed_text.len() > 10 && processed_text.len() < 5000 {
+                            let mut processed_cast = cast;
+                            processed_cast.text = Some(processed_text);
+                            (processed_cast, true)
+                        } else {
+                            (cast, false)
+                        }
+                    } else {
+                        (cast, false)
+                    }
+                }
+            })
+            .buffered(cpu_concurrency) // High CPU concurrency for preprocessing
+            .collect()
+            .await;
+    
+    // Filter out invalid casts and collect stats
+    let total_casts = preprocessed_casts.len();
+    let valid_casts: Vec<crate::models::Cast> = preprocessed_casts
+        .into_iter()
+        .filter_map(|(cast, is_valid)| if is_valid { Some(cast) } else { None })
+        .collect();
+    
+    info!("Preprocessed {} casts, {} valid for GPU processing", 
+          total_casts, valid_casts.len());
+    
+    // Step 1: Generate embeddings with high GPU concurrency
+    let embedding_results: Vec<(crate::models::Cast, crate::errors::Result<Vec<f32>>)> = 
+        stream::iter(valid_casts)
+            .map(|cast| {
+                let embedding_service = Arc::clone(embedding_service);
+                async move {
+                    let result = embedding_service.generate(cast.text.as_ref().unwrap()).await;
+                    (cast, result)
+                }
+            })
+            .buffered(gpu_concurrency) // High concurrency for GPU computation
+            .collect()
+            .await;
+    
+    // Step 2: Store embeddings with lower DB concurrency
+    let db_concurrency = std::cmp::min(50, gpu_concurrency / 4); // Much lower DB concurrency
+    let results: Vec<ProcessResult> = stream::iter(embedding_results)
+        .map(|(cast, embedding_result)| {
+            let db = Arc::clone(db);
+            async move {
+                match embedding_result {
+                    Ok(embedding) => {
+                        // Store embedding in database with retry logic
+                        let hash_str = hex::encode(&cast.message_hash);
+                        for attempt in 1..=3 {
+                            match db.store_cast_embedding(&cast.message_hash, cast.fid, cast.text.as_ref().unwrap(), &embedding).await {
+                                Ok(()) => {
+                                    debug!("✓ Generated embedding for cast {}", hash_str);
+                                    return ProcessResult::Success;
+                                }
+                                Err(e) => {
+                                    warn!("Attempt {}/3: Failed to store embedding for cast {}: {}", attempt, hash_str, e);
+                                    if attempt < 3 {
+                                        tokio::time::sleep(Duration::from_millis(100 * attempt as u64)).await;
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        ProcessResult::Failed
+                    }
+                    Err(_) => ProcessResult::Skipped,
+                }
+            }
+        })
+        .buffered(db_concurrency) // Lower concurrency for DB operations
+        .collect()
+        .await;
+    
+    results
 }
