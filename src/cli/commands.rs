@@ -85,6 +85,9 @@ pub enum Commands {
     /// Manage database indexes and autovacuum for bulk operations
     #[command(subcommand)]
     Index(IndexCommands),
+    /// Fast sync mode management (indexes + PostgreSQL optimization)
+    #[command(subcommand)]
+    Fastsync(FastsyncCommands),
     /// Synchronization commands
     #[command(subcommand)]
     Sync(SyncCommands),
@@ -289,6 +292,27 @@ pub enum IndexCommands {
         force: bool,
     },
     /// Show current index and autovacuum status
+    Status,
+}
+
+#[derive(Subcommand)]
+pub enum FastsyncCommands {
+    /// Enable fast sync mode (ULTRA TURBO + PostgreSQL optimization)
+    Enable {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        /// Hardware profile: 300gb, 346gb, or auto-detect
+        #[arg(long, default_value = "auto")]
+        profile: String,
+    },
+    /// Disable fast sync mode (restore normal operation)
+    Disable {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// Show current fast sync status and performance metrics
     Status,
 }
 

@@ -3,6 +3,7 @@ use snaprag::cli::CastCommands;
 use snaprag::cli::Cli;
 use snaprag::cli::Commands;
 use snaprag::cli::EmbeddingsCommands;
+use snaprag::cli::FastsyncCommands;
 use snaprag::cli::FetchCommands;
 use snaprag::cli::RagCommands;
 use snaprag::cli::ServeCommands;
@@ -94,6 +95,9 @@ async fn main() -> Result<()> {
         }
         Commands::Index(index_command) => {
             snaprag::cli::handle_index_command(&snaprag, &index_command).await?;
+        }
+        Commands::Fastsync(fastsync_command) => {
+            snaprag::cli::handle_fastsync_command(&snaprag, &fastsync_command).await?;
         }
         Commands::Sync(sync_command) => {
             snaprag::cli::handle_sync_command(snaprag, sync_command).await?;
