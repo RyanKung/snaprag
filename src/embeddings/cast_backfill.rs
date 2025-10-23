@@ -237,32 +237,24 @@ async fn process_casts_with_separated_concurrency(
         stream::iter(casts)
             .map(|cast| {
                 async move {
-                    // CPU-intensive preprocessing with stronger validation
-                    let is_valid = cast.text.is_some() && 
-                                  !cast.text.as_ref().unwrap().trim().is_empty() &&
-                                  cast.text.as_ref().unwrap().len() > 10 && // Minimum text length
-                                  cast.text.as_ref().unwrap().len() < 10000; // Maximum text length to prevent GPU issues
+                    // Simplified preprocessing with debugging
+                    let text_len = cast.text.as_ref().map(|t| t.len()).unwrap_or(0);
+                    let text_preview = cast.text.as_ref()
+                        .map(|t| t.chars().take(50).collect::<String>())
+                        .unwrap_or_else(|| "None".to_string());
                     
-                    // Additional CPU preprocessing if valid
+                    info!("Cast {}: text_len={}, preview='{}'", 
+                          hex::encode(&cast.message_hash), text_len, text_preview);
+                    
+                    let is_valid = cast.text.is_some() && 
+                                  !cast.text.as_ref().unwrap().trim().is_empty();
+                    
                     if is_valid {
                         let text = cast.text.as_ref().unwrap();
-                        // CPU-intensive text processing with safety checks
-                        let processed_text = text
-                            .trim()
-                            .replace('\n', " ")  // Replace newlines with spaces
-                            .replace('\r', " ")  // Replace carriage returns
-                            .replace('\t', " ")  // Replace tabs
-                            .chars()
-                            .filter(|c| c.is_ascii() || c.is_alphanumeric() || c.is_whitespace()) // Filter out problematic characters
-                            .collect::<String>()
-                            .split_whitespace()  // Split into words
-                            .filter(|word| !word.is_empty()) // Remove empty words
-                            .take(512) // Limit to 512 words to prevent GPU memory issues
-                            .collect::<Vec<&str>>()
-                            .join(" ");  // Rejoin with single spaces
+                        // Minimal processing - just trim and basic cleanup
+                        let processed_text = text.trim().to_string();
                         
-                        // Final validation
-                        if processed_text.len() > 10 && processed_text.len() < 5000 {
+                        if !processed_text.is_empty() {
                             let mut processed_cast = cast;
                             processed_cast.text = Some(processed_text);
                             (processed_cast, true)

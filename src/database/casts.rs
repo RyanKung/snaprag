@@ -170,6 +170,8 @@ impl Database {
             WHERE c.message_hash NOT IN (
                 SELECT message_hash FROM cast_embeddings
             )
+            AND c.text IS NOT NULL 
+            AND length(c.text) > 0
             ORDER BY c.timestamp DESC
             LIMIT $1 OFFSET $2
             ",

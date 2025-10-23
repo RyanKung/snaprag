@@ -16,6 +16,8 @@ use candle_core::IndexOp;
 use candle_nn::{VarBuilder, Embedding, Linear, LayerNorm, Dropout};
 #[cfg(feature = "local-gpu")]
 use candle_transformers::models::bert::{BertModel, Config as BertConfig};
+#[cfg(feature = "local-gpu")]
+use rayon::prelude::*;  // Parallel processing support
 
 #[cfg(feature = "local-gpu")]
 use hf_hub::api::tokio::Api;
@@ -402,7 +404,7 @@ impl LocalGPUClient {
         let mut embeddings = Vec::with_capacity(texts.len());
 
         // Process in batches optimized for Tesla V100 32GB
-        const BATCH_SIZE: usize = 128; // Increased from 32 for V100's 32GB memory
+        const BATCH_SIZE: usize = 1024; // Aggressive batch size to utilize V100's 32GB memory
 
         for chunk in texts.chunks(BATCH_SIZE) {
             let chunk_embeddings = self.generate_batch_chunk(chunk).await?;
@@ -413,15 +415,45 @@ impl LocalGPUClient {
         Ok(embeddings)
     }
 
-    /// Generate embeddings for a chunk of texts
+    /// Generate embeddings for a chunk of texts with dynamic batch sizing
     async fn generate_batch_chunk(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(vec![]);
         }
 
-        // Tokenize all texts
+        // Dynamic batch sizing based on text length to maximize GPU memory usage
+        let avg_text_len = texts.iter().map(|t| t.len()).sum::<usize>() / texts.len();
+        let dynamic_batch_size = if avg_text_len < 100 {
+            2048  // Short texts: can handle larger batches
+        } else if avg_text_len < 500 {
+            1024  // Medium texts: moderate batches
+        } else {
+            512   // Long texts: smaller batches to avoid OOM
+        };
+
+        info!("Processing {} texts with dynamic batch size: {} (avg text length: {})", 
+              texts.len(), dynamic_batch_size, avg_text_len);
+
+        let mut embeddings = Vec::with_capacity(texts.len());
+
+        // Process in dynamic batches
+        for chunk in texts.chunks(dynamic_batch_size) {
+            let chunk_embeddings = self.process_batch_chunk(chunk).await?;
+            embeddings.extend(chunk_embeddings);
+        }
+
+        Ok(embeddings)
+    }
+
+    /// Process a single batch chunk with CPU parallelization
+    async fn process_batch_chunk(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // CPU parallel tokenization using rayon for maximum CPU utilization
         let encodings: Result<Vec<_>> = texts
-            .iter()
+            .par_iter()  // Parallel iteration using rayon
             .map(|text| {
                 self.tokenizer.encode(text.to_string(), true).map_err(|e| {
                     SnapragError::EmbeddingError(format!("Tokenization failed: {}", e))
@@ -430,44 +462,60 @@ impl LocalGPUClient {
             .collect();
         let encodings = encodings?;
 
-        // Find max length for padding
-        let max_len = encodings.iter().map(|e| e.len()).max().unwrap_or(0);
+        // Find max length for padding (parallel)
+        let max_len = encodings.par_iter().map(|e| e.len()).max().unwrap_or(0);
 
-        // Create batch tensors
+        // Parallel tensor construction
         let batch_size = texts.len();
         let mut input_ids = Vec::with_capacity(batch_size * max_len);
         let mut attention_mask = Vec::with_capacity(batch_size * max_len);
 
-        for encoding in &encodings {
-            let ids = encoding.get_ids();
-            let mask = encoding.get_attention_mask();
+        // Use parallel processing for tensor construction
+        let tensor_data: Vec<(Vec<u32>, Vec<u32>)> = encodings
+            .par_iter()
+            .map(|encoding| {
+                let ids = encoding.get_ids();
+                let mask = encoding.get_attention_mask();
+                
+                let mut padded_ids = Vec::with_capacity(max_len);
+                let mut padded_mask = Vec::with_capacity(max_len);
+                
+                for i in 0..max_len {
+                    padded_ids.push(if i < ids.len() { ids[i] } else { 0 });
+                    padded_mask.push(if i < mask.len() { mask[i] } else { 0 });
+                }
+                
+                (padded_ids, padded_mask)
+            })
+            .collect();
 
-            // Pad to max length
-            for i in 0..max_len {
-                input_ids.push(if i < ids.len() { ids[i] } else { 0 });
-                attention_mask.push(if i < mask.len() { mask[i] } else { 0 });
-            }
+        // Flatten the parallel results
+        for (ids, mask) in tensor_data {
+            input_ids.extend(ids);
+            attention_mask.extend(mask);
         }
 
         let input_ids = Tensor::new(input_ids.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
         let attention_mask =
             Tensor::new(attention_mask.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
 
-        // Generate embeddings using real BERT model
+        // GPU inference (single operation)
         let embeddings = self.compute_embeddings_real(&input_ids, &attention_mask)?;
 
-        // Mean pooling for each item in batch
-        let mut results = Vec::with_capacity(batch_size);
-        for i in 0..batch_size {
-            let item_embeddings = embeddings.i(i)?;
-            let item_mask = attention_mask.i(i)?;
-            let pooled = self.mean_pooling(&item_embeddings, &item_mask)?;
-            let normalized = self.normalize(&pooled)?;
-            let embedding_vec: Vec<f32> = normalized.to_vec1()?;
-            results.push(embedding_vec);
-        }
+        // Parallel post-processing (mean pooling and normalization)
+        let results: Result<Vec<Vec<f32>>> = (0..batch_size)
+            .into_par_iter()
+            .map(|i| {
+                let item_embeddings = embeddings.i(i)?;
+                let item_mask = attention_mask.i(i)?;
+                let pooled = self.mean_pooling(&item_embeddings, &item_mask)?;
+                let normalized = self.normalize(&pooled)?;
+                let embedding_vec: Vec<f32> = normalized.to_vec1()?;
+                Ok(embedding_vec)
+            })
+            .collect();
 
-        Ok(results)
+        Ok(results?)
     }
 
     /// Real embedding computation using BERT model
