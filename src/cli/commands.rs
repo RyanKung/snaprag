@@ -419,6 +419,10 @@ pub enum EmbeddingsCommands {
         /// Embedding endpoint to use (from config.toml endpoints list)
         #[arg(short, long)]
         endpoint: Option<String>,
+        /// Use local GPU for embedding generation
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        local_gpu: bool,
     },
     /// Generate embeddings for a specific profile
     Generate {
