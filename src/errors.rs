@@ -60,6 +60,20 @@ impl From<String> for SnapRagError {
     }
 }
 
+#[cfg(feature = "local-gpu")]
+impl From<candle_core::Error> for SnapRagError {
+    fn from(err: candle_core::Error) -> Self {
+        SnapRagError::ConfigError(format!("Candle error: {}", err))
+    }
+}
+
+#[cfg(feature = "local-gpu")]
+impl From<hf_hub::api::tokio::ApiError> for SnapRagError {
+    fn from(err: hf_hub::api::tokio::ApiError) -> Self {
+        SnapRagError::ConfigError(format!("HuggingFace Hub error: {}", err))
+    }
+}
+
 pub type Result<T> = std::result::Result<T, SnapRagError>;
 
 // Re-export for convenience

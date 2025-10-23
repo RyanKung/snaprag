@@ -13,6 +13,8 @@ use candle_core::Device;
 #[cfg(feature = "local-gpu")]
 use candle_core::Tensor;
 #[cfg(feature = "local-gpu")]
+use candle_core::IndexOp;
+#[cfg(feature = "local-gpu")]
 use candle_nn::VarBuilder;
 #[cfg(feature = "local-gpu")]
 use candle_transformers::models::bert::BertModel;
@@ -41,7 +43,7 @@ pub struct LocalGPUClient {
 #[cfg(feature = "local-gpu")]
 impl LocalGPUClient {
     /// Create a new local GPU client
-    pub fn new(model_name: &str) -> Result<Self> {
+    pub async fn new(model_name: &str) -> Result<Self> {
         info!("Initializing local GPU client for model: {}", model_name);
 
         // Determine device (CUDA > Metal > CPU)
@@ -49,7 +51,7 @@ impl LocalGPUClient {
         info!("Using device: {:?}", device);
 
         // Download model if needed
-        let model_path = Self::download_model(model_name)?;
+        let model_path = Self::download_model(model_name).await?;
 
         // Load tokenizer
         let tokenizer = Self::load_tokenizer(&model_path)?;
@@ -70,9 +72,9 @@ impl LocalGPUClient {
         if Device::cuda_if_available(0).is_ok() {
             info!("Using CUDA device");
             Ok(Device::cuda_if_available(0)?)
-        } else if Device::metal_if_available(0).is_ok() {
+        } else if Device::new_metal(0).is_ok() {
             info!("Using Metal device");
-            Ok(Device::metal_if_available(0)?)
+            Ok(Device::new_metal(0)?)
         } else {
             info!("Using CPU device");
             Ok(Device::Cpu)
@@ -80,27 +82,16 @@ impl LocalGPUClient {
     }
 
     /// Download model from HuggingFace if not already cached
-    fn download_model(model_name: &str) -> Result<PathBuf> {
+    async fn download_model(model_name: &str) -> Result<PathBuf> {
         let api = Api::new()?;
         let repo = api.model(model_name.to_string());
 
-        // Check if model is already cached
-        let model_path = repo.get("model.safetensors");
-        let config_path = repo.get("config.json");
-
-        match (model_path, config_path) {
-            (Ok(model_path), Ok(config_path)) => {
-                info!("Model already cached at: {:?}", model_path.parent());
-                Ok(model_path.parent().unwrap().to_path_buf())
-            }
-            _ => {
-                info!("Downloading model: {}", model_name);
-                let model_path = repo.get("model.safetensors")?;
-                let _config_path = repo.get("config.json")?;
-                info!("Model downloaded successfully");
-                Ok(model_path.parent().unwrap().to_path_buf())
-            }
-        }
+        // Download model files
+        info!("Downloading model: {}", model_name);
+        let model_path = repo.get("model.safetensors").await?;
+        let _config_path = repo.get("config.json").await?;
+        info!("Model downloaded successfully");
+        Ok(model_path.parent().unwrap().to_path_buf())
     }
 
     /// Load tokenizer from model path
@@ -111,8 +102,9 @@ impl LocalGPUClient {
                 SnapragError::EmbeddingError(format!("Failed to load tokenizer: {}", e))
             })
         } else {
-            // Fallback to BERT tokenizer
-            Tokenizer::from_pretrained("bert-base-uncased", None).map_err(|e| {
+            // Fallback to BERT tokenizer - use from_file with a default path
+            let default_tokenizer_path = std::env::temp_dir().join("bert-base-uncased-tokenizer.json");
+            Tokenizer::from_file(&default_tokenizer_path).map_err(|e| {
                 SnapragError::EmbeddingError(format!("Failed to load BERT tokenizer: {}", e))
             })
         }
@@ -127,10 +119,10 @@ impl LocalGPUClient {
             .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse config: {}", e)))?;
 
         let model_path = model_path.join("model.safetensors");
-        let weights = unsafe { candle_core::safetensors::load(&model_path, device)? };
+        let weights = candle_core::safetensors::load(&model_path, device)?;
         let vb = VarBuilder::from_tensors(weights, candle_core::DType::F32, device);
 
-        BertModel::load(&vb, &config)
+        BertModel::load(vb, &config)
             .map_err(|e| SnapragError::EmbeddingError(format!("Failed to load model: {}", e)))
     }
 
@@ -152,7 +144,7 @@ impl LocalGPUClient {
         // Tokenize input
         let encoding = self
             .tokenizer
-            .encode(prefixed_text, true)
+            .encode(prefixed_text.as_str(), true)
             .map_err(|e| SnapragError::EmbeddingError(format!("Tokenization failed: {}", e)))?;
 
         let input_ids = Tensor::new(encoding.get_ids(), &self.device)?;
@@ -163,7 +155,7 @@ impl LocalGPUClient {
         let attention_mask = attention_mask.unsqueeze(0)?;
 
         // Generate embeddings
-        let embeddings = self.model.forward(&input_ids, &attention_mask)?;
+        let embeddings = self.model.forward(&input_ids, &attention_mask, None)?;
 
         // Mean pooling
         let pooled = self.mean_pooling(&embeddings, &attention_mask)?;
@@ -225,7 +217,7 @@ impl LocalGPUClient {
         let encodings: Result<Vec<_>> = prefixed_texts
             .iter()
             .map(|text| {
-                self.tokenizer.encode(text, true).map_err(|e| {
+                self.tokenizer.encode(text.as_str(), true).map_err(|e| {
                     SnapragError::EmbeddingError(format!("Tokenization failed: {}", e))
                 })
             })
@@ -251,12 +243,12 @@ impl LocalGPUClient {
             }
         }
 
-        let input_ids = Tensor::new(&input_ids, &self.device)?.reshape((batch_size, max_len))?;
+        let input_ids = Tensor::new(input_ids.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
         let attention_mask =
-            Tensor::new(&attention_mask, &self.device)?.reshape((batch_size, max_len))?;
+            Tensor::new(attention_mask.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
 
         // Generate embeddings
-        let embeddings = self.model.forward(&input_ids, &attention_mask)?;
+        let embeddings = self.model.forward(&input_ids, &attention_mask, None)?;
 
         // Mean pooling for each item in batch
         let mut results = Vec::with_capacity(batch_size);
@@ -274,16 +266,16 @@ impl LocalGPUClient {
 
     /// Mean pooling of embeddings
     fn mean_pooling(&self, embeddings: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
-        let mask_expanded = attention_mask.unsqueeze(-1)?.expand_as(embeddings)?;
+        let mask_expanded = attention_mask.unsqueeze(attention_mask.dims().len())?.expand(embeddings.shape())?;
         let sum_embeddings = (embeddings * &mask_expanded)?.sum(1)?;
         let sum_mask = mask_expanded.sum(1)?.clamp(1e-9, f32::MAX)?;
-        sum_embeddings.broadcast_div(&sum_mask)
+        Ok(sum_embeddings.broadcast_div(&sum_mask)?)
     }
 
     /// Normalize embeddings to unit length
     fn normalize(&self, embeddings: &Tensor) -> Result<Tensor> {
         let norm = embeddings.sqr()?.sum(1)?.sqrt()?;
-        embeddings.broadcast_div(&norm)
+        Ok(embeddings.broadcast_div(&norm)?)
     }
 }
 

@@ -57,11 +57,11 @@ hyper = { version = "1.0", features = ["full"] }
 tokio-util = "0.7"
 
 # Local GPU embedding dependencies (optional)
-candle-core = { version = "0.8", features = ["cuda", "metal"], optional = true }
+candle-core = { version = "0.8", features = ["metal"], optional = true }
 candle-nn = { version = "0.8", optional = true }
 candle-transformers = { version = "0.8", optional = true }
 tokenizers = { version = "0.20", optional = true }
-hf-hub = { version = "0.3", optional = true }
+hf-hub = { version = "0.3", features = ["tokio"], optional = true }
 
 # x402 payment protocol (local development)
 # NOTE: Switch to crate or git dependency for production
@@ -73,6 +73,16 @@ rust-x402 = { path = "../rust-x402", features = ["axum"], optional = true }
 default = []
 payment = ["rust-x402"]
 local-gpu = ["candle-core", "candle-nn", "candle-transformers", "tokenizers", "hf-hub"]
+
+# Platform-specific GPU features
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8", features = ["metal"], optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+candle-core = { version = "0.8", features = ["cuda"], optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+candle-core = { version = "0.8", features = ["cuda"], optional = true }
 
 [build-dependencies]
 protobuf-codegen-pure = "2.28"

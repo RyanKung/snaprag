@@ -51,9 +51,46 @@ impl EmbeddingClient {
             .map_err(|e| SnapragError::HttpError(e.to_string()))?;
 
         // Initialize local GPU client if needed
-        #[cfg(feature = "local-gpu")]
+           #[cfg(feature = "local-gpu")]
+           let local_gpu_client = if matches!(provider, EmbeddingProvider::LocalGPU) {
+               // Note: This will need to be handled differently since new() is now async
+               // For now, we'll return an error indicating async initialization is needed
+               return Err(SnapragError::ConfigError(
+                   "Local GPU client requires async initialization. Use EmbeddingClient::new_async() instead.".to_string()
+               ));
+           } else {
+               None
+           };
+
+        Ok(Self {
+            provider,
+            model,
+            endpoint,
+            api_key,
+            client,
+            #[cfg(feature = "local-gpu")]
+            local_gpu_client,
+        })
+    }
+
+    /// Create a new embedding client with async initialization for LocalGPU
+    #[cfg(feature = "local-gpu")]
+    pub async fn new_async(
+        provider: EmbeddingProvider,
+        model: String,
+        endpoint: String,
+        api_key: Option<String>,
+    ) -> Result<Self> {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .pool_max_idle_per_host(100)
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| SnapragError::HttpError(e.to_string()))?;
+
+        // Initialize local GPU client if needed
         let local_gpu_client = if matches!(provider, EmbeddingProvider::LocalGPU) {
-            Some(crate::embeddings::local_gpu::LocalGPUClient::new(&model)?)
+            Some(crate::embeddings::local_gpu::LocalGPUClient::new(&model).await?)
         } else {
             None
         };
@@ -64,7 +101,6 @@ impl EmbeddingClient {
             endpoint,
             api_key,
             client,
-            #[cfg(feature = "local-gpu")]
             local_gpu_client,
         })
     }
