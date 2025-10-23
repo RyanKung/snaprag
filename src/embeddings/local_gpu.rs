@@ -287,7 +287,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Requires GPU and model download
     async fn test_local_gpu_embedding() {
-        let client = LocalGPUClient::new("nomic-ai/nomic-embed-text-v1").unwrap();
+        let client = LocalGPUClient::new("nomic-ai/nomic-embed-text-v1").await.unwrap();
 
         let embedding = client.generate("Hello, world!").await.unwrap();
         assert_eq!(embedding.len(), 768); // nomic-embed-text-v1 dimension
