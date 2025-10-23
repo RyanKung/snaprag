@@ -17,7 +17,7 @@ level = "info"
 backtrace = true
 
 [embeddings]
-dimension = 768
+dimension = 384
 model = "bge-small-en-v1.5"
 
 # Batch processing configuration (adjust based on GPU/CPU capacity)

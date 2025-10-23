@@ -270,8 +270,9 @@ impl LocalGPUClient {
         // Mean pooling
         let pooled = self.mean_pooling(&embeddings, &attention_mask)?;
 
-        // Normalize
-        let normalized = self.normalize(&pooled)?;
+        // Normalize - squeeze to remove batch dimension
+        let pooled_squeezed = pooled.squeeze(0)?;
+        let normalized = self.normalize(&pooled_squeezed)?;
 
         // Convert to Vec<f32>
         let embedding_vec: Vec<f32> = normalized.to_vec1()?;
@@ -378,7 +379,9 @@ impl LocalGPUClient {
 
     /// Mean pooling of embeddings
     fn mean_pooling(&self, embeddings: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
-        let mask_expanded = attention_mask.unsqueeze(attention_mask.dims().len())?.expand(embeddings.shape())?;
+        // Convert attention_mask to f32 to match embeddings dtype
+        let mask_f32 = attention_mask.to_dtype(DType::F32)?;
+        let mask_expanded = mask_f32.unsqueeze(attention_mask.dims().len())?.expand(embeddings.shape())?;
         let sum_embeddings = (embeddings * &mask_expanded)?.sum(1)?;
         let sum_mask = mask_expanded.sum(1)?.clamp(1e-9, f32::MAX)?;
         Ok(sum_embeddings.broadcast_div(&sum_mask)?)
@@ -386,7 +389,7 @@ impl LocalGPUClient {
 
     /// Normalize embeddings to unit length
     fn normalize(&self, embeddings: &Tensor) -> Result<Tensor> {
-        let norm = embeddings.sqr()?.sum(1)?.sqrt()?;
+        let norm = embeddings.sqr()?.sum_all()?.sqrt()?;
         Ok(embeddings.broadcast_div(&norm)?)
     }
 }

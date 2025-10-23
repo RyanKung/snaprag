@@ -133,25 +133,31 @@ impl Database {
         Ok(casts)
     }
 
-    /// Count casts without embeddings
+    /// Count casts without embeddings (optimized for large datasets)
     pub async fn count_casts_without_embeddings(&self) -> Result<i64> {
-        let count = sqlx::query_scalar::<_, i64>(
-            r"
-            SELECT COUNT(*) 
-            FROM casts c
-            LEFT JOIN cast_embeddings ce ON c.message_hash = ce.message_hash
-            WHERE c.text IS NOT NULL 
-              AND length(c.text) > 0
-              AND ce.id IS NULL
-            ",
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(count)
+        // For large datasets, it's much faster to calculate:
+        // total_casts - existing_embeddings = missing_embeddings
+        // This avoids the expensive NOT IN subquery on 200M+ rows
+        
+        let total_casts = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts")
+            .fetch_one(&self.pool)
+            .await?;
+            
+        let existing_embeddings = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM cast_embeddings")
+            .fetch_one(&self.pool)
+            .await?;
+            
+        let missing = total_casts - existing_embeddings;
+        
+        tracing::debug!(
+            "Count calculation: {} total casts - {} existing embeddings = {} missing",
+            total_casts, existing_embeddings, missing
+        );
+        
+        Ok(missing)
     }
 
-    /// Get casts without embeddings
+    /// Get casts without embeddings (optimized for large datasets)
     pub async fn get_casts_without_embeddings(
         &self,
         limit: usize,
@@ -161,10 +167,9 @@ impl Database {
             r"
             SELECT c.* 
             FROM casts c
-            LEFT JOIN cast_embeddings ce ON c.message_hash = ce.message_hash
-            WHERE c.text IS NOT NULL 
-              AND length(c.text) > 0
-              AND ce.id IS NULL
+            WHERE c.message_hash NOT IN (
+                SELECT message_hash FROM cast_embeddings
+            )
             ORDER BY c.timestamp DESC
             LIMIT $1 OFFSET $2
             ",

@@ -59,9 +59,9 @@ SELECT
     MAX(CASE WHEN field_name = 'primary_address_ethereum' THEN field_value END) as primary_address_ethereum,
     MAX(CASE WHEN field_name = 'primary_address_solana' THEN field_value END) as primary_address_solana,
     NULL::varchar(255) as profile_token,
-    NULL::vector(768) as profile_embedding,
-    NULL::vector(768) as bio_embedding,
-    NULL::vector(768) as interests_embedding,
+    NULL::vector(384) as profile_embedding,
+    NULL::vector(384) as bio_embedding,
+    NULL::vector(384) as interests_embedding,
     MAX(timestamp) as last_updated_timestamp,
     NOW() as last_updated_at,
     NULL::integer as shard_id,
@@ -73,9 +73,9 @@ GROUP BY fid;
 -- Profile Embeddings (separate table for UPDATE support)
 CREATE TABLE IF NOT EXISTS profile_embeddings (
     fid bigint PRIMARY KEY,
-    profile_embedding vector(768),
-    bio_embedding vector(768),
-    interests_embedding vector(768),
+    profile_embedding vector(384),
+    bio_embedding vector(384),
+    interests_embedding vector(384),
     updated_at timestamp with time zone DEFAULT now()
 );
 
@@ -83,9 +83,9 @@ CREATE TABLE IF NOT EXISTS profile_embeddings (
 CREATE OR REPLACE VIEW user_profiles_with_embeddings AS
 SELECT 
     p.*,
-    COALESCE(e.profile_embedding, NULL::vector(768)) as profile_embedding_vec,
-    COALESCE(e.bio_embedding, NULL::vector(768)) as bio_embedding_vec,
-    COALESCE(e.interests_embedding, NULL::vector(768)) as interests_embedding_vec
+    COALESCE(e.profile_embedding, NULL::vector(384)) as profile_embedding_vec,
+    COALESCE(e.bio_embedding, NULL::vector(384)) as bio_embedding_vec,
+    COALESCE(e.interests_embedding, NULL::vector(384)) as interests_embedding_vec
 FROM user_profiles p
 LEFT JOIN profile_embeddings e ON p.fid = e.fid;
 
@@ -285,7 +285,7 @@ CREATE TABLE IF NOT EXISTS cast_embeddings (
     message_hash BYTEA UNIQUE NOT NULL,
     fid BIGINT NOT NULL,
     text TEXT NOT NULL,
-    embedding VECTOR(768),
+    embedding VECTOR(384),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -382,8 +382,8 @@ CREATE TABLE IF NOT EXISTS user_profile_trends (
     username_changes_count INTEGER DEFAULT 0,
     activity_score FLOAT DEFAULT 0.0,
     engagement_score FLOAT DEFAULT 0.0,
-    profile_embedding VECTOR(768),
-    bio_embedding VECTOR(768),
+    profile_embedding VECTOR(384),
+    bio_embedding VECTOR(384),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(fid, trend_period, trend_date)
 );

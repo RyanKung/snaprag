@@ -446,6 +446,40 @@ pub enum EmbeddingsCommands {
         #[arg(short, long)]
         force: bool,
     },
+    /// Cast-specific embedding operations
+    Cast {
+        #[command(subcommand)]
+        action: CastEmbeddingAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum CastEmbeddingAction {
+    /// Backfill embeddings for cast content
+    Backfill {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        /// Process in batches of N casts
+        #[arg(short, long, default_value = "1000")]
+        batch_size: usize,
+        /// Maximum number of casts to process
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Embedding endpoint to use (from config.toml endpoints list)
+        #[arg(short, long)]
+        endpoint: Option<String>,
+        /// Use local GPU for embedding generation
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        local_gpu: bool,
+    },
+    /// Reset cast embeddings (remove all cast vectorization)
+    Reset {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]

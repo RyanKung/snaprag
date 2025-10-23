@@ -497,12 +497,39 @@ pub async fn handle_embeddings_stats(config: &AppConfig) -> Result<()> {
     );
 
     let missing = total - with_all_emb;
-    if missing > 0 {
-        println!("\n⚠️  {missing} profiles need embeddings");
-        println!("   Run: cargo run embeddings backfill --force");
-    } else {
-        println!("\n✅ All profiles have embeddings!");
+    Ok(())
+}
+
+/// Handle cast embeddings reset command
+pub async fn handle_cast_embeddings_reset(config: &AppConfig, force: bool) -> Result<()> {
+    use crate::database::Database;
+
+    println!("🗑️  Reset Cast Embeddings");
+    println!("=========================\n");
+
+    if !force {
+        println!("⚠️  This will remove ALL cast embeddings from the database:");
+        println!("   - All entries in cast_embeddings table will be deleted");
+        println!("   - This action cannot be undone!");
+        println!("   - You can regenerate them with: cargo run --features local-gpu -- embeddings cast backfill --force");
+        println!("\nUse --force to confirm and proceed.");
+        return Ok(());
     }
+
+    println!("⏳ Connecting to database...");
+    let database = Database::from_config(config).await?;
+
+    println!("🗑️  Removing cast embeddings...");
+    let cast_result = sqlx::query("DELETE FROM cast_embeddings")
+        .execute(database.pool())
+        .await?;
+    println!(
+        "   ✅ Removed {} cast embedding records",
+        cast_result.rows_affected()
+    );
+
+    println!("\n✅ All cast embeddings have been removed!");
+    println!("   Run 'cargo run --features local-gpu -- embeddings cast backfill --force' to regenerate them.");
 
     Ok(())
 }

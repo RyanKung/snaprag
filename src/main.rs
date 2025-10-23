@@ -1,5 +1,6 @@
 use clap::Parser;
 use snaprag::cli::CastCommands;
+use snaprag::cli::CastEmbeddingAction;
 use snaprag::cli::Cli;
 use snaprag::cli::Commands;
 use snaprag::cli::EmbeddingDataType;
@@ -230,6 +231,28 @@ async fn main() -> Result<()> {
             }
             EmbeddingsCommands::Reset { force } => {
                 snaprag::cli::handle_embeddings_reset(&config, force).await?;
+            }
+            EmbeddingsCommands::Cast { action } => match action {
+                snaprag::cli::CastEmbeddingAction::Backfill {
+                    force,
+                    batch_size,
+                    limit,
+                    endpoint,
+                    #[cfg(feature = "local-gpu")]
+                    local_gpu,
+                } => {
+                    snaprag::cli::handle_cast_embeddings_backfill(
+                        &config,
+                        limit,
+                        endpoint,
+                        #[cfg(feature = "local-gpu")]
+                        local_gpu,
+                    )
+                    .await?;
+                }
+                snaprag::cli::CastEmbeddingAction::Reset { force } => {
+                    snaprag::cli::handle_cast_embeddings_reset(&config, force).await?;
+                }
             }
         },
         Commands::Ask {
