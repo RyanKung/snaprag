@@ -18,7 +18,7 @@ pub enum EmbeddingProvider {
     OpenAI,
     /// Ollama local embeddings
     Ollama,
-    /// Local GPU embeddings (nomic-embed-text-v1) - requires `local-gpu` feature
+    /// Local GPU embeddings (nomic-embed-text-v1.5) - requires `local-gpu` feature
     #[cfg(feature = "local-gpu")]
     LocalGPU,
 }
@@ -51,16 +51,16 @@ impl EmbeddingClient {
             .map_err(|e| SnapragError::HttpError(e.to_string()))?;
 
         // Initialize local GPU client if needed
-           #[cfg(feature = "local-gpu")]
-           let local_gpu_client = if matches!(provider, EmbeddingProvider::LocalGPU) {
-               // Note: This will need to be handled differently since new() is now async
-               // For now, we'll return an error indicating async initialization is needed
-               return Err(SnapragError::ConfigError(
+        #[cfg(feature = "local-gpu")]
+        let local_gpu_client = if matches!(provider, EmbeddingProvider::LocalGPU) {
+            // Note: This will need to be handled differently since new() is now async
+            // For now, we'll return an error indicating async initialization is needed
+            return Err(SnapragError::ConfigError(
                    "Local GPU client requires async initialization. Use EmbeddingClient::new_async() instead.".to_string()
                ));
-           } else {
-               None
-           };
+        } else {
+            None
+        };
 
         Ok(Self {
             provider,

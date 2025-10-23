@@ -58,7 +58,8 @@ impl EmbeddingService {
                 config.model.clone(),
                 config.endpoint.clone(),
                 config.api_key.clone(),
-            ).await?
+            )
+            .await?
         } else {
             EmbeddingClient::new(
                 config.provider,

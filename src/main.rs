@@ -208,7 +208,12 @@ async fn main() -> Result<()> {
                 local_gpu,
             } => {
                 snaprag::cli::handle_embeddings_backfill(
-                    &config, data_type, force, batch_size, limit, endpoint,
+                    &config,
+                    data_type,
+                    force,
+                    batch_size,
+                    limit,
+                    endpoint,
                     #[cfg(feature = "local-gpu")]
                     local_gpu,
                 )
