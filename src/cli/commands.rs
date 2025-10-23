@@ -402,19 +402,19 @@ pub enum RagCommands {
 
 #[derive(Subcommand)]
 pub enum EmbeddingsCommands {
-    /// Backfill embeddings for all profiles
+    /// Backfill embeddings for user profiles or cast content
     Backfill {
+        /// Type of data to backfill embeddings for
+        #[arg(value_enum)]
+        data_type: EmbeddingDataType,
         /// Skip confirmation prompt
         #[arg(short, long)]
         force: bool,
-        /// Process in batches of N profiles
+        /// Process in batches of N items (profiles or casts)
         #[arg(short, long, default_value = "50")]
         batch_size: usize,
-    },
-    /// Generate embeddings for cast content
-    BackfillCasts {
-        /// Maximum number of casts to process
-        #[arg(short, long)]
+        /// Maximum number of items to process (casts only)
+        #[arg(long)]
         limit: Option<usize>,
         /// Embedding endpoint to use (from config.toml endpoints list)
         #[arg(short, long)]
@@ -464,6 +464,14 @@ pub enum ServeCommands {
         #[arg(long)]
         testnet: Option<bool>,
     },
+}
+
+#[derive(ValueEnum, Clone)]
+pub enum EmbeddingDataType {
+    /// Backfill embeddings for user profiles
+    User,
+    /// Backfill embeddings for cast content
+    Cast,
 }
 
 #[derive(ValueEnum, Clone)]

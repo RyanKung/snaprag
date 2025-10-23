@@ -19,7 +19,7 @@ pub async fn handle_cast_embeddings_backfill(
     use crate::embeddings::backfill_cast_embeddings;
     use crate::embeddings::EmbeddingService;
 
-    print_info("🚀 Starting cast embeddings generation...");
+    print_info("🚀 Starting cast embeddings backfill...");
 
     // Create services with optional endpoint override
     let database = Arc::new(Database::from_config(config).await?);
@@ -100,6 +100,24 @@ pub async fn handle_cast_embeddings_backfill(
 
 pub async fn handle_embeddings_backfill(
     config: &AppConfig,
+    data_type: crate::cli::EmbeddingDataType,
+    force: bool,
+    batch_size: usize,
+    limit: Option<usize>,
+    endpoint: Option<String>,
+) -> Result<()> {
+    match data_type {
+        crate::cli::EmbeddingDataType::User => {
+            handle_user_embeddings_backfill(config, force, batch_size).await
+        }
+        crate::cli::EmbeddingDataType::Cast => {
+            handle_cast_embeddings_backfill(config, limit, endpoint).await
+        }
+    }
+}
+
+async fn handle_user_embeddings_backfill(
+    config: &AppConfig,
     force: bool,
     _batch_size: usize,
 ) -> Result<()> {
@@ -107,11 +125,11 @@ pub async fn handle_embeddings_backfill(
     use crate::embeddings::backfill_embeddings;
     use crate::embeddings::EmbeddingService;
 
-    println!("📊 Embeddings Backfill");
-    println!("======================\n");
+    println!("📊 User Embeddings Backfill");
+    println!("============================\n");
 
     if !force {
-        println!("⚠️  This will generate embeddings for all profiles in the database.");
+        println!("⚠️  This will generate embeddings for all user profiles in the database.");
         println!("⚠️  This may take a long time and incur API costs.");
         println!("\nUse --force to confirm and proceed.");
         return Ok(());
@@ -121,10 +139,10 @@ pub async fn handle_embeddings_backfill(
     let database = Arc::new(Database::from_config(config).await?);
     let embedding_service = Arc::new(EmbeddingService::new(config)?);
 
-    println!("🚀 Starting backfill process...\n");
+    println!("🚀 Starting user embeddings backfill process...\n");
     let stats = backfill_embeddings(database, embedding_service).await?;
 
-    println!("\n✅ Backfill Complete!");
+    println!("\n✅ User Embeddings Backfill Complete!");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("Total Profiles: {}", stats.total_profiles);
     println!("Updated: {}", stats.updated);

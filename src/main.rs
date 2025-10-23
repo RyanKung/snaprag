@@ -3,6 +3,7 @@ use snaprag::cli::CastCommands;
 use snaprag::cli::Cli;
 use snaprag::cli::Commands;
 use snaprag::cli::EmbeddingsCommands;
+use snaprag::cli::EmbeddingDataType;
 use snaprag::cli::FastsyncCommands;
 use snaprag::cli::FetchCommands;
 use snaprag::cli::RagCommands;
@@ -197,11 +198,8 @@ async fn main() -> Result<()> {
             }
         },
         Commands::Embeddings(embeddings_command) => match embeddings_command {
-            EmbeddingsCommands::Backfill { force, batch_size } => {
-                snaprag::cli::handle_embeddings_backfill(&config, force, batch_size).await?;
-            }
-            EmbeddingsCommands::BackfillCasts { limit, endpoint } => {
-                snaprag::cli::handle_cast_embeddings_backfill(&config, limit, endpoint).await?;
+            EmbeddingsCommands::Backfill { data_type, force, batch_size, limit, endpoint } => {
+                snaprag::cli::handle_embeddings_backfill(&config, data_type, force, batch_size, limit, endpoint).await?;
             }
             EmbeddingsCommands::Generate { fid, verbose } => {
                 snaprag::cli::handle_embeddings_generate(&config, fid, verbose).await?;
