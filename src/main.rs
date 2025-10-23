@@ -112,9 +112,6 @@ async fn main() -> Result<()> {
         } => {
             snaprag::cli::handle_search_command(&snaprag, query, limit, fields).await?;
         }
-        Commands::Dashboard => {
-            snaprag::cli::handle_dashboard_command(&snaprag).await?;
-        }
         Commands::Config => {
             snaprag::cli::handle_config_command(&config)?;
         }

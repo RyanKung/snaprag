@@ -15,13 +15,19 @@ pub async fn handle_stats_command(
     detailed: bool,
     export: Option<String>,
 ) -> Result<()> {
-    let stats = snaprag.get_statistics().await?;
-    print_statistics(&stats, detailed);
+    if detailed {
+        // Detailed mode: use comprehensive statistics
+        let stats = snaprag.get_statistics().await?;
+        print_statistics(&stats, true);
 
-    if let Some(export_path) = export {
-        let json = serde_json::to_string_pretty(&stats)?;
-        std::fs::write(&export_path, json)?;
-        print_success(&format!("Statistics exported to: {export_path}"));
+        if let Some(export_path) = export {
+            let json = serde_json::to_string_pretty(&stats)?;
+            std::fs::write(&export_path, json)?;
+            print_success(&format!("Statistics exported to: {export_path}"));
+        }
+    } else {
+        // Fast mode: use dashboard-style quick overview
+        handle_dashboard_command(snaprag).await?;
     }
 
     Ok(())
@@ -29,7 +35,7 @@ pub async fn handle_stats_command(
 
 /// Handle dashboard command (FAST version with minimal queries)
 pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
-    print_info("📊 SnapRAG Dashboard (Fast Mode)");
+    print_info("📊 SnapRAG Statistics (Fast Overview)");
     println!();
 
     // Use faster queries with limited data

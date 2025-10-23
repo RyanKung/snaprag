@@ -91,9 +91,9 @@ pub enum Commands {
     /// Synchronization commands
     #[command(subcommand)]
     Sync(SyncCommands),
-    /// Show statistics and analytics
+    /// Show statistics and analytics (fast overview by default, detailed with --detailed)
     Stats {
-        /// Show detailed statistics
+        /// Show detailed statistics instead of fast overview
         #[arg(short, long)]
         detailed: bool,
         /// Export statistics to JSON
@@ -111,8 +111,6 @@ pub enum Commands {
         #[arg(long, default_value = "all")]
         fields: String,
     },
-    /// Show dashboard with key metrics
-    Dashboard,
     /// Show current configuration
     Config,
     /// Query user activity timeline by FID
