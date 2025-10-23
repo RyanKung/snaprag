@@ -83,40 +83,208 @@ impl LocalGPUClient {
 
     /// Download model from HuggingFace if not already cached
     async fn download_model(model_name: &str) -> Result<PathBuf> {
-        let api = Api::new()?;
+        info!("Initializing HuggingFace API...");
+        
+        // Try to initialize with different configurations
+        let api = Api::new().map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to initialize HuggingFace API: {}", e))
+        })?;
+        
+        info!("Creating model repository reference for: {}", model_name);
         let repo = api.model(model_name.to_string());
 
-        // Download model files
+        // Download model files using direct URL to ensure complete download
         info!("Downloading model: {}", model_name);
-        let model_path = repo.get("model.safetensors").await?;
-        let _config_path = repo.get("config.json").await?;
+        let model_dir = std::env::temp_dir().join("huggingface").join("models").join(model_name.replace("/", "--"));
+        std::fs::create_dir_all(&model_dir).map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to create model directory: {}", e))
+        })?;
+        
+        let model_path = model_dir.join("model.safetensors");
+        
+        // Try direct download first
+        let url = format!("https://huggingface.co/{}/resolve/main/model.safetensors", model_name);
+        info!("Downloading model.safetensors from: {}", url);
+        
+        match reqwest::get(&url).await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let content = response.bytes().await.map_err(|e| {
+                        SnapragError::EmbeddingError(format!("Failed to read model response: {}", e))
+                    })?;
+                    
+                    std::fs::write(&model_path, content).map_err(|e| {
+                        SnapragError::EmbeddingError(format!("Failed to write model.safetensors: {}", e))
+                    })?;
+                    
+                    info!("Successfully downloaded model.safetensors via direct URL");
+                } else {
+                    return Err(SnapragError::EmbeddingError(format!("Failed to download model.safetensors: {}", response.status())));
+                }
+            }
+            Err(e) => {
+                // Fallback to API download
+                warn!("Direct download failed: {}. Trying API download.", e);
+                let api_model_path = repo.get("model.safetensors").await.map_err(|e| {
+                    SnapragError::EmbeddingError(format!("Failed to download model.safetensors via API: {}", e))
+                })?;
+                
+                // Copy from API download to our directory
+                std::fs::copy(&api_model_path, &model_path).map_err(|e| {
+                    SnapragError::EmbeddingError(format!("Failed to copy model.safetensors: {}", e))
+                })?;
+            }
+        }
+        
+        // Try to download config.json
+        let model_dir = model_path.parent().unwrap();
+        let config_path = model_dir.join("config.json");
+        
+        match repo.get("config.json").await {
+            Ok(_config_path) => {
+                info!("Config file downloaded successfully");
+            }
+            Err(e) => {
+                warn!("Failed to download config.json via API: {}. Trying direct download.", e);
+                // Try direct download
+                let url = format!("https://huggingface.co/{}/resolve/main/config.json", model_name);
+                info!("Trying direct download from: {}", url);
+                
+                match reqwest::get(&url).await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            let content = response.bytes().await.map_err(|e| {
+                                SnapragError::EmbeddingError(format!("Failed to read config response: {}", e))
+                            })?;
+                            
+                            std::fs::write(&config_path, content).map_err(|e| {
+                                SnapragError::EmbeddingError(format!("Failed to write config.json: {}", e))
+                            })?;
+                            
+                            info!("Successfully downloaded config.json via direct URL");
+                        } else {
+                            return Err(SnapragError::EmbeddingError(format!("Failed to download config.json: {}", response.status())));
+                        }
+                    }
+                    Err(e) => {
+                        return Err(SnapragError::EmbeddingError(format!("Failed to download config.json: {}", e)));
+                    }
+                }
+            }
+        }
+        
+        // Try to download tokenizer files with better error handling
+        let tokenizer_files = ["tokenizer.json", "tokenizer_config.json", "vocab.txt"];
+        let mut tokenizer_downloaded = false;
+        
+        for tokenizer_file in &tokenizer_files {
+            info!("Attempting to download: {}", tokenizer_file);
+            match repo.get(tokenizer_file).await {
+                Ok(_tokenizer_path) => {
+                    info!("Tokenizer file {} downloaded successfully", tokenizer_file);
+                    tokenizer_downloaded = true;
+                    break;
+                }
+                Err(e) => {
+                    warn!("Failed to download {}: {}. Trying next file.", tokenizer_file, e);
+                }
+            }
+        }
+        
+        if !tokenizer_downloaded {
+            warn!("No tokenizer files could be downloaded. This may cause issues.");
+            // Let's try a different approach - maybe the issue is with the API configuration
+            info!("Attempting alternative download method...");
+            
+            // Try downloading with explicit URL construction
+            let model_dir = model_path.parent().unwrap();
+            for tokenizer_file in &tokenizer_files {
+                let url = format!("https://huggingface.co/{}/resolve/main/{}", model_name, tokenizer_file);
+                info!("Trying direct download from: {}", url);
+                
+                match reqwest::get(&url).await {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            let content = response.bytes().await.map_err(|e| {
+                                SnapragError::EmbeddingError(format!("Failed to read response: {}", e))
+                            })?;
+                            
+                            let file_path = model_dir.join(tokenizer_file);
+                            std::fs::write(&file_path, content).map_err(|e| {
+                                SnapragError::EmbeddingError(format!("Failed to write {}: {}", tokenizer_file, e))
+                            })?;
+                            
+                            info!("Successfully downloaded {} via direct URL", tokenizer_file);
+                            tokenizer_downloaded = true;
+                            break;
+                        } else {
+                            warn!("Direct download failed for {}: {}", tokenizer_file, response.status());
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Direct download failed for {}: {}", tokenizer_file, e);
+                    }
+                }
+            }
+        }
+        
         info!("Model downloaded successfully");
         Ok(model_path.parent().unwrap().to_path_buf())
     }
 
     /// Load tokenizer from model path
     fn load_tokenizer(model_path: &PathBuf) -> Result<Tokenizer> {
-        let tokenizer_path = model_path.join("tokenizer.json");
-        if tokenizer_path.exists() {
-            Tokenizer::from_file(&tokenizer_path).map_err(|e| {
-                SnapragError::EmbeddingError(format!("Failed to load tokenizer: {}", e))
-            })
-        } else {
-            // Fallback to BERT tokenizer - use from_file with a default path
-            let default_tokenizer_path = std::env::temp_dir().join("bert-base-uncased-tokenizer.json");
-            Tokenizer::from_file(&default_tokenizer_path).map_err(|e| {
-                SnapragError::EmbeddingError(format!("Failed to load BERT tokenizer: {}", e))
-            })
+        // Try different tokenizer file formats
+        let tokenizer_files = [
+            "tokenizer.json",
+            "tokenizer_config.json", 
+            "vocab.txt"
+        ];
+        
+        for tokenizer_file in &tokenizer_files {
+            let tokenizer_path = model_path.join(tokenizer_file);
+            if tokenizer_path.exists() {
+                info!("Loading tokenizer from: {:?}", tokenizer_path);
+                return Tokenizer::from_file(&tokenizer_path).map_err(|e| {
+                    SnapragError::EmbeddingError(format!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e))
+                });
+            }
         }
+        
+        Err(SnapragError::EmbeddingError(format!(
+            "No tokenizer files found in {:?}. Expected one of: {:?}",
+            model_path, tokenizer_files
+        )))
     }
 
     /// Load model from model path
     fn load_model(model_path: &PathBuf, device: &Device) -> Result<BertModel> {
         let config_path = model_path.join("config.json");
-        let config = std::fs::read_to_string(&config_path).map_err(|e| SnapragError::Io(e))?;
+        let config_content = std::fs::read_to_string(&config_path).map_err(|e| SnapragError::Io(e))?;
 
-        let config: Config = serde_json::from_str(&config)
+        // Parse the nomic-bert config and convert to standard BERT config
+        let nomic_config: serde_json::Value = serde_json::from_str(&config_content)
             .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse config: {}", e)))?;
+
+        // Convert nomic-bert config to standard BERT config
+        let config = Config {
+            hidden_size: nomic_config["n_embd"].as_u64().unwrap_or(768) as usize,
+            intermediate_size: nomic_config["n_inner"].as_u64().unwrap_or(3072) as usize,
+            num_hidden_layers: nomic_config["n_layer"].as_u64().unwrap_or(12) as usize,
+            num_attention_heads: nomic_config["n_head"].as_u64().unwrap_or(12) as usize,
+            max_position_embeddings: nomic_config["n_positions"].as_u64().unwrap_or(8192) as usize,
+            type_vocab_size: nomic_config["type_vocab_size"].as_u64().unwrap_or(2) as usize,
+            vocab_size: nomic_config["vocab_size"].as_u64().unwrap_or(30528) as usize,
+            hidden_dropout_prob: nomic_config["embd_pdrop"].as_f64().unwrap_or(0.0),
+            layer_norm_eps: nomic_config["layer_norm_epsilon"].as_f64().unwrap_or(1e-12),
+            initializer_range: nomic_config["initializer_range"].as_f64().unwrap_or(0.02),
+            pad_token_id: 0,
+            model_type: Some("bert".to_string()),
+            hidden_act: candle_transformers::models::bert::HiddenAct::Gelu,
+            position_embedding_type: candle_transformers::models::bert::PositionEmbeddingType::Absolute,
+            use_cache: true,
+            classifier_dropout: None,
+        };
 
         let model_path = model_path.join("model.safetensors");
         let weights = candle_core::safetensors::load(&model_path, device)?;
