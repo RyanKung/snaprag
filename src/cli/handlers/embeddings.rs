@@ -32,7 +32,7 @@ pub async fn handle_cast_embeddings_backfill(
             print_info("🔧 Using local GPU for embedding generation...");
             let embedding_config = crate::embeddings::EmbeddingConfig {
                 provider: crate::embeddings::EmbeddingProvider::LocalGPU,
-                model: "nomic-ai/nomic-embed-text-v1.5".to_string(),
+                model: "BAAI/bge-small-en-v1.5".to_string(),
                 dimension: config.embedding_dimension(),
                 endpoint: "local-gpu".to_string(),
                 api_key: None,
@@ -40,7 +40,7 @@ pub async fn handle_cast_embeddings_backfill(
             let service = Arc::new(EmbeddingService::from_config_async(embedding_config).await?);
             (
                 service,
-                "local-gpu (nomic-ai/nomic-embed-text-v1.5)".to_string(),
+                "local-gpu (BAAI/bge-small-en-v1.5)".to_string(),
             )
         } else if let Some(ref ep_name) = endpoint_name {
             // Use specified endpoint from config
@@ -203,7 +203,7 @@ async fn handle_user_embeddings_backfill(
             print_info("🔧 Using local GPU for embedding generation...");
             let embedding_config = crate::embeddings::EmbeddingConfig {
                 provider: crate::embeddings::EmbeddingProvider::LocalGPU,
-                model: "nomic-ai/nomic-embed-text-v1.5".to_string(),
+                model: "BAAI/bge-small-en-v1.5".to_string(),
                 dimension: config.embedding_dimension(),
                 endpoint: "local-gpu".to_string(),
                 api_key: None,

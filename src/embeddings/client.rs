@@ -18,7 +18,7 @@ pub enum EmbeddingProvider {
     OpenAI,
     /// Ollama local embeddings
     Ollama,
-    /// Local GPU embeddings (nomic-embed-text-v1.5) - requires `local-gpu` feature
+    /// Local GPU embeddings (BAAI/bge-small-en-v1.5) - requires `local-gpu` feature
     #[cfg(feature = "local-gpu")]
     LocalGPU,
 }

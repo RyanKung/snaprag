@@ -18,7 +18,7 @@ backtrace = true
 
 [embeddings]
 dimension = 768
-model = "nomic-embed-text"
+model = "bge-small-en-v1.5"
 
 # Batch processing configuration (adjust based on GPU/CPU capacity)
 # For CPU-only: batch_size=100-200, parallel_tasks=5-10
@@ -31,7 +31,7 @@ parallel_tasks = 100      # Number of concurrent embedding requests
 [[embeddings.endpoints]]
 name = "ollama"
 endpoint = "http://localhost:11434"  # Default Ollama port
-model = "nomic-embed-text"
+model = "bge-small-en-v1.5"
 provider = "ollama"
 # api_key not needed for Ollama
 
@@ -58,7 +58,7 @@ provider = "openai"  # vLLM uses OpenAI-compatible API
 [[embeddings.endpoints]]
 name = "local_gpu"
 endpoint = "local"  # Not used for local GPU, but required by config
-model = "nomic-ai/nomic-embed-text-v1"
+model = "BAAI/bge-small-en-v1.5"
 provider = "local_gpu"  # Local GPU inference
 
 [performance]
