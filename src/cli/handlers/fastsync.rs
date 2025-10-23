@@ -15,20 +15,17 @@ use crate::SnapRag;
 /// Handle fast sync mode commands
 pub async fn handle_fastsync_command(snaprag: &SnapRag, command: &FastsyncCommands) -> Result<()> {
     match command {
-        FastsyncCommands::Enable { force, profile } => {
-            handle_fastsync_enable(snaprag, *force, profile).await
-        }
+        FastsyncCommands::Enable { force } => handle_fastsync_enable(snaprag, *force).await,
         FastsyncCommands::Disable { force } => handle_fastsync_disable(snaprag, *force).await,
         FastsyncCommands::Status => handle_fastsync_status(snaprag).await,
     }
 }
 
 /// Enable fast sync mode (ULTRA TURBO + PostgreSQL optimization)
-async fn handle_fastsync_enable(snaprag: &SnapRag, force: bool, profile: &str) -> Result<()> {
-    tracing::info!("Enabling fast sync mode with profile: {}", profile);
+async fn handle_fastsync_enable(snaprag: &SnapRag, force: bool) -> Result<()> {
+    tracing::info!("Enabling fast sync mode");
 
     println!("\n🚀 Fast Sync Mode - ULTRA TURBO + PostgreSQL Optimization");
-    println!("   Profile: {}", profile);
 
     // Show what will be done
     println!("\n⚠️  This will:");
@@ -57,14 +54,14 @@ async fn handle_fastsync_enable(snaprag: &SnapRag, force: bool, profile: &str) -
     println!("\n🔨 Step 1: Applying ULTRA TURBO MODE...");
     apply_ultra_turbo_mode(db).await?;
 
-    // Step 2: Apply PostgreSQL optimization based on profile
+    // Step 2: Apply PostgreSQL optimization
     println!("\n⚡ Step 2: Applying PostgreSQL optimization...");
-    apply_postgresql_optimization(db, profile).await?;
+    apply_postgresql_optimization(db).await?;
 
     println!("\n✅ Fast Sync Mode enabled!");
     println!("   🚀 ULTRA TURBO MODE: All non-essential indexes dropped");
-    println!("   ⚡ PostgreSQL optimized for {}", profile);
-    println!("   📈 Expected speed boost: +50-80%");
+    println!("   ⚡ PostgreSQL optimized for bulk operations");
+    println!("   📈 Expected speed boost: +30-50%");
     println!("\n⚠️  Remember to run 'snaprag fastsync disable' after sync completes!");
 
     Ok(())
@@ -139,7 +136,7 @@ async fn handle_fastsync_status(snaprag: &SnapRag) -> Result<()> {
         println!("  🚀 FAST SYNC MODE ENABLED");
         println!("     - ULTRA TURBO: All non-essential indexes dropped");
         println!("     - PostgreSQL: Memory optimized");
-        println!("     - Insert performance: ULTRA FAST (+50-80%)");
+        println!("     - Insert performance: ULTRA FAST (+30-50%)");
         println!("     - Query performance: SLOW (indexes missing)");
         println!("\n  ⚠️  Run 'snaprag fastsync disable' after sync completes!");
     } else if !index_status.is_ultra_turbo && !postgresql_status.is_optimized {
@@ -238,53 +235,22 @@ async fn apply_ultra_turbo_mode(db: &sqlx::PgPool) -> Result<()> {
     Ok(())
 }
 
-async fn apply_postgresql_optimization(db: &sqlx::PgPool, profile: &str) -> Result<()> {
-    match profile {
-        "346gb" => {
-            // PowerEdge T430 specific optimization
-            println!("  🔧 Applying 346GB RAM optimization...");
-            
-            // Memory settings
-            sqlx::query("ALTER SYSTEM SET maintenance_work_mem = '64GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET shared_buffers = '128GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET work_mem = '1GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET effective_cache_size = '280GB'").execute(db).await?;
-            
-            // CPU optimization (56 cores)
-            sqlx::query("ALTER SYSTEM SET max_worker_processes = 56").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET max_parallel_workers = 56").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET max_parallel_workers_per_gather = 16").execute(db).await?;
-            
-            // WAL optimization
-            sqlx::query("ALTER SYSTEM SET wal_buffers = '64MB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET max_wal_size = '64GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET min_wal_size = '4GB'").execute(db).await?;
-            
-            println!("    ✅ 346GB RAM profile applied");
-        }
-        "300gb" => {
-            // Generic 300GB optimization
-            println!("  🔧 Applying 300GB RAM optimization...");
-            
-            sqlx::query("ALTER SYSTEM SET maintenance_work_mem = '32GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET shared_buffers = '128GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET work_mem = '512MB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET effective_cache_size = '256GB'").execute(db).await?;
-            
-            println!("    ✅ 300GB RAM profile applied");
-        }
-        _ => {
-            // Auto-detect or default
-            println!("  🔧 Applying auto-detect optimization...");
-            
-            sqlx::query("ALTER SYSTEM SET maintenance_work_mem = '32GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET shared_buffers = '128GB'").execute(db).await?;
-            sqlx::query("ALTER SYSTEM SET work_mem = '512MB'").execute(db).await?;
-            
-            println!("    ✅ Auto-detect profile applied");
-        }
-    }
-
+async fn apply_postgresql_optimization(db: &sqlx::PgPool) -> Result<()> {
+    println!("  🔧 Applying PostgreSQL optimization...");
+    
+    // Memory settings for bulk operations
+    sqlx::query("ALTER SYSTEM SET maintenance_work_mem = '32GB'").execute(db).await?;
+    sqlx::query("ALTER SYSTEM SET shared_buffers = '64GB'").execute(db).await?;
+    sqlx::query("ALTER SYSTEM SET work_mem = '512MB'").execute(db).await?;
+    sqlx::query("ALTER SYSTEM SET effective_cache_size = '256GB'").execute(db).await?;
+    
+    // WAL optimization
+    sqlx::query("ALTER SYSTEM SET wal_buffers = '32MB'").execute(db).await?;
+    sqlx::query("ALTER SYSTEM SET max_wal_size = '32GB'").execute(db).await?;
+    sqlx::query("ALTER SYSTEM SET min_wal_size = '2GB'").execute(db).await?;
+    
+    println!("    ✅ PostgreSQL optimization applied");
+    
     Ok(())
 }
 

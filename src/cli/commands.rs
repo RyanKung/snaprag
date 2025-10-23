@@ -302,9 +302,6 @@ pub enum FastsyncCommands {
         /// Skip confirmation prompt
         #[arg(short, long)]
         force: bool,
-        /// Hardware profile: 300gb, 346gb, or auto-detect
-        #[arg(long, default_value = "auto")]
-        profile: String,
     },
     /// Disable fast sync mode (restore normal operation)
     Disable {
