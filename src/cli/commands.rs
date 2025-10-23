@@ -473,6 +473,10 @@ pub enum CastEmbeddingAction {
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
         local_gpu: bool,
+        /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        gpu_device: Option<usize>,
     },
     /// Reset cast embeddings (remove all cast vectorization)
     Reset {

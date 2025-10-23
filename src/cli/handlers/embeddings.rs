@@ -13,6 +13,7 @@ pub async fn handle_cast_embeddings_backfill(
     limit: Option<usize>,
     endpoint_name: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
+    #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
 ) -> Result<()> {
     use std::sync::Arc;
 
@@ -37,7 +38,7 @@ pub async fn handle_cast_embeddings_backfill(
                 endpoint: "local-gpu".to_string(),
                 api_key: None,
             };
-            let service = Arc::new(EmbeddingService::from_config_async(embedding_config).await?);
+            let service = Arc::new(EmbeddingService::from_config_async(embedding_config, gpu_device).await?);
             (
                 service,
                 "local-gpu (BAAI/bge-small-en-v1.5)".to_string(),
@@ -167,6 +168,8 @@ pub async fn handle_embeddings_backfill(
                 endpoint,
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
+                #[cfg(feature = "local-gpu")]
+                None, // Default to None for non-local-gpu calls
             )
             .await
         }
@@ -208,7 +211,7 @@ async fn handle_user_embeddings_backfill(
                 endpoint: "local-gpu".to_string(),
                 api_key: None,
             };
-            Arc::new(EmbeddingService::from_config_async(embedding_config).await?)
+            Arc::new(EmbeddingService::from_config_async(embedding_config, None).await?)
         } else {
             // Use default LLM endpoint
             Arc::new(EmbeddingService::new(config)?)

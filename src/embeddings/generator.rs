@@ -51,13 +51,14 @@ impl EmbeddingService {
 
     /// Create from custom config with async initialization for LocalGPU
     #[cfg(feature = "local-gpu")]
-    pub async fn from_config_async(config: EmbeddingConfig) -> Result<Self> {
+    pub async fn from_config_async(config: EmbeddingConfig, gpu_device_id: Option<usize>) -> Result<Self> {
         let client = if matches!(config.provider, EmbeddingProvider::LocalGPU) {
             EmbeddingClient::new_async(
                 config.provider,
                 config.model.clone(),
                 config.endpoint.clone(),
                 config.api_key.clone(),
+                gpu_device_id,
             )
             .await?
         } else {

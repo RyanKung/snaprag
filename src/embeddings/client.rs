@@ -80,6 +80,7 @@ impl EmbeddingClient {
         model: String,
         endpoint: String,
         api_key: Option<String>,
+        gpu_device_id: Option<usize>,
     ) -> Result<Self> {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(120))
@@ -90,7 +91,7 @@ impl EmbeddingClient {
 
         // Initialize local GPU client if needed
         let local_gpu_client = if matches!(provider, EmbeddingProvider::LocalGPU) {
-            Some(crate::embeddings::local_gpu::LocalGPUClient::new(&model).await?)
+            Some(crate::embeddings::local_gpu::LocalGPUClient::new_with_dimension(&model, 384, gpu_device_id).await?)
         } else {
             None
         };

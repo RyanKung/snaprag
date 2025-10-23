@@ -42,12 +42,12 @@ pub struct LocalGPUClient {
 impl LocalGPUClient {
     /// Create a new local GPU client with default 384 dimensions (BGE small model)
     pub async fn new(model_name: &str) -> Result<Self> {
-        Self::new_with_dimension(model_name, 384).await
+        Self::new_with_dimension(model_name, 384, None).await
     }
     
-    /// Create a new local GPU client with specified embedding dimension
+    /// Create a new local GPU client with specified embedding dimension and GPU device
     /// BGE small model supports 384 dimensions
-    pub async fn new_with_dimension(model_name: &str, embedding_dim: usize) -> Result<Self> {
+    pub async fn new_with_dimension(model_name: &str, embedding_dim: usize, gpu_device_id: Option<usize>) -> Result<Self> {
         info!("Initializing local GPU client for model: {} with dimension: {}", model_name, embedding_dim);
         
         // Validate embedding dimension for BGE small model
@@ -57,8 +57,8 @@ impl LocalGPUClient {
             ));
         }
 
-        // Determine device (CUDA > Metal > CPU)
-        let device = Self::get_best_device()?;
+        // Determine device (CUDA > Metal > CPU) with optional GPU selection
+        let device = Self::get_device(gpu_device_id)?;
         info!("Using device: {:?}", device);
 
         // Download model if needed
@@ -79,10 +79,34 @@ impl LocalGPUClient {
         })
     }
 
+    /// Get device with optional GPU selection
+    fn get_device(gpu_device_id: Option<usize>) -> Result<Device> {
+        match gpu_device_id {
+            Some(device_id) => {
+                // User specified a GPU device ID
+                info!("Attempting to use CUDA device {}", device_id);
+                match Device::cuda_if_available(device_id) {
+                    Ok(device) => {
+                        info!("Successfully using CUDA device {}", device_id);
+                        Ok(device)
+                    }
+                    Err(e) => {
+                        warn!("Failed to use CUDA device {}: {}. Falling back to best available device.", device_id, e);
+                        Self::get_best_device()
+                    }
+                }
+            }
+            None => {
+                // No specific device requested, use best available
+                Self::get_best_device()
+            }
+        }
+    }
+
     /// Get the best available device (CUDA > Metal > CPU)
     fn get_best_device() -> Result<Device> {
         if Device::cuda_if_available(0).is_ok() {
-            info!("Using CUDA device");
+            info!("Using CUDA device 0");
             Ok(Device::cuda_if_available(0)?)
         } else if Device::new_metal(0).is_ok() {
             info!("Using Metal device");
@@ -320,8 +344,8 @@ impl LocalGPUClient {
 
         let mut embeddings = Vec::with_capacity(texts.len());
 
-        // Process in smaller batches to avoid memory issues
-        const BATCH_SIZE: usize = 32;
+        // Process in batches optimized for Tesla V100 32GB
+        const BATCH_SIZE: usize = 128; // Increased from 32 for V100's 32GB memory
 
         for chunk in texts.chunks(BATCH_SIZE) {
             let chunk_embeddings = self.generate_batch_chunk(chunk).await?;
