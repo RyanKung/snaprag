@@ -60,9 +60,9 @@ async fn handle_fastsync_enable(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     println!("\n✅ Fast Sync Mode enabled!");
     println!("   🚀 ULTRA TURBO MODE: All non-essential indexes dropped");
-    println!("   ⚡ PostgreSQL optimized for bulk operations");
     println!("   📈 Expected speed boost: +30-50%");
     println!("\n⚠️  Remember to run 'snaprag fastsync disable' after sync completes!");
+    println!("💡  Note: PostgreSQL memory settings should be managed manually");
 
     Ok(())
 }
@@ -112,7 +112,6 @@ async fn handle_fastsync_disable(snaprag: &SnapRag, force: bool) -> Result<()> {
     println!("\n✅ Fast Sync Mode disabled!");
     println!("   🔍 All indexes recreated");
     println!("   🛑 Autovacuum re-enabled");
-    println!("   ⚙️  PostgreSQL settings restored");
     println!("   🧹 Database optimized");
     println!("   📊 Normal operation mode restored");
 
@@ -132,33 +131,24 @@ async fn handle_fastsync_status(snaprag: &SnapRag) -> Result<()> {
 
     // Determine current mode
     println!("🎯 Current Mode:");
-    if index_status.is_ultra_turbo && postgresql_status.is_optimized {
+    if index_status.is_ultra_turbo {
         println!("  🚀 FAST SYNC MODE ENABLED");
         println!("     - ULTRA TURBO: All non-essential indexes dropped");
-        println!("     - PostgreSQL: Memory optimized");
         println!("     - Insert performance: ULTRA FAST (+30-50%)");
         println!("     - Query performance: SLOW (indexes missing)");
         println!("\n  ⚠️  Run 'snaprag fastsync disable' after sync completes!");
-    } else if !index_status.is_ultra_turbo && !postgresql_status.is_optimized {
+    } else {
         println!("  ✅ NORMAL OPERATION MODE");
         println!("     - All indexes present");
-        println!("     - PostgreSQL: Normal settings");
         println!("     - Query performance: FAST");
         println!("     - Insert performance: NORMAL");
-    } else {
-        println!("  ⚠️  MIXED/INCONSISTENT STATE");
-        println!("     - Some optimizations enabled, some disabled");
-        println!("     - Consider running 'snaprag fastsync enable' or 'snaprag fastsync disable'");
     }
 
     // Performance metrics
     println!("\n📈 Performance Metrics:");
     println!("  Database size: {} GB", get_database_size(db).await?);
     println!("  Active connections: {}", get_active_connections(db).await?);
-    println!("  PostgreSQL memory settings:");
-    println!("    - shared_buffers: {}", postgresql_status.shared_buffers);
-    println!("    - maintenance_work_mem: {}", postgresql_status.maintenance_work_mem);
-    println!("    - work_mem: {}", postgresql_status.work_mem);
+    println!("  Note: PostgreSQL memory settings should be managed manually");
 
     Ok(())
 }
@@ -236,20 +226,9 @@ async fn apply_ultra_turbo_mode(db: &sqlx::PgPool) -> Result<()> {
 }
 
 async fn apply_postgresql_optimization(db: &sqlx::PgPool) -> Result<()> {
-    println!("  🔧 Applying PostgreSQL optimization...");
-    
-    // Memory settings for bulk operations
-    sqlx::query("ALTER SYSTEM SET maintenance_work_mem = '32GB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET shared_buffers = '64GB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET work_mem = '512MB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET effective_cache_size = '256GB'").execute(db).await?;
-    
-    // WAL optimization
-    sqlx::query("ALTER SYSTEM SET wal_buffers = '32MB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET max_wal_size = '32GB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET min_wal_size = '2GB'").execute(db).await?;
-    
-    println!("    ✅ PostgreSQL optimization applied");
+    println!("  ℹ️  PostgreSQL memory optimization skipped");
+    println!("     (Memory settings should be managed manually by the user)");
+    println!("     (Only indexes and autovacuum are optimized)");
     
     Ok(())
 }
@@ -326,19 +305,13 @@ async fn re_enable_autovacuum(db: &sqlx::PgPool) -> Result<()> {
 }
 
 async fn restore_postgresql_settings(db: &sqlx::PgPool) -> Result<()> {
-    // Restore to reasonable defaults
-    sqlx::query("ALTER SYSTEM SET maintenance_work_mem = '8GB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET shared_buffers = '64GB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET work_mem = '128MB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET effective_cache_size = '256GB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET max_worker_processes = 200").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET max_parallel_workers = 200").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET max_parallel_workers_per_gather = 8").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET wal_buffers = '16MB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET max_wal_size = '128GB'").execute(db).await?;
-    sqlx::query("ALTER SYSTEM SET min_wal_size = '1GB'").execute(db).await?;
-
-    println!("  ✅ PostgreSQL settings restored to defaults");
+    // Note: We don't restore PostgreSQL memory settings as they should be managed by the user
+    // The user may have custom configurations that should be preserved
+    
+    println!("  ℹ️  PostgreSQL memory settings preserved");
+    println!("     (Memory settings should be managed manually by the user)");
+    println!("     (Only indexes and autovacuum are restored)");
+    
     Ok(())
 }
 
@@ -373,9 +346,6 @@ struct AutovacuumStatus {
 
 struct PostgresqlStatus {
     is_optimized: bool,
-    shared_buffers: String,
-    maintenance_work_mem: String,
-    work_mem: String,
 }
 
 async fn check_index_status(db: &sqlx::PgPool) -> Result<IndexStatus> {
@@ -435,27 +405,10 @@ async fn check_autovacuum_status(db: &sqlx::PgPool) -> Result<AutovacuumStatus> 
 }
 
 async fn check_postgresql_optimization(db: &sqlx::PgPool) -> Result<PostgresqlStatus> {
-    let shared_buffers: (String,) = sqlx::query_as("SELECT setting FROM pg_settings WHERE name = 'shared_buffers'")
-        .fetch_one(db)
-        .await?;
-    
-    let maintenance_work_mem: (String,) = sqlx::query_as("SELECT setting FROM pg_settings WHERE name = 'maintenance_work_mem'")
-        .fetch_one(db)
-        .await?;
-    
-    let work_mem: (String,) = sqlx::query_as("SELECT setting FROM pg_settings WHERE name = 'work_mem'")
-        .fetch_one(db)
-        .await?;
-
-    // Check if settings are optimized (larger than defaults)
-    let is_optimized = shared_buffers.0.parse::<u64>().unwrap_or(0) > 8388608 && // > 64GB
-                      maintenance_work_mem.0.parse::<u64>().unwrap_or(0) > 8388608; // > 8GB
-
+    // Since we no longer modify PostgreSQL memory settings, 
+    // we just return a default status
     Ok(PostgresqlStatus {
-        is_optimized,
-        shared_buffers: format!("{} kB", shared_buffers.0),
-        maintenance_work_mem: format!("{} kB", maintenance_work_mem.0),
-        work_mem: format!("{} kB", work_mem.0),
+        is_optimized: false, // Always false since we don't modify settings
     })
 }
 
