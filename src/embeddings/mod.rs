@@ -27,9 +27,11 @@ pub mod backfill;
 pub mod cast_backfill;
 pub mod client;
 pub mod generator;
+pub mod local_gpu;
 
 pub use backfill::backfill_embeddings;
 pub use cast_backfill::backfill_cast_embeddings;
+// pub use cast_backfill::backfill_cast_embeddings_optimized;
 pub use cast_backfill::CastBackfillStats;
 pub use client::EmbeddingClient;
 pub use client::EmbeddingProvider;
@@ -41,7 +43,7 @@ use crate::errors::Result;
 pub const DEFAULT_EMBEDDING_DIM: usize = 1536;
 
 /// Maximum batch size for embedding generation
-pub const MAX_BATCH_SIZE: usize = 100;
+pub const MAX_BATCH_SIZE: usize = 1000;
 
 /// Configuration for embedding generation
 #[derive(Debug, Clone)]
@@ -95,10 +97,23 @@ impl EmbeddingConfig {
         let provider = match endpoint_config.provider.to_lowercase().as_str() {
             "openai" => EmbeddingProvider::OpenAI,
             "ollama" => EmbeddingProvider::Ollama,
+            #[cfg(feature = "local-gpu")]
+            "local_gpu" => EmbeddingProvider::LocalGPU,
             _ => {
                 // Auto-detect based on endpoint
                 if endpoint_config.endpoint.contains("api.openai.com") {
                     EmbeddingProvider::OpenAI
+                } else if endpoint_config.endpoint.contains("localhost")
+                    || endpoint_config.endpoint.contains("127.0.0.1")
+                {
+                    #[cfg(feature = "local-gpu")]
+                    {
+                        EmbeddingProvider::LocalGPU
+                    }
+                    #[cfg(not(feature = "local-gpu"))]
+                    {
+                        EmbeddingProvider::Ollama
+                    }
                 } else {
                     EmbeddingProvider::Ollama
                 }

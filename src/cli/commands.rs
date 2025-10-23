@@ -436,6 +436,12 @@ pub enum EmbeddingsCommands {
     },
     /// Show embedding statistics
     Stats,
+    /// Reset all embeddings (remove vectorization)
+    Reset {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]

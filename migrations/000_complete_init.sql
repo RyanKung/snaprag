@@ -411,6 +411,25 @@ CREATE INDEX IF NOT EXISTS idx_sync_progress_shard_id ON sync_progress(shard_id)
 CREATE INDEX IF NOT EXISTS idx_cast_embeddings_message_hash ON cast_embeddings(message_hash);
 CREATE INDEX IF NOT EXISTS idx_cast_embeddings_fid ON cast_embeddings(fid);
 
+-- Optimize queries for cast embeddings backfill
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_hash 
+ON casts(message_hash) 
+WHERE text IS NOT NULL AND length(text) > 0;
+
+-- Additional indexes for better performance on large datasets
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_message_hash_desc 
+ON casts(message_hash DESC) 
+WHERE text IS NOT NULL AND length(text) > 0;
+
+-- Optimize cast_embeddings lookups
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embeddings_message_hash_btree 
+ON cast_embeddings USING btree(message_hash);
+
+-- Composite index for text filtering and message_hash ordering
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_hash_desc_composite 
+ON casts(message_hash DESC, fid, timestamp) 
+WHERE text IS NOT NULL AND length(text) > 0;
+
 -- ==============================================================================
 -- 8. FOREIGN KEY (if needed)
 -- ==============================================================================

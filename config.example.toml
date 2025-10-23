@@ -55,6 +55,12 @@ endpoint = "http://localhost:8000/v1"
 model = "BAAI/bge-large-en-v1.5"
 provider = "openai"  # vLLM uses OpenAI-compatible API
 
+[[embeddings.endpoints]]
+name = "local_gpu"
+endpoint = "local"  # Not used for local GPU, but required by config
+model = "nomic-ai/nomic-embed-text-v1"
+provider = "local_gpu"  # Local GPU inference
+
 [performance]
 enable_vector_indexes = true
 vector_index_lists = 100

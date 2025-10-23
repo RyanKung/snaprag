@@ -29,7 +29,7 @@ pub struct EmbeddingEndpoint {
     pub endpoint: String,
     pub api_key: Option<String>,
     pub model: String,
-    pub provider: String, // "openai" or "ollama"
+    pub provider: String, // "openai", "ollama", or "local_gpu"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,11 +45,11 @@ pub struct EmbeddingsConfig {
 }
 
 const fn default_batch_size() -> usize {
-    100
+    500 // Larger default for better performance
 }
 
 const fn default_parallel_tasks() -> usize {
-    5
+    200 // High concurrency for Ollama performance
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -52,17 +52,12 @@ pub async fn handle_cast_embeddings_backfill(
         (service, format!("default ({})", config.llm_endpoint()))
     };
 
-    // Check how many casts need embeddings
-    let count = database.count_casts_without_embeddings().await?;
-
-    if count == 0 {
-        print_success("✅ All casts already have embeddings!");
-        return Ok(());
-    }
-
-    let process_count = limit.unwrap_or(count as usize);
-    println!("\n📊 Found {count} casts without embeddings");
-    println!("   Processing: {process_count} casts");
+    // Skip counting for better performance - just start processing
+    println!("\n📊 Starting cast embeddings backfill");
+    println!(
+        "   Processing: {} casts",
+        limit.map_or("all".to_string(), |l| l.to_string())
+    );
     println!("   Endpoint: {endpoint_info}");
     println!("   Batch size: {}", config.embeddings_batch_size());
     println!(
@@ -150,6 +145,49 @@ async fn handle_user_embeddings_backfill(
     println!("Failed: {}", stats.failed);
     println!("Success Rate: {:.1}%", stats.success_rate());
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    Ok(())
+}
+
+/// Handle embeddings reset command
+pub async fn handle_embeddings_reset(config: &AppConfig, force: bool) -> Result<()> {
+    use crate::database::Database;
+
+    println!("🗑️  Reset Embeddings");
+    println!("===================\n");
+
+    if !force {
+        println!("⚠️  This will remove ALL embeddings from the database:");
+        println!("   - Profile embeddings (profile_embedding, bio_embedding, interests_embedding)");
+        println!("   - Cast embeddings (cast_embeddings table)");
+        println!("   - This action cannot be undone!");
+        println!("\nUse --force to confirm and proceed.");
+        return Ok(());
+    }
+
+    println!("⏳ Connecting to database...");
+    let database = Database::from_config(config).await?;
+
+    println!("🗑️  Removing profile embeddings...");
+    let profile_result = sqlx::query("DELETE FROM profile_embeddings")
+        .execute(database.pool())
+        .await?;
+    println!(
+        "   ✅ Removed {} profile embedding records",
+        profile_result.rows_affected()
+    );
+
+    println!("🗑️  Removing cast embeddings...");
+    let cast_result = sqlx::query("DELETE FROM cast_embeddings")
+        .execute(database.pool())
+        .await?;
+    println!(
+        "   ✅ Removed {} cast embedding records",
+        cast_result.rows_affected()
+    );
+
+    println!("\n✅ All embeddings have been removed!");
+    println!("   Run 'cargo run embeddings backfill --force' to regenerate them.");
 
     Ok(())
 }

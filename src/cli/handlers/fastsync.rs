@@ -6,7 +6,9 @@
 //! - Hardware-specific tuning
 
 use std::io::Write;
-use std::io::{self};
+use std::io::{
+    self,
+};
 
 use crate::cli::commands::FastsyncCommands;
 use crate::errors::Result;
@@ -147,7 +149,10 @@ async fn handle_fastsync_status(snaprag: &SnapRag) -> Result<()> {
     // Performance metrics
     println!("\n📈 Performance Metrics:");
     println!("  Database size: {} GB", get_database_size(db).await?);
-    println!("  Active connections: {}", get_active_connections(db).await?);
+    println!(
+        "  Active connections: {}",
+        get_active_connections(db).await?
+    );
     println!("  Note: PostgreSQL memory settings should be managed manually");
 
     Ok(())
@@ -208,14 +213,23 @@ async fn apply_ultra_turbo_mode(db: &sqlx::PgPool) -> Result<()> {
 
     // Disable autovacuum
     let tables = vec![
-        "casts", "links", "reactions", "verifications", "onchain_events",
-        "user_profile_changes", "username_proofs", "frame_actions", "processed_messages",
+        "casts",
+        "links",
+        "reactions",
+        "verifications",
+        "onchain_events",
+        "user_profile_changes",
+        "username_proofs",
+        "frame_actions",
+        "processed_messages",
     ];
 
     for table in &tables {
-        match sqlx::query(&format!("ALTER TABLE {table} SET (autovacuum_enabled = false)"))
-            .execute(db)
-            .await
+        match sqlx::query(&format!(
+            "ALTER TABLE {table} SET (autovacuum_enabled = false)"
+        ))
+        .execute(db)
+        .await
         {
             Ok(_) => println!("  ✅ Disabled autovacuum: {table}"),
             Err(e) => println!("  ⚠️  Failed for {table}: {e}"),
@@ -229,7 +243,7 @@ async fn apply_postgresql_optimization(db: &sqlx::PgPool) -> Result<()> {
     println!("  ℹ️  PostgreSQL memory optimization skipped");
     println!("     (Memory settings should be managed manually by the user)");
     println!("     (Only indexes and autovacuum are optimized)");
-    
+
     Ok(())
 }
 
@@ -287,14 +301,23 @@ async fn recreate_all_indexes(db: &sqlx::PgPool) -> Result<()> {
 
 async fn re_enable_autovacuum(db: &sqlx::PgPool) -> Result<()> {
     let tables = vec![
-        "casts", "links", "reactions", "verifications", "onchain_events",
-        "user_profile_changes", "username_proofs", "frame_actions", "processed_messages",
+        "casts",
+        "links",
+        "reactions",
+        "verifications",
+        "onchain_events",
+        "user_profile_changes",
+        "username_proofs",
+        "frame_actions",
+        "processed_messages",
     ];
 
     for table in &tables {
-        match sqlx::query(&format!("ALTER TABLE {table} SET (autovacuum_enabled = true)"))
-            .execute(db)
-            .await
+        match sqlx::query(&format!(
+            "ALTER TABLE {table} SET (autovacuum_enabled = true)"
+        ))
+        .execute(db)
+        .await
         {
             Ok(_) => println!("  ✅ Enabled autovacuum: {table}"),
             Err(e) => println!("  ⚠️  Failed for {table}: {e}"),
@@ -307,24 +330,34 @@ async fn re_enable_autovacuum(db: &sqlx::PgPool) -> Result<()> {
 async fn restore_postgresql_settings(db: &sqlx::PgPool) -> Result<()> {
     // Note: We don't restore PostgreSQL memory settings as they should be managed by the user
     // The user may have custom configurations that should be preserved
-    
+
     println!("  ℹ️  PostgreSQL memory settings preserved");
     println!("     (Memory settings should be managed manually by the user)");
     println!("     (Only indexes and autovacuum are restored)");
-    
+
     Ok(())
 }
 
 async fn run_vacuum_analyze(db: &sqlx::PgPool) -> Result<()> {
     let tables = vec![
-        "casts", "links", "reactions", "verifications", "onchain_events",
-        "user_profile_changes", "username_proofs", "frame_actions", "processed_messages",
+        "casts",
+        "links",
+        "reactions",
+        "verifications",
+        "onchain_events",
+        "user_profile_changes",
+        "username_proofs",
+        "frame_actions",
+        "processed_messages",
     ];
 
     for table in &tables {
         print!("  🧹 Analyzing {table}... ");
         io::stdout().flush()?;
-        match sqlx::query(&format!("VACUUM ANALYZE {table}")).execute(db).await {
+        match sqlx::query(&format!("VACUUM ANALYZE {table}"))
+            .execute(db)
+            .await
+        {
             Ok(_) => println!("✅"),
             Err(e) => println!("⚠️  Failed: {e}"),
         }
@@ -351,7 +384,7 @@ struct PostgresqlStatus {
 async fn check_index_status(db: &sqlx::PgPool) -> Result<IndexStatus> {
     let critical_indexes = vec![
         "idx_reactions_fid",
-        "idx_links_latest", 
+        "idx_links_latest",
         "idx_verifications_fid",
         "idx_casts_fid",
     ];
@@ -379,7 +412,11 @@ async fn check_index_status(db: &sqlx::PgPool) -> Result<IndexStatus> {
 
 async fn check_autovacuum_status(db: &sqlx::PgPool) -> Result<AutovacuumStatus> {
     let tables = vec![
-        "casts", "links", "reactions", "verifications", "onchain_events",
+        "casts",
+        "links",
+        "reactions",
+        "verifications",
+        "onchain_events",
     ];
 
     let mut disabled_tables = Vec::new();
@@ -391,7 +428,9 @@ async fn check_autovacuum_status(db: &sqlx::PgPool) -> Result<AutovacuumStatus> 
                 .await?;
 
         let is_disabled = if let Some((Some(options),)) = result {
-            options.iter().any(|opt| opt.contains("autovacuum_enabled=false"))
+            options
+                .iter()
+                .any(|opt| opt.contains("autovacuum_enabled=false"))
         } else {
             false
         };
@@ -405,7 +444,7 @@ async fn check_autovacuum_status(db: &sqlx::PgPool) -> Result<AutovacuumStatus> 
 }
 
 async fn check_postgresql_optimization(db: &sqlx::PgPool) -> Result<PostgresqlStatus> {
-    // Since we no longer modify PostgreSQL memory settings, 
+    // Since we no longer modify PostgreSQL memory settings,
     // we just return a default status
     Ok(PostgresqlStatus {
         is_optimized: false, // Always false since we don't modify settings
@@ -420,8 +459,9 @@ async fn get_database_size(db: &sqlx::PgPool) -> Result<String> {
 }
 
 async fn get_active_connections(db: &sqlx::PgPool) -> Result<i64> {
-    let result: (i64,) = sqlx::query_as("SELECT count(*) FROM pg_stat_activity WHERE datname = 'snaprag'")
-        .fetch_one(db)
-        .await?;
+    let result: (i64,) =
+        sqlx::query_as("SELECT count(*) FROM pg_stat_activity WHERE datname = 'snaprag'")
+            .fetch_one(db)
+            .await?;
     Ok(result.0)
 }

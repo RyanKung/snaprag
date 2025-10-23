@@ -9,6 +9,8 @@ use tracing::info;
 use crate::errors::Result;
 use crate::errors::SnapragError;
 
+// Local GPU dependencies would be added here in a real implementation
+
 /// Supported embedding providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EmbeddingProvider {
@@ -16,6 +18,9 @@ pub enum EmbeddingProvider {
     OpenAI,
     /// Ollama local embeddings
     Ollama,
+    /// Local GPU embeddings (nomic-embed-text-v1) - requires `local-gpu` feature
+    #[cfg(feature = "local-gpu")]
+    LocalGPU,
 }
 
 /// Client for generating embeddings from various providers
@@ -25,6 +30,9 @@ pub struct EmbeddingClient {
     endpoint: String,
     api_key: Option<String>,
     client: Client,
+    // Local GPU client (only used when provider is LocalGPU)
+    #[cfg(feature = "local-gpu")]
+    local_gpu_client: Option<crate::embeddings::local_gpu::LocalGPUClient>,
 }
 
 impl EmbeddingClient {
@@ -36,9 +44,19 @@ impl EmbeddingClient {
         api_key: Option<String>,
     ) -> Result<Self> {
         let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(120)) // Longer timeout for high concurrency
+            .pool_max_idle_per_host(100) // Increase connection pool for high concurrency
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| SnapragError::HttpError(e.to_string()))?;
+
+        // Initialize local GPU client if needed
+        #[cfg(feature = "local-gpu")]
+        let local_gpu_client = if matches!(provider, EmbeddingProvider::LocalGPU) {
+            Some(crate::embeddings::local_gpu::LocalGPUClient::new(&model)?)
+        } else {
+            None
+        };
 
         Ok(Self {
             provider,
@@ -46,6 +64,8 @@ impl EmbeddingClient {
             endpoint,
             api_key,
             client,
+            #[cfg(feature = "local-gpu")]
+            local_gpu_client,
         })
     }
 
@@ -54,6 +74,13 @@ impl EmbeddingClient {
         match self.provider {
             EmbeddingProvider::OpenAI => self.generate_openai(text).await,
             EmbeddingProvider::Ollama => self.generate_ollama(text).await,
+            #[cfg(feature = "local-gpu")]
+            EmbeddingProvider::LocalGPU => {
+                let client = self.local_gpu_client.as_ref().ok_or_else(|| {
+                    SnapragError::ConfigError("Local GPU client not initialized".to_string())
+                })?;
+                client.generate(text).await
+            }
         }
     }
 
@@ -62,12 +89,34 @@ impl EmbeddingClient {
         match self.provider {
             EmbeddingProvider::OpenAI => self.generate_batch_openai(texts).await,
             EmbeddingProvider::Ollama => {
-                // Ollama doesn't support batch, so we do it sequentially
-                let mut embeddings = Vec::with_capacity(texts.len());
-                for text in texts {
-                    embeddings.push(self.generate_ollama(text).await?);
+                // Ollama doesn't support batch, so we do it with high concurrency
+                use futures::stream::StreamExt;
+                use futures::stream::{
+                    self,
+                };
+
+                // Aggressive concurrency for maximum performance
+                let concurrency = std::cmp::min(texts.len(), 200); // High concurrency for performance
+                let results: Vec<Result<Vec<f32>>> = stream::iter(texts.iter())
+                    .map(|&text| async move { self.generate_ollama(text).await })
+                    .buffered(concurrency)
+                    .collect()
+                    .await;
+
+                // Convert Vec<Result<T, E>> to Result<Vec<T>, E>
+                let mut embeddings = Vec::with_capacity(results.len());
+                for result in results {
+                    embeddings.push(result?);
                 }
+
                 Ok(embeddings)
+            }
+            #[cfg(feature = "local-gpu")]
+            EmbeddingProvider::LocalGPU => {
+                let client = self.local_gpu_client.as_ref().ok_or_else(|| {
+                    SnapragError::ConfigError("Local GPU client not initialized".to_string())
+                })?;
+                client.generate_batch(texts).await
             }
         }
     }
