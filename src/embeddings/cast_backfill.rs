@@ -56,10 +56,21 @@ pub async fn backfill_cast_embeddings_with_config(
         5,
         super::super::config::AppConfig::embeddings_parallel_tasks,
     );
+    let cpu_threads = config.map_or(
+        Some(56), // Default to 56 threads
+        |c| {
+            let threads = c.embeddings_cpu_threads();
+            if threads == 0 {
+                None // Auto-detect
+            } else {
+                Some(threads)
+            }
+        },
+    );
 
     info!(
-        "Using batch_size={}, parallel_tasks={} for embeddings generation",
-        batch_size, parallel_tasks
+        "Using batch_size={}, parallel_tasks={}, cpu_threads={:?} for embeddings generation",
+        batch_size, parallel_tasks, cpu_threads
     );
     let mut offset = 0;
     let mut processed = 0;
@@ -88,7 +99,7 @@ pub async fn backfill_cast_embeddings_with_config(
         );
 
         // Process casts with separated GPU computation and DB insertion concurrency
-        let results = process_casts_with_separated_concurrency(casts, &db, &embedding_service, parallel_tasks).await;
+        let results = process_casts_with_separated_concurrency(casts, &db, &embedding_service, parallel_tasks, cpu_threads).await;
 
         // Aggregate results
         for result in results {
@@ -229,11 +240,23 @@ async fn process_casts_with_separated_concurrency(
     db: &Arc<Database>,
     embedding_service: &Arc<EmbeddingService>,
     gpu_concurrency: usize,
+    cpu_threads: Option<usize>,
 ) -> Vec<ProcessResult> {
     use futures::stream::StreamExt;
     
     // Step 0: CPU parallel preprocessing using rayon for true CPU parallelism
     let cpu_concurrency = std::cmp::min(56, casts.len()); // Use all available CPU cores
+    
+    // Configure rayon thread pool if specified
+    if let Some(threads) = cpu_threads {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap_or_else(|_| {
+                info!("Using default rayon thread pool (already configured)");
+            });
+        info!("Configured rayon to use {} CPU threads", threads);
+    }
     
     info!("Starting CPU parallel preprocessing with {} cores for {} casts", cpu_concurrency, casts.len());
     

@@ -40,6 +40,8 @@ pub struct EmbeddingsConfig {
     pub batch_size: usize,
     #[serde(default = "default_parallel_tasks")]
     pub parallel_tasks: usize,
+    #[serde(default = "default_cpu_threads")]
+    pub cpu_threads: usize,
     #[serde(default)]
     pub endpoints: Vec<EmbeddingEndpoint>,
 }
@@ -50,6 +52,10 @@ const fn default_batch_size() -> usize {
 
 const fn default_parallel_tasks() -> usize {
     200 // High concurrency for Ollama performance
+}
+
+const fn default_cpu_threads() -> usize {
+    0 // Auto-detect CPU cores
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -207,6 +213,12 @@ impl AppConfig {
         self.embeddings.parallel_tasks
     }
 
+    /// Get embeddings CPU threads
+    #[must_use]
+    pub const fn embeddings_cpu_threads(&self) -> usize {
+        self.embeddings.cpu_threads
+    }
+
     /// Get embedding endpoints
     #[must_use]
     pub const fn embedding_endpoints(&self) -> &Vec<EmbeddingEndpoint> {
@@ -317,6 +329,7 @@ impl Default for AppConfig {
                 model: "text-embedding-ada-002".to_string(),
                 batch_size: 100,
                 parallel_tasks: 5,
+                cpu_threads: 0, // Auto-detect
                 endpoints: vec![],
             },
             performance: PerformanceConfig {

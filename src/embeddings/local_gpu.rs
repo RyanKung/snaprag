@@ -502,15 +502,17 @@ impl LocalGPUClient {
         // GPU inference (single operation)
         let embeddings = self.compute_embeddings_real(&input_ids, &attention_mask)?;
 
-        // Parallel post-processing (mean pooling and normalization)
+        // Batch mean pooling for the entire batch at once
+        let pooled = self.mean_pooling_batch(&embeddings, &attention_mask)?;
+        
+        // Batch normalization for the entire batch at once
+        let normalized = self.normalize_batch(&pooled)?;
+        
+        // Convert to Vec<Vec<f32>>
         let results: Result<Vec<Vec<f32>>> = (0..batch_size)
             .into_par_iter()
             .map(|i| {
-                let item_embeddings = embeddings.i(i)?;
-                let item_mask = attention_mask.i(i)?;
-                let pooled = self.mean_pooling(&item_embeddings, &item_mask)?;
-                let normalized = self.normalize(&pooled)?;
-                let embedding_vec: Vec<f32> = normalized.to_vec1()?;
+                let embedding_vec: Vec<f32> = normalized.i(i)?.to_vec1()?;
                 Ok(embedding_vec)
             })
             .collect();
@@ -538,10 +540,28 @@ impl LocalGPUClient {
         Ok(sum_embeddings.broadcast_div(&sum_mask)?)
     }
 
+    /// Batch mean pooling for multiple embeddings at once
+    fn mean_pooling_batch(&self, embeddings: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
+        // Convert attention_mask to f32 to match embeddings dtype
+        let mask_f32 = attention_mask.to_dtype(DType::F32)?;
+        let mask_expanded = mask_f32.unsqueeze(attention_mask.dims().len())?.expand(embeddings.shape())?;
+        let sum_embeddings = (embeddings * &mask_expanded)?.sum(1)?;
+        let sum_mask = mask_expanded.sum(1)?.clamp(1e-9, f32::MAX)?;
+        Ok(sum_embeddings.broadcast_div(&sum_mask)?)
+    }
+
     /// Normalize embeddings to unit length
     fn normalize(&self, embeddings: &Tensor) -> Result<Tensor> {
         let norm = embeddings.sqr()?.sum_all()?.sqrt()?;
         Ok(embeddings.broadcast_div(&norm)?)
+    }
+
+    /// Batch normalize embeddings to unit length
+    fn normalize_batch(&self, embeddings: &Tensor) -> Result<Tensor> {
+        // Compute norms for each embedding in the batch
+        let norms = embeddings.sqr()?.sum(1)?.sqrt()?;
+        // Broadcast divide each embedding by its norm
+        Ok(embeddings.broadcast_div(&norms)?)
     }
 }
 
