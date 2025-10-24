@@ -35,6 +35,7 @@ pub async fn backfill_cast_embeddings_multiprocess(
     db: Arc<Database>,
     limit: Option<usize>,
     config: Option<&crate::config::AppConfig>,
+    workers: Option<usize>,
 ) -> Result<CastBackfillStats> {
     info!("Starting multi-process cast embeddings backfill");
     let start_time = Instant::now();
@@ -52,10 +53,12 @@ pub async fn backfill_cast_embeddings_multiprocess(
 
     // Configure multi-process settings
     let multiprocess_config = MultiProcessConfig {
-        worker_processes: config.map_or(4, |c| {
-            // Use CPU cores / 2 for optimal performance
-            let cores = num_cpus::get();
-            std::cmp::min(cores / 2, 8) // Cap at 8 workers
+        worker_processes: workers.unwrap_or_else(|| {
+            config.map_or(4, |c| {
+                // Use CPU cores / 2 for optimal performance
+                let cores = num_cpus::get();
+                std::cmp::min(cores / 2, 8) // Cap at 8 workers
+            })
         }),
         batch_size_per_worker: config.map_or(50, |c| c.embeddings_batch_size() / 4),
         gpu_devices: vec![0], // TODO: Support multiple GPUs

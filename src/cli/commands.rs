@@ -427,6 +427,10 @@ pub enum EmbeddingsCommands {
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
         multiprocess: bool,
+        /// Number of worker processes to use (default: auto-detect based on CPU cores)
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        workers: Option<usize>,
         /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
@@ -482,6 +486,10 @@ pub enum EmbeddingsCommands {
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
         multiprocess: bool,
+        /// Number of worker processes to use (default: auto-detect based on CPU cores)
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        workers: Option<usize>,
         /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
@@ -513,6 +521,10 @@ pub enum CastEmbeddingAction {
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
         multiprocess: bool,
+        /// Number of worker processes to use (default: auto-detect based on CPU cores)
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        workers: Option<usize>,
         /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
