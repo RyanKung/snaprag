@@ -57,6 +57,7 @@ hyper = { version = "1.0", features = ["full"] }
 tokio-util = "0.7"
 rayon = "1.8"  # Parallel processing for CPU-intensive tasks
 num_cpus = "1.0"  # CPU core detection for multi-process optimization
+home = "0.5.11"  # Compatible version for older Rust
 
 # Local GPU embedding dependencies (optional)
 # Note: Platform-specific features are defined in target-specific sections below
