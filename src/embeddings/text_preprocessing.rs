@@ -65,12 +65,14 @@ fn sanitize_text(text: &str) -> String {
                 // Keep Unicode letters, numbers, and common punctuation
                 c if c.is_alphanumeric() => c,
                 c if ".,!?;:()[]{}'\"-".contains(c) => c,
-                // Replace other characters with space
+                // Keep emojis and other Unicode symbols (but not control chars)
+                c if !c.is_control() => c,
+                // Replace control characters with space
                 _ => ' ',
             }
         })
         .collect::<String>()
-        // Clean up multiple spaces again after character replacement
+        // Clean up multiple spaces but preserve single spaces
         .split_whitespace()
         .collect::<Vec<&str>>()
         .join(" ")
