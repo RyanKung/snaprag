@@ -193,8 +193,8 @@ async fn load_user_data(
         for (idx, cast) in casts_without_embeddings.iter().enumerate() {
             if let Some(ref text) = cast.text {
                 if !text.trim().is_empty() {
-                    // Use multi-vector approach for long texts, single vector for short texts
-                    let result = if text.len() >= 500 {
+                   // Use multi-vector approach for long texts, single vector for short texts
+                   let result = if text.len() >= 500 {
                         // Use multi-vector for long texts
                         use crate::embeddings::{MultiVectorEmbeddingService, ChunkStrategy, AggregationStrategy};
                         
@@ -202,7 +202,7 @@ async fn load_user_data(
                         let multi_vector_embedding_service = crate::embeddings::EmbeddingService::new(config)?;
                         let multi_vector_service = MultiVectorEmbeddingService::new(
                             multi_vector_embedding_service,
-                            1500, // default chunk size
+                            500, // chunk size - should be smaller than the threshold
                             ChunkStrategy::Importance,
                             AggregationStrategy::WeightedMean,
                         );
