@@ -55,6 +55,8 @@ impl SyncService {
             enable_realtime_sync: app_config.sync.enable_realtime_sync,
             enable_historical_sync: app_config.sync.enable_historical_sync,
             sync_interval_ms: app_config.sync.sync_interval_ms,
+            enable_continuous_sync: app_config.sync.enable_continuous_sync,
+            continuous_sync_interval_secs: app_config.sync.continuous_sync_interval_secs,
         };
 
         // Initialize snapchain client

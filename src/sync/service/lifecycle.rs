@@ -350,8 +350,23 @@ impl LifecycleManager {
     }
 
     fn start_full_realtime_sync(&self) {
-        info!("Real-time sync not yet implemented in refactored service");
-        warn!("Use 'snaprag sync start --from-block <last_block>' for now");
+        if self.config.enable_continuous_sync {
+            info!("Starting continuous sync monitoring (polling every {} seconds)...", 
+                  self.config.continuous_sync_interval_secs);
+            
+            // Spawn continuous sync task
+            let config = self.config.clone();
+            let client = self.client.clone();
+            let database = self.database.clone();
+            let state_manager = self.state_manager.clone();
+            
+            tokio::spawn(async move {
+                Self::run_continuous_sync(config, client, database, state_manager).await;
+            });
+        } else {
+            info!("Real-time sync not yet implemented in refactored service");
+            warn!("Use 'snaprag sync start --from-block <last_block>' for now");
+        }
     }
 
     /// Start sync with parallel workers per shard (fail-fast strategy)
@@ -879,5 +894,122 @@ impl LifecycleManager {
         info!("🎉 All shards completed successfully!");
         info!("⚠️  Note: Run 'snaprag sync start' again (without --workers) to fill any gaps from failed batches");
         Ok(())
+    }
+
+    /// Run continuous sync monitoring for new blocks
+    async fn run_continuous_sync(
+        config: crate::sync::types::SyncConfig,
+        client: crate::sync::client::SnapchainClient,
+        database: Arc<crate::database::Database>,
+        state_manager: Arc<tokio::sync::RwLock<crate::sync::state_manager::SyncStateManager>>,
+    ) {
+        use tracing::{info, warn, error};
+        
+        info!("🔄 Starting continuous sync monitoring...");
+        
+        loop {
+            let interval_duration = tokio::time::Duration::from_secs(config.continuous_sync_interval_secs);
+            
+            // Sleep for the configured interval
+            tokio::time::sleep(interval_duration).await;
+            
+            // Check each shard for new blocks
+            for &shard_id in &config.shard_ids {
+                match Self::check_and_sync_new_blocks(shard_id, &client, &database, &state_manager).await {
+                    Ok(blocks_synced) => {
+                        if blocks_synced > 0 {
+                            info!("📦 Shard {}: synced {} new blocks", shard_id, blocks_synced);
+                        }
+                    }
+                    Err(e) => {
+                        error!("❌ Shard {} continuous sync error: {}", shard_id, e);
+                        // Continue with other shards even if one fails
+                    }
+                }
+            }
+        }
+    }
+
+    /// Check for and sync new blocks for a specific shard
+    async fn check_and_sync_new_blocks(
+        shard_id: u32,
+        client: &crate::sync::client::SnapchainClient,
+        database: &Arc<crate::database::Database>,
+        state_manager: &Arc<tokio::sync::RwLock<crate::sync::state_manager::SyncStateManager>>,
+    ) -> Result<u64> {
+        use tracing::{debug, warn};
+        
+        // Get current processed height for this shard
+        let current_height = database.get_last_processed_height(shard_id).await?;
+        
+        // Get latest block height from snapchain
+        let info = client.get_info().await?;
+        let shard_info = info.shard_infos.iter()
+            .find(|s| s.shard_id == shard_id)
+            .ok_or_else(|| crate::SnapRagError::Custom(format!("Shard {} not found", shard_id)))?;
+        
+        let latest_height = shard_info.max_height;
+        
+        if latest_height <= current_height {
+            debug!("Shard {}: no new blocks (current: {}, latest: {})", 
+                   shard_id, current_height, latest_height);
+            return Ok(0);
+        }
+        
+        // Sync new blocks in small batches
+        let batch_size = 10; // Small batch for continuous sync
+        let mut blocks_synced = 0;
+        let mut from_block = current_height + 1;
+        
+        while from_block <= latest_height {
+            let to_block = (from_block + batch_size - 1).min(latest_height);
+            
+            debug!("Shard {}: syncing blocks {} to {}", shard_id, from_block, to_block);
+            
+            // Create a small sync request
+            let request = crate::sync::client::proto::ShardChunksRequest {
+                shard_id,
+                start_block_number: from_block,
+                stop_block_number: Some(to_block),
+            };
+            
+            match client.get_shard_chunks(request).await {
+                Ok(response) => {
+                    if response.shard_chunks.is_empty() {
+                        debug!("Shard {}: no chunks returned for blocks {} to {}", 
+                               shard_id, from_block, to_block);
+                        break;
+                    }
+                    
+                    // Process the chunks
+                    let processor = crate::sync::shard_processor::ShardProcessor::new(
+                        database.as_ref().clone(),
+                    );
+                    
+                    match processor.process_chunks_batch(&response.shard_chunks, shard_id).await {
+                        Ok(()) => {
+                            blocks_synced += to_block - from_block + 1;
+                            
+                            debug!("Shard {}: processed blocks {} to {}", 
+                                   shard_id, from_block, to_block);
+                        }
+                        Err(e) => {
+                            warn!("Shard {}: failed to process chunks for blocks {} to {}: {}", 
+                                  shard_id, from_block, to_block, e);
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Shard {}: failed to fetch chunks for blocks {} to {}: {}", 
+                          shard_id, from_block, to_block, e);
+                    break;
+                }
+            }
+            
+            from_block = to_block + 1;
+        }
+        
+        Ok(blocks_synced)
     }
 }

@@ -180,9 +180,16 @@ pub struct CastSearchResult {
     pub mentions: Option<serde_json::Value>,
     pub similarity: f32,
     #[serde(default)]
-    pub reply_count: i64,
+    pub reply_count: Option<i64>,
     #[serde(default)]
-    pub reaction_count: i64,
+    pub reaction_count: Option<i64>,
+    // Multi-vector fields
+    #[serde(default)]
+    pub chunk_index: Option<i32>,
+    #[serde(default)]
+    pub chunk_text: Option<String>,
+    #[serde(default)]
+    pub chunk_strategy: Option<String>,
 }
 
 /// Cast statistics

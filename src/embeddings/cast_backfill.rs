@@ -520,15 +520,18 @@ async fn process_casts_with_separated_concurrency(
             
             if is_valid {
                 let text = cast.text.as_ref().unwrap();
-                // Minimal processing - just trim and basic cleanup
-                let processed_text = text.trim().to_string();
-                
-                if !processed_text.is_empty() {
-                    let mut processed_cast = cast;
-                    processed_cast.text = Some(processed_text);
-                    (processed_cast, true)
-                } else {
-                    (cast, false)
+                // Use comprehensive text preprocessing
+                match crate::embeddings::preprocess_text_for_embedding(text) {
+                    Ok(processed_text) => {
+                        let mut processed_cast = cast;
+                        processed_cast.text = Some(processed_text);
+                        (processed_cast, true)
+                    }
+                    Err(e) => {
+                        debug!("Failed to preprocess cast {}: {}", 
+                               hex::encode(&cast.message_hash), e);
+                        (cast, false)
+                    }
                 }
             } else {
                 (cast, false)

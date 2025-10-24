@@ -78,12 +78,10 @@ impl EmbeddingService {
 
     /// Generate embedding for a single text
     pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
-        if text.trim().is_empty() {
-            warn!("Attempted to generate embedding for empty text");
-            return Ok(vec![0.0; self.config.dimension]);
-        }
-
-        self.client.generate(text).await
+        // Preprocess text to handle newlines and invalid characters
+        let processed_text = crate::embeddings::preprocess_text_for_embedding(text)?;
+        
+        self.client.generate(&processed_text).await
     }
 
     /// Generate embeddings for multiple texts in batch
@@ -92,28 +90,30 @@ impl EmbeddingService {
             return Ok(Vec::new());
         }
 
-        // Filter out empty texts and track their positions
-        let mut filtered_texts = Vec::new();
+        // Preprocess texts and track their positions
+        let mut processed_texts = Vec::new();
         let mut empty_positions = Vec::new();
 
         for (i, text) in texts.iter().enumerate() {
-            if text.trim().is_empty() {
-                empty_positions.push(i);
-            } else {
-                filtered_texts.push(*text);
+            match crate::embeddings::preprocess_text_for_embedding(text) {
+                Ok(processed) => processed_texts.push(processed),
+                Err(_) => {
+                    // If preprocessing fails, treat as empty
+                    empty_positions.push(i);
+                }
             }
         }
 
         // Generate embeddings for non-empty texts
-        let mut embeddings = if filtered_texts.is_empty() {
+        let mut embeddings = if processed_texts.is_empty() {
             Vec::new()
-        } else if filtered_texts.len() <= MAX_BATCH_SIZE {
-            self.client.generate_batch(filtered_texts).await?
+        } else if processed_texts.len() <= MAX_BATCH_SIZE {
+            self.client.generate_batch(processed_texts.iter().map(|s| s.as_str()).collect()).await?
         } else {
             // Split into chunks
             let mut all_embeddings = Vec::new();
-            for chunk in filtered_texts.chunks(MAX_BATCH_SIZE) {
-                let chunk_embeddings = self.client.generate_batch(chunk.to_vec()).await?;
+            for chunk in processed_texts.chunks(MAX_BATCH_SIZE) {
+                let chunk_embeddings = self.client.generate_batch(chunk.iter().map(|s| s.as_str()).collect()).await?;
                 all_embeddings.extend(chunk_embeddings);
             }
             all_embeddings

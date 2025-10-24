@@ -306,6 +306,36 @@ CREATE TRIGGER trigger_cast_embeddings_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_cast_embeddings_updated_at();
 
+-- Multi-vector embedding storage tables
+CREATE TABLE IF NOT EXISTS cast_embedding_chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    message_hash BYTEA NOT NULL,
+    fid BIGINT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    chunk_text TEXT NOT NULL,
+    chunk_strategy VARCHAR(50) NOT NULL, -- 'paragraph', 'sentence', 'importance', 'sliding_window'
+    embedding VECTOR(384) NOT NULL,
+    chunk_length INTEGER NOT NULL,
+    is_aggregated BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(message_hash, chunk_index)
+);
+
+-- Aggregated embeddings table (for backward compatibility)
+CREATE TABLE IF NOT EXISTS cast_embedding_aggregated (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    message_hash BYTEA UNIQUE NOT NULL,
+    fid BIGINT NOT NULL,
+    text TEXT NOT NULL,
+    embedding VECTOR(384) NOT NULL,
+    aggregation_strategy VARCHAR(50) NOT NULL, -- 'mean', 'max', 'weighted_mean', 'first_chunk'
+    chunk_count INTEGER NOT NULL,
+    total_text_length INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ==============================================================================
 -- 5. ONCHAIN EVENTS (System Messages)
 -- ==============================================================================
@@ -410,6 +440,23 @@ CREATE INDEX IF NOT EXISTS idx_sync_progress_shard_id ON sync_progress(shard_id)
 -- cast_embeddings
 CREATE INDEX IF NOT EXISTS idx_cast_embeddings_message_hash ON cast_embeddings(message_hash);
 CREATE INDEX IF NOT EXISTS idx_cast_embeddings_fid ON cast_embeddings(fid);
+
+-- Multi-vector embedding indexes
+CREATE INDEX IF NOT EXISTS idx_cast_embedding_chunks_message_hash ON cast_embedding_chunks(message_hash);
+CREATE INDEX IF NOT EXISTS idx_cast_embedding_chunks_fid ON cast_embedding_chunks(fid);
+CREATE INDEX IF NOT EXISTS idx_cast_embedding_chunks_strategy ON cast_embedding_chunks(chunk_strategy);
+
+CREATE INDEX IF NOT EXISTS idx_cast_embedding_aggregated_message_hash ON cast_embedding_aggregated(message_hash);
+CREATE INDEX IF NOT EXISTS idx_cast_embedding_aggregated_fid ON cast_embedding_aggregated(fid);
+
+-- Vector similarity search indexes for multi-vector tables
+CREATE INDEX IF NOT EXISTS idx_cast_embedding_chunks_embedding_cosine 
+ON cast_embedding_chunks USING ivfflat (embedding vector_cosine_ops) 
+WITH (lists = 100);
+
+CREATE INDEX IF NOT EXISTS idx_cast_embedding_aggregated_embedding_cosine 
+ON cast_embedding_aggregated USING ivfflat (embedding vector_cosine_ops) 
+WITH (lists = 100);
 
 -- Optimize queries for cast embeddings backfill
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_hash 

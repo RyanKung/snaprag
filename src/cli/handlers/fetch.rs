@@ -2,6 +2,9 @@
 
 use std::sync::Arc;
 
+// Import hex for message hash encoding
+use hex;
+
 use crate::cli::output::print_error;
 use crate::cli::output::print_info;
 use crate::cli::output::print_success;
@@ -171,7 +174,8 @@ pub async fn handle_fetch_user(
                                 }
                             }
                             Err(e) => {
-                                tracing::warn!("Failed to generate embedding: {}", e);
+                                let hash_str = hex::encode(&cast.message_hash);
+                                tracing::error!("Failed to generate embedding for cast {}: {}", hash_str, e);
                                 failed += 1;
                             }
                         }

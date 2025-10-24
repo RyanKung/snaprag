@@ -9,6 +9,9 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+// Import hex for message hash encoding
+use hex;
+
 // Import the new ask module
 use crate::cli::handlers::ask::args::parse_user_identifier;
 use crate::cli::handlers::ask::llm::generate_ai_response;
@@ -205,7 +208,8 @@ async fn load_user_data(
                             }
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to generate embedding: {}", e);
+                            let hash_str = hex::encode(&cast.message_hash);
+                            tracing::error!("Failed to generate embedding for cast {}: {}", hash_str, e);
                         }
                     }
 
@@ -364,8 +368,11 @@ async fn run_interactive_chat(
                     embeds: c.embeds,
                     mentions: c.mentions,
                     similarity: 1.0,
-                    reply_count: 0,
-                    reaction_count: 0,
+                    reply_count: None,
+                    reaction_count: None,
+                    chunk_index: None,
+                    chunk_text: None,
+                    chunk_strategy: None,
                 })
                 .collect();
 

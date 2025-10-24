@@ -234,6 +234,25 @@ async fn main() -> Result<()> {
             EmbeddingsCommands::Test { text } => {
                 snaprag::cli::handle_embeddings_test(&config, text).await?;
             }
+            EmbeddingsCommands::TestCast {
+                message_hash,
+                endpoint,
+                #[cfg(feature = "local-gpu")]
+                local_gpu,
+                #[cfg(feature = "local-gpu")]
+                gpu_device,
+            } => {
+                snaprag::cli::handle_embeddings_test_cast(
+                    &config,
+                    message_hash,
+                    endpoint,
+                    #[cfg(feature = "local-gpu")]
+                    local_gpu,
+                    #[cfg(feature = "local-gpu")]
+                    gpu_device,
+                )
+                .await?;
+            }
             EmbeddingsCommands::Stats => {
                 snaprag::cli::handle_embeddings_stats(&config).await?;
             }
@@ -268,6 +287,55 @@ async fn main() -> Result<()> {
                 }
                 snaprag::cli::CastEmbeddingAction::Reset { force } => {
                     snaprag::cli::handle_cast_embeddings_reset(&config, force).await?;
+                }
+                snaprag::cli::CastEmbeddingAction::BackfillMultiVector {
+                    force,
+                    limit,
+                    endpoint,
+                    #[cfg(feature = "local-gpu")]
+                    local_gpu,
+                    #[cfg(feature = "local-gpu")]
+                    gpu_device,
+                    enable_multi_vector,
+                    strategy,
+                    aggregation,
+                    min_length,
+                } => {
+                    snaprag::cli::handle_cast_embeddings_backfill_multivector(
+                        &config,
+                        force,
+                        limit,
+                        endpoint,
+                        #[cfg(feature = "local-gpu")]
+                        local_gpu,
+                        #[cfg(feature = "local-gpu")]
+                        gpu_device,
+                        enable_multi_vector,
+                        &strategy,
+                        &aggregation,
+                        min_length,
+                    )
+                    .await?;
+                }
+                snaprag::cli::CastEmbeddingAction::Migrate {
+                    force,
+                    min_length,
+                    strategy,
+                    keep_original,
+                    batch_size,
+                } => {
+                    snaprag::cli::handle_cast_embeddings_migrate(
+                        &config,
+                        force,
+                        min_length,
+                        &strategy,
+                        keep_original,
+                        batch_size,
+                    )
+                    .await?;
+                }
+                snaprag::cli::CastEmbeddingAction::Analyze => {
+                    snaprag::cli::handle_cast_embeddings_analyze(&config).await?;
                 }
             }
             EmbeddingsCommands::BackfillCasts {

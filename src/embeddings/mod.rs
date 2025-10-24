@@ -30,6 +30,9 @@ pub mod generator;
 pub mod local_gpu;
 #[cfg(feature = "local-gpu")]
 pub mod multiprocess;
+pub mod text_preprocessing;
+pub mod multi_vector;
+pub mod migration;
 
 pub use backfill::backfill_embeddings;
 pub use cast_backfill::backfill_cast_embeddings;
@@ -40,6 +43,9 @@ pub use cast_backfill::CastBackfillStats;
 pub use client::EmbeddingClient;
 pub use client::EmbeddingProvider;
 pub use generator::EmbeddingService;
+pub use text_preprocessing::{preprocess_text_for_embedding, validate_text_for_embedding, generate_text_chunks};
+pub use multi_vector::{MultiVectorEmbeddingService, ChunkStrategy, AggregationStrategy, ChunkMetadata, ChunkedEmbeddingResult};
+pub use migration::{migrate_existing_embeddings, analyze_existing_embeddings, MigrationOptions, MigrationStats, MigrationAnalysis};
 
 #[cfg(feature = "local-gpu")]
 pub use multiprocess::{MultiProcessEmbeddingGenerator, MultiProcessConfig, MultiProcessStats};

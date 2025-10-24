@@ -214,7 +214,7 @@ impl Database {
         Ok(missing)
     }
 
-    /// Store cast embedding
+    /// Store cast embedding (single vector - backward compatibility)
     pub async fn store_cast_embedding(
         &self,
         message_hash: &[u8],
@@ -242,7 +242,85 @@ impl Database {
         Ok(())
     }
 
+    /// Store chunked cast embeddings
+    pub async fn store_cast_embedding_chunks(
+        &self,
+        message_hash: &[u8],
+        fid: i64,
+        chunks: &[(usize, String, Vec<f32>, String)], // (chunk_index, chunk_text, embedding, strategy)
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        // First, clear existing chunks for this message_hash
+        sqlx::query("DELETE FROM cast_embedding_chunks WHERE message_hash = $1")
+            .bind(message_hash)
+            .execute(&mut *tx)
+            .await?;
+
+        // Insert new chunks
+        for (chunk_index, chunk_text, embedding, strategy) in chunks {
+            sqlx::query(
+                r"
+                INSERT INTO cast_embedding_chunks 
+                (message_hash, fid, chunk_index, chunk_text, chunk_strategy, embedding, chunk_length)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ",
+            )
+            .bind(message_hash)
+            .bind(fid)
+            .bind(*chunk_index as i32)
+            .bind(chunk_text)
+            .bind(strategy)
+            .bind(embedding)
+            .bind(chunk_text.len() as i32)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Store aggregated cast embedding
+    pub async fn store_cast_embedding_aggregated(
+        &self,
+        message_hash: &[u8],
+        fid: i64,
+        text: &str,
+        embedding: &[f32],
+        aggregation_strategy: &str,
+        chunk_count: usize,
+        total_text_length: usize,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO cast_embedding_aggregated 
+            (message_hash, fid, text, embedding, aggregation_strategy, chunk_count, total_text_length)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (message_hash) 
+            DO UPDATE SET 
+                embedding = EXCLUDED.embedding,
+                aggregation_strategy = EXCLUDED.aggregation_strategy,
+                chunk_count = EXCLUDED.chunk_count,
+                total_text_length = EXCLUDED.total_text_length,
+                updated_at = NOW()
+            ",
+        )
+        .bind(message_hash)
+        .bind(fid)
+        .bind(text)
+        .bind(embedding)
+        .bind(aggregation_strategy)
+        .bind(chunk_count as i32)
+        .bind(total_text_length as i32)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     /// Semantic search for casts (lightweight version without engagement metrics)
+    /// Now searches both single-vector and multi-vector tables for comprehensive results
     pub async fn semantic_search_casts_simple(
         &self,
         query_embedding: Vec<f32>,
@@ -260,24 +338,72 @@ impl Database {
             parent_hash: Option<Vec<u8>>,
             embeds: Option<serde_json::Value>,
             mentions: Option<serde_json::Value>,
-            similarity: f64, // PostgreSQL returns FLOAT8 (f64) from distance operator
+            similarity: f64,
+            chunk_index: Option<i32>,
+            chunk_text: Option<String>,
+            chunk_strategy: Option<String>,
         }
 
+        // Search both single-vector and multi-vector tables
         let raw_results = sqlx::query_as::<_, RawResult>(
             r"
-            SELECT 
-                ce.message_hash,
-                ce.fid,
-                ce.text,
-                c.timestamp,
-                c.parent_hash,
-                c.embeds,
-                c.mentions,
-                1 - (ce.embedding <=> $1::vector) as similarity
-            FROM cast_embeddings ce
-            INNER JOIN casts c ON ce.message_hash = c.message_hash
-            WHERE 1 - (ce.embedding <=> $1::vector) > $2
-            ORDER BY ce.embedding <=> $1::vector
+            (
+                -- Search single-vector embeddings (original table)
+                SELECT 
+                    ce.message_hash,
+                    ce.fid,
+                    ce.text,
+                    c.timestamp,
+                    c.parent_hash,
+                    c.embeds,
+                    c.mentions,
+                    1 - (ce.embedding <=> $1::vector) as similarity,
+                    NULL::integer as chunk_index,
+                    NULL::text as chunk_text,
+                    'single'::text as chunk_strategy
+                FROM cast_embeddings ce
+                INNER JOIN casts c ON ce.message_hash = c.message_hash
+                WHERE 1 - (ce.embedding <=> $1::vector) > $2
+            )
+            UNION ALL
+            (
+                -- Search multi-vector chunks
+                SELECT 
+                    cec.message_hash,
+                    cec.fid,
+                    c.text,
+                    c.timestamp,
+                    c.parent_hash,
+                    c.embeds,
+                    c.mentions,
+                    1 - (cec.embedding <=> $1::vector) as similarity,
+                    cec.chunk_index,
+                    cec.chunk_text,
+                    cec.chunk_strategy
+                FROM cast_embedding_chunks cec
+                INNER JOIN casts c ON cec.message_hash = c.message_hash
+                WHERE 1 - (cec.embedding <=> $1::vector) > $2
+            )
+            UNION ALL
+            (
+                -- Search aggregated multi-vector embeddings
+                SELECT 
+                    cea.message_hash,
+                    cea.fid,
+                    cea.text,
+                    c.timestamp,
+                    c.parent_hash,
+                    c.embeds,
+                    c.mentions,
+                    1 - (cea.embedding <=> $1::vector) as similarity,
+                    NULL::integer as chunk_index,
+                    NULL::text as chunk_text,
+                    cea.aggregation_strategy as chunk_strategy
+                FROM cast_embedding_aggregated cea
+                INNER JOIN casts c ON cea.message_hash = c.message_hash
+                WHERE 1 - (cea.embedding <=> $1::vector) > $2
+            )
+            ORDER BY similarity DESC
             LIMIT $3
             ",
         )
@@ -287,21 +413,38 @@ impl Database {
         .fetch_all(&self.pool)
         .await?;
 
-        let results = raw_results
-            .into_iter()
-            .map(|r| CastSearchResult {
-                message_hash: r.message_hash,
-                fid: r.fid,
-                text: r.text,
-                timestamp: r.timestamp,
-                parent_hash: r.parent_hash,
-                embeds: r.embeds,
-                mentions: r.mentions,
-                similarity: r.similarity as f32, // Convert f64 to f32
-                reply_count: 0,                  // Not calculated in simple version
-                reaction_count: 0,               // Not calculated in simple version
-            })
-            .collect();
+        // Deduplicate results by message_hash, keeping the highest similarity score
+        let mut deduplicated: std::collections::HashMap<Vec<u8>, CastSearchResult> = std::collections::HashMap::new();
+        
+        for r in raw_results {
+            let message_hash = r.message_hash.clone();
+            let similarity = r.similarity as f32;
+            
+            // Only keep if this is a new message_hash or has higher similarity
+            if !deduplicated.contains_key(&message_hash) || 
+               deduplicated.get(&message_hash).unwrap().similarity < similarity {
+                deduplicated.insert(message_hash, CastSearchResult {
+                    message_hash: r.message_hash,
+                    fid: r.fid,
+                    text: r.text,
+                    timestamp: r.timestamp,
+                    parent_hash: r.parent_hash,
+                    embeds: r.embeds,
+                    mentions: r.mentions,
+                    similarity,
+                    reply_count: None,
+                    reaction_count: None,
+                    chunk_index: r.chunk_index,
+                    chunk_text: r.chunk_text,
+                    chunk_strategy: r.chunk_strategy,
+                });
+            }
+        }
+
+        // Convert back to Vec and sort by similarity
+        let mut results: Vec<CastSearchResult> = deduplicated.into_values().collect();
+        results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(limit as usize);
 
         Ok(results)
     }
@@ -373,8 +516,11 @@ impl Database {
                 embeds: r.embeds,
                 mentions: r.mentions,
                 similarity: r.similarity as f32, // Convert f64 to f32
-                reply_count: r.reply_count.unwrap_or(0),
-                reaction_count: r.reaction_count.unwrap_or(0),
+                reply_count: Some(r.reply_count.unwrap_or(0)),
+                reaction_count: Some(r.reaction_count.unwrap_or(0)),
+                chunk_index: None,
+                chunk_text: None,
+                chunk_strategy: None,
             })
             .collect();
 
@@ -421,6 +567,142 @@ impl Database {
             .await?;
 
         Ok(cast)
+    }
+
+    /// Multi-vector semantic search for casts (searches across all chunks)
+    pub async fn semantic_search_casts_multi_vector(
+        &self,
+        query_embedding: Vec<f32>,
+        limit: i64,
+        threshold: Option<f32>,
+        search_strategy: Option<&str>, // "chunks", "aggregated", "both"
+    ) -> Result<Vec<CastSearchResult>> {
+        let threshold_val = threshold.unwrap_or(0.0);
+        let strategy = search_strategy.unwrap_or("both");
+
+        #[derive(sqlx::FromRow)]
+        struct RawResult {
+            message_hash: Vec<u8>,
+            fid: i64,
+            text: String,
+            timestamp: i64,
+            parent_hash: Option<Vec<u8>>,
+            embeds: Option<serde_json::Value>,
+            mentions: Option<serde_json::Value>,
+            similarity: f64,
+            chunk_index: Option<i32>,
+            chunk_text: Option<String>,
+            chunk_strategy: Option<String>,
+        }
+
+        let query = match strategy {
+            "chunks" => r"
+                SELECT 
+                    cec.message_hash,
+                    cec.fid,
+                    c.text,
+                    c.timestamp,
+                    c.parent_hash,
+                    c.embeds,
+                    c.mentions,
+                    1 - (cec.embedding <=> $1::vector) as similarity,
+                    cec.chunk_index,
+                    cec.chunk_text,
+                    cec.chunk_strategy
+                FROM cast_embedding_chunks cec
+                INNER JOIN casts c ON cec.message_hash = c.message_hash
+                WHERE 1 - (cec.embedding <=> $1::vector) > $2
+                ORDER BY cec.embedding <=> $1::vector
+                LIMIT $3
+            ",
+            "aggregated" => r"
+                SELECT 
+                    cea.message_hash,
+                    cea.fid,
+                    cea.text,
+                    c.timestamp,
+                    c.parent_hash,
+                    c.embeds,
+                    c.mentions,
+                    1 - (cea.embedding <=> $1::vector) as similarity,
+                    NULL::integer as chunk_index,
+                    NULL::text as chunk_text,
+                    cea.aggregation_strategy as chunk_strategy
+                FROM cast_embedding_aggregated cea
+                INNER JOIN casts c ON cea.message_hash = c.message_hash
+                WHERE 1 - (cea.embedding <=> $1::vector) > $2
+                ORDER BY cea.embedding <=> $1::vector
+                LIMIT $3
+            ",
+            "both" => r"
+                (
+                    SELECT 
+                        cec.message_hash,
+                        cec.fid,
+                        c.text,
+                        c.timestamp,
+                        c.parent_hash,
+                        c.embeds,
+                        c.mentions,
+                        1 - (cec.embedding <=> $1::vector) as similarity,
+                        cec.chunk_index,
+                        cec.chunk_text,
+                        cec.chunk_strategy
+                    FROM cast_embedding_chunks cec
+                    INNER JOIN casts c ON cec.message_hash = c.message_hash
+                    WHERE 1 - (cec.embedding <=> $1::vector) > $2
+                )
+                UNION ALL
+                (
+                    SELECT 
+                        cea.message_hash,
+                        cea.fid,
+                        cea.text,
+                        c.timestamp,
+                        c.parent_hash,
+                        c.embeds,
+                        c.mentions,
+                        1 - (cea.embedding <=> $1::vector) as similarity,
+                        NULL::integer as chunk_index,
+                        NULL::text as chunk_text,
+                        cea.aggregation_strategy as chunk_strategy
+                    FROM cast_embedding_aggregated cea
+                    INNER JOIN casts c ON cea.message_hash = c.message_hash
+                    WHERE 1 - (cea.embedding <=> $1::vector) > $2
+                )
+                ORDER BY similarity DESC
+                LIMIT $3
+            ",
+            _ => return Err(crate::SnapRagError::Custom("Invalid search strategy".to_string())),
+        };
+
+        let raw_results = sqlx::query_as::<_, RawResult>(query)
+            .bind(&query_embedding)
+            .bind(threshold_val)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let results = raw_results
+            .into_iter()
+            .map(|raw| CastSearchResult {
+                message_hash: raw.message_hash,
+                fid: raw.fid,
+                text: raw.text,
+                timestamp: raw.timestamp,
+                parent_hash: raw.parent_hash,
+                embeds: raw.embeds,
+                mentions: raw.mentions,
+                similarity: raw.similarity as f32,
+                reply_count: None,
+                reaction_count: None,
+                chunk_index: raw.chunk_index,
+                chunk_text: raw.chunk_text,
+                chunk_strategy: raw.chunk_strategy,
+            })
+            .collect();
+
+        Ok(results)
     }
 
     /// Get cast replies (children)

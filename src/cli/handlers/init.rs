@@ -117,9 +117,11 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
 
     // Then drop tables
     let tables = [
-        "cast_embeddings",      // Drop first due to FK constraint
-        "user_profile_changes", // Event-sourcing table
-        "profile_embeddings",   // Embeddings table
+        "cast_embedding_chunks",     // Multi-vector chunks table
+        "cast_embedding_aggregated",  // Multi-vector aggregated table
+        "cast_embeddings",           // Drop after multi-vector tables due to FK constraint
+        "user_profile_changes",      // Event-sourcing table
+        "profile_embeddings",        // Embeddings table
         "user_profile_snapshots",
         "user_profile_trends",
         "user_data",

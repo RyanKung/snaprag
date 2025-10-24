@@ -213,8 +213,11 @@ impl CastRetriever {
                 embeds: r.embeds,
                 mentions: r.mentions,
                 similarity: r.similarity,
-                reply_count: r.reply_count.unwrap_or(0),
-                reaction_count: r.reaction_count.unwrap_or(0),
+                reply_count: Some(r.reply_count.unwrap_or(0)),
+                reaction_count: Some(r.reaction_count.unwrap_or(0)),
+                chunk_index: None,
+                chunk_text: None,
+                chunk_strategy: None,
             })
             .collect();
 
@@ -281,8 +284,11 @@ impl CastRetriever {
                 embeds: r.embeds,
                 mentions: r.mentions,
                 similarity: r.similarity,
-                reply_count: r.reply_count.unwrap_or(0),
-                reaction_count: r.reaction_count.unwrap_or(0),
+                reply_count: Some(r.reply_count.unwrap_or(0)),
+                reaction_count: Some(r.reaction_count.unwrap_or(0)),
+                chunk_index: None,
+                chunk_text: None,
+                chunk_strategy: None,
             })
             .collect();
 

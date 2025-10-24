@@ -11,13 +11,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "local-gpu")]
     {
         worker_main().await?;
+        Ok(())
     }
     
     #[cfg(not(feature = "local-gpu"))]
     {
         eprintln!("Local GPU feature not enabled. This worker requires the 'local-gpu' feature.");
-        std::process::exit(1);
+        Err(anyhow::anyhow!("Local GPU feature not enabled").into())
     }
-    
-    Ok(())
 }

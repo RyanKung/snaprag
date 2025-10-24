@@ -331,17 +331,8 @@ impl LocalGPUClient {
     pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         debug!("Generating embedding for text: {}", text);
 
-        // Input validation to prevent CUDA errors
-        if text.is_empty() {
-            return Err(SnapragError::EmbeddingError("Empty text provided".to_string()));
-        }
-        
-        if text.len() > 10000 {
-            return Err(SnapragError::EmbeddingError("Text too long (max 10000 chars)".to_string()));
-        }
-
-        // BGE models work well without task prefixes for general text
-        let processed_text = text;
+        // Preprocess text to handle newlines and invalid characters
+        let processed_text = crate::embeddings::preprocess_text_for_embedding(text)?;
 
         // Tokenize input with error handling
         let encoding = self

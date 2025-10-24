@@ -58,6 +58,14 @@ const fn default_cpu_threads() -> usize {
     0 // Auto-detect CPU cores
 }
 
+const fn default_enable_continuous_sync() -> bool {
+    true // Enable continuous sync by default
+}
+
+const fn default_continuous_sync_interval() -> u64 {
+    5 // Poll every 5 seconds by default
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceConfig {
     pub enable_vector_indexes: bool,
@@ -74,6 +82,12 @@ pub struct SyncConfig {
     pub batch_size: u32,
     pub sync_interval_ms: u64,
     pub shard_ids: Vec<u32>,
+    /// Enable continuous sync monitoring after initial sync completion
+    #[serde(default = "default_enable_continuous_sync")]
+    pub enable_continuous_sync: bool,
+    /// Continuous sync interval in seconds (how often to poll for new blocks)
+    #[serde(default = "default_continuous_sync_interval")]
+    pub continuous_sync_interval_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -285,6 +299,18 @@ impl AppConfig {
         self.sync.sync_interval_ms
     }
 
+    /// Check if continuous sync is enabled
+    #[must_use]
+    pub const fn continuous_sync_enabled(&self) -> bool {
+        self.sync.enable_continuous_sync
+    }
+
+    /// Get continuous sync interval in seconds
+    #[must_use]
+    pub const fn continuous_sync_interval_secs(&self) -> u64 {
+        self.sync.continuous_sync_interval_secs
+    }
+
     /// Get shard IDs to sync
     #[must_use]
     pub const fn shard_ids(&self) -> &Vec<u32> {
@@ -345,6 +371,8 @@ impl Default for AppConfig {
                 batch_size: 100,
                 sync_interval_ms: 1000,
                 shard_ids: vec![0, 1, 2],
+                enable_continuous_sync: true,
+                continuous_sync_interval_secs: 5,
             },
             llm: LlmConfig {
                 llm_endpoint: "http://localhost:11434".to_string(),

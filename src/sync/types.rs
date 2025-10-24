@@ -24,6 +24,10 @@ pub struct SyncConfig {
     pub enable_historical_sync: bool,
     /// Sync interval in milliseconds
     pub sync_interval_ms: u64,
+    /// Enable continuous sync monitoring after initial sync completion
+    pub enable_continuous_sync: bool,
+    /// Continuous sync interval in seconds (how often to poll for new blocks)
+    pub continuous_sync_interval_secs: u64,
 }
 
 impl Default for SyncConfig {
@@ -37,6 +41,8 @@ impl Default for SyncConfig {
             enable_realtime_sync: true,
             enable_historical_sync: true,
             sync_interval_ms: 1000,
+            enable_continuous_sync: true,
+            continuous_sync_interval_secs: 5,
         }
     }
 }
@@ -54,6 +60,8 @@ impl SyncConfig {
             enable_realtime_sync: app_config.realtime_sync_enabled(),
             enable_historical_sync: app_config.historical_sync_enabled(),
             sync_interval_ms: app_config.sync_interval_ms(),
+            enable_continuous_sync: app_config.continuous_sync_enabled(),
+            continuous_sync_interval_secs: app_config.continuous_sync_interval_secs(),
         }
     }
 }
