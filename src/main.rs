@@ -241,6 +241,8 @@ async fn main() -> Result<()> {
                     #[cfg(feature = "local-gpu")]
                     local_gpu,
                     #[cfg(feature = "local-gpu")]
+                    multiprocess,
+                    #[cfg(feature = "local-gpu")]
                     gpu_device,
                 } => {
                     snaprag::cli::handle_cast_embeddings_backfill(
@@ -249,6 +251,8 @@ async fn main() -> Result<()> {
                         endpoint,
                         #[cfg(feature = "local-gpu")]
                         local_gpu,
+                        #[cfg(feature = "local-gpu")]
+                        multiprocess,
                         #[cfg(feature = "local-gpu")]
                         gpu_device,
                     )

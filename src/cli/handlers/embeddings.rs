@@ -13,12 +13,15 @@ pub async fn handle_cast_embeddings_backfill(
     limit: Option<usize>,
     endpoint_name: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
+    #[cfg(feature = "local-gpu")] multiprocess: bool,
     #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
 ) -> Result<()> {
     use std::sync::Arc;
 
     use crate::database::Database;
     use crate::embeddings::backfill_cast_embeddings;
+    #[cfg(feature = "local-gpu")]
+    use crate::embeddings::backfill_cast_embeddings_multiprocess;
     use crate::embeddings::EmbeddingService;
 
     print_info("🚀 Starting cast embeddings backfill...");
@@ -114,13 +117,31 @@ pub async fn handle_cast_embeddings_backfill(
     );
 
     // Run backfill with config
-    let stats = crate::embeddings::cast_backfill::backfill_cast_embeddings_with_config(
-        database,
-        embedding_service,
-        limit,
-        Some(config),
-    )
-    .await?;
+    let stats = {
+        #[cfg(feature = "local-gpu")]
+        if multiprocess && local_gpu {
+            print_info("🚀 Using multi-process parallel processing for maximum performance...");
+            backfill_cast_embeddings_multiprocess(database, limit, Some(config)).await?
+        } else {
+            crate::embeddings::cast_backfill::backfill_cast_embeddings_with_config(
+                database,
+                embedding_service,
+                limit,
+                Some(config),
+            )
+            .await?
+        }
+        #[cfg(not(feature = "local-gpu"))]
+        {
+            crate::embeddings::cast_backfill::backfill_cast_embeddings_with_config(
+                database,
+                embedding_service,
+                limit,
+                Some(config),
+            )
+            .await?
+        }
+    };
 
     // Print results
     println!("\n📈 Cast Embeddings Generation Complete:");
@@ -168,6 +189,8 @@ pub async fn handle_embeddings_backfill(
                 endpoint,
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
+                #[cfg(feature = "local-gpu")]
+                false, // Default to single-process for general backfill
                 #[cfg(feature = "local-gpu")]
                 None, // Default to None for non-local-gpu calls
             )

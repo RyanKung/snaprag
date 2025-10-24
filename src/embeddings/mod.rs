@@ -28,14 +28,21 @@ pub mod cast_backfill;
 pub mod client;
 pub mod generator;
 pub mod local_gpu;
+#[cfg(feature = "local-gpu")]
+pub mod multiprocess;
 
 pub use backfill::backfill_embeddings;
 pub use cast_backfill::backfill_cast_embeddings;
+#[cfg(feature = "local-gpu")]
+pub use cast_backfill::backfill_cast_embeddings_multiprocess;
 // pub use cast_backfill::backfill_cast_embeddings_optimized;
 pub use cast_backfill::CastBackfillStats;
 pub use client::EmbeddingClient;
 pub use client::EmbeddingProvider;
 pub use generator::EmbeddingService;
+
+#[cfg(feature = "local-gpu")]
+pub use multiprocess::{MultiProcessEmbeddingGenerator, MultiProcessConfig, MultiProcessStats};
 
 use crate::errors::Result;
 

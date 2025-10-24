@@ -473,6 +473,10 @@ pub enum CastEmbeddingAction {
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
         local_gpu: bool,
+        /// Use multi-process parallel processing for maximum performance
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        multiprocess: bool,
         /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
         #[cfg(feature = "local-gpu")]
         #[arg(long)]

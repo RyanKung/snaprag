@@ -17,6 +17,9 @@ use super::generator::EmbeddingService;
 use crate::database::Database;
 use crate::errors::Result;
 
+#[cfg(feature = "local-gpu")]
+use super::multiprocess::{MultiProcessEmbeddingGenerator, MultiProcessConfig};
+
 /// Backfill embeddings for all casts with parallel processing
 pub async fn backfill_cast_embeddings(
     db: Arc<Database>,
@@ -24,6 +27,145 @@ pub async fn backfill_cast_embeddings(
     limit: Option<usize>,
 ) -> Result<CastBackfillStats> {
     backfill_cast_embeddings_with_config(db, embedding_service, limit, None).await
+}
+
+/// Backfill embeddings using multi-process parallel processing for maximum performance
+#[cfg(feature = "local-gpu")]
+pub async fn backfill_cast_embeddings_multiprocess(
+    db: Arc<Database>,
+    limit: Option<usize>,
+    config: Option<&crate::config::AppConfig>,
+) -> Result<CastBackfillStats> {
+    info!("Starting multi-process cast embeddings backfill");
+    let start_time = Instant::now();
+
+    // Get count of casts needing embeddings
+    let total_count = db.count_casts_without_embeddings().await?;
+    info!("Found {} casts without embeddings", total_count);
+
+    if total_count == 0 {
+        info!("No casts need embeddings");
+        return Ok(CastBackfillStats::default());
+    }
+
+    let process_limit = limit.unwrap_or(total_count as usize);
+
+    // Configure multi-process settings
+    let multiprocess_config = MultiProcessConfig {
+        worker_processes: config.map_or(4, |c| {
+            // Use CPU cores / 2 for optimal performance
+            let cores = num_cpus::get();
+            std::cmp::min(cores / 2, 8) // Cap at 8 workers
+        }),
+        batch_size_per_worker: config.map_or(50, |c| c.embeddings_batch_size() / 4),
+        gpu_devices: vec![0], // TODO: Support multiple GPUs
+        worker_startup_timeout_secs: 30,
+        max_retries: 3,
+    };
+
+    info!(
+        "Using {} worker processes with batch size {} per worker",
+        multiprocess_config.worker_processes,
+        multiprocess_config.batch_size_per_worker
+    );
+
+    // Create multi-process generator
+    let mut generator = MultiProcessEmbeddingGenerator::new(multiprocess_config.clone());
+    
+    // Start workers
+    generator.start_workers().await?;
+
+    let mut stats = CastBackfillStats::default();
+    stats.total_casts = total_count as usize;
+    let mut offset = 0;
+    let mut processed = 0;
+
+    while processed < process_limit {
+        let current_batch_size = std::cmp::min(
+            multiprocess_config.worker_processes * multiprocess_config.batch_size_per_worker,
+            process_limit - processed,
+        );
+
+        // Get batch of casts without embeddings
+        let casts = db
+            .get_casts_without_embeddings(current_batch_size, offset)
+            .await?;
+
+        if casts.is_empty() {
+            break;
+        }
+
+        let batch_start = processed + 1;
+        let batch_end = processed + casts.len();
+        
+        info!(
+            "Processing batch: {}-{}/{} casts using multi-process",
+            batch_start,
+            batch_end,
+            process_limit
+        );
+
+        // Process casts using multi-process
+        let multiprocess_stats = generator.process_casts(casts, Arc::clone(&db)).await?;
+        
+        // Aggregate results
+        stats.success += multiprocess_stats.success;
+        stats.failed += multiprocess_stats.failed;
+
+        processed += current_batch_size;
+        offset += current_batch_size;
+
+        // Report progress
+        let total_processed = stats.success + stats.failed;
+        if total_processed > 0 && total_processed % 100 == 0 {
+            let elapsed = start_time.elapsed().as_secs_f64();
+            let rate = total_processed as f64 / elapsed;
+            let success_rate = if total_processed > 0 {
+                stats.success as f64 / total_processed as f64 * 100.0
+            } else {
+                0.0
+            };
+            let eta_secs = if rate > 0.0 {
+                ((process_limit - total_processed) as f64 / rate) as u64
+            } else {
+                0
+            };
+            info!(
+                "✓ Multi-process progress: {}/{} processed ({:.1}%), {} success ({:.1}%), {:.1} casts/sec, ETA: {}s",
+                total_processed,
+                process_limit,
+                total_processed as f64 / process_limit as f64 * 100.0,
+                stats.success,
+                success_rate,
+                rate,
+                eta_secs
+            );
+        }
+    }
+
+    // Shutdown workers
+    generator.shutdown().await?;
+
+    let elapsed = start_time.elapsed();
+    let total_processed = stats.success + stats.failed;
+    let success_rate = if total_processed > 0 {
+        stats.success as f64 / total_processed as f64 * 100.0
+    } else {
+        0.0
+    };
+    let overall_rate = total_processed as f64 / elapsed.as_secs_f64();
+    
+    info!(
+        "Multi-process cast embeddings backfill complete in {:.1}s: {} processed ({} success, {} failed) - {:.1}% success rate, {:.1} casts/sec",
+        elapsed.as_secs_f64(),
+        total_processed,
+        stats.success,
+        stats.failed,
+        success_rate,
+        overall_rate
+    );
+
+    Ok(stats)
 }
 
 /// Backfill embeddings with custom batch configuration
@@ -89,13 +231,23 @@ pub async fn backfill_cast_embeddings_with_config(
 
         let batch_start = processed + 1;
         let batch_end = processed + casts.len();
+        
+        // Calculate rate based on total processed casts (success + skipped + failed)
+        let total_processed = stats.success + stats.skipped + stats.failed;
+        let elapsed_secs = start_time.elapsed().as_secs_f64();
+        let current_rate = if elapsed_secs > 0.0 && total_processed > 0 {
+            total_processed as f64 / elapsed_secs
+        } else {
+            0.0
+        };
 
         info!(
-            "Processing batch: {}-{}/{} casts (rate: {:.1} casts/sec)",
+            "Processing batch: {}-{}/{} casts (rate: {:.1} casts/sec, processed: {})",
             batch_start,
             batch_end,
             process_limit,
-            stats.success as f64 / start_time.elapsed().as_secs_f64()
+            current_rate,
+            total_processed
         );
 
         // Process casts with separated GPU computation and DB insertion concurrency
@@ -113,16 +265,28 @@ pub async fn backfill_cast_embeddings_with_config(
         processed += current_batch_size;
         offset += current_batch_size;
 
-        // Report progress every 100 successful embeddings
-        if stats.success > 0 && stats.success % 100 == 0 {
+        // Report progress every 50 processed casts (success + skipped + failed)
+        let total_processed = stats.success + stats.skipped + stats.failed;
+        if total_processed > 0 && total_processed % 50 == 0 {
             let elapsed = start_time.elapsed().as_secs_f64();
-            let rate = stats.success as f64 / elapsed;
-            let eta_secs = ((process_limit - stats.success) as f64 / rate) as u64;
+            let rate = total_processed as f64 / elapsed;
+            let success_rate = if total_processed > 0 {
+                stats.success as f64 / total_processed as f64 * 100.0
+            } else {
+                0.0
+            };
+            let eta_secs = if rate > 0.0 {
+                ((process_limit - total_processed) as f64 / rate) as u64
+            } else {
+                0
+            };
             info!(
-                "✓ Progress: {}/{} success ({:.1}%), {:.1} casts/sec, ETA: {}s",
-                stats.success,
+                "✓ Progress: {}/{} processed ({:.1}%), {} success ({:.1}%), {:.1} casts/sec, ETA: {}s",
+                total_processed,
                 process_limit,
-                stats.success as f64 / process_limit as f64 * 100.0,
+                total_processed as f64 / process_limit as f64 * 100.0,
+                stats.success,
+                success_rate,
                 rate,
                 eta_secs
             );
@@ -130,13 +294,23 @@ pub async fn backfill_cast_embeddings_with_config(
     }
 
     let elapsed = start_time.elapsed();
+    let total_processed = stats.success + stats.skipped + stats.failed;
+    let success_rate = if total_processed > 0 {
+        stats.success as f64 / total_processed as f64 * 100.0
+    } else {
+        0.0
+    };
+    let overall_rate = total_processed as f64 / elapsed.as_secs_f64();
+    
     info!(
-        "Cast embeddings backfill complete in {:.1}s: {} success, {} skipped, {} failed (rate: {:.1} casts/sec)",
+        "Cast embeddings backfill complete in {:.1}s: {} processed ({} success, {} skipped, {} failed) - {:.1}% success rate, {:.1} casts/sec",
         elapsed.as_secs_f64(),
+        total_processed,
         stats.success,
         stats.skipped,
         stats.failed,
-        stats.success as f64 / elapsed.as_secs_f64()
+        success_rate,
+        overall_rate
     );
 
     Ok(stats)
