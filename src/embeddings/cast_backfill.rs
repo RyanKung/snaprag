@@ -29,13 +29,55 @@ pub async fn backfill_cast_embeddings(
     backfill_cast_embeddings_with_config(db, embedding_service, limit, None).await
 }
 
+/// Detect available GPU devices (simplified version to avoid Metal issues)
+#[cfg(feature = "local-gpu")]
+fn detect_available_gpus() -> Vec<usize> {
+    use candle_core::Device;
+    
+    let mut available_gpus = Vec::new();
+    
+    // Check CUDA devices (Linux/Windows)
+    #[cfg(not(target_os = "macos"))]
+    {
+        for i in 0..8 { // Check up to 8 CUDA devices
+            if Device::cuda_if_available(i).is_ok() {
+                available_gpus.push(i);
+            }
+        }
+    }
+    
+    // For macOS, use a simpler approach - just try Metal device 0
+    #[cfg(target_os = "macos")]
+    {
+        // Try Metal device 0 first
+        match Device::new_metal(0) {
+            Ok(_) => {
+                available_gpus.push(0);
+                tracing::info!("Detected Metal GPU device 0");
+            }
+            Err(e) => {
+                tracing::debug!("Metal device 0 not available: {}", e);
+            }
+        }
+    }
+    
+    // If no GPUs found, return empty vector (will fall back to CPU)
+    if available_gpus.is_empty() {
+        tracing::warn!("No GPU devices detected, will use CPU");
+    } else {
+        tracing::info!("Detected {} GPU devices: {:?}", available_gpus.len(), available_gpus);
+    }
+    
+    available_gpus
+}
+
 /// Backfill embeddings using multi-process parallel processing for maximum performance
 #[cfg(feature = "local-gpu")]
 pub async fn backfill_cast_embeddings_multiprocess(
     db: Arc<Database>,
     limit: Option<usize>,
     config: Option<&crate::config::AppConfig>,
-    workers: Option<usize>,
+    gpu_device: Option<usize>,
 ) -> Result<CastBackfillStats> {
     info!("Starting multi-process cast embeddings backfill");
     let start_time = Instant::now();
@@ -51,17 +93,39 @@ pub async fn backfill_cast_embeddings_multiprocess(
 
     let process_limit = limit.unwrap_or(total_count as usize);
 
-    // Configure multi-process settings
+    // Detect available GPUs and configure multi-process settings
+    let available_gpus = detect_available_gpus();
+    
+    // Determine GPU devices to use
+    let gpu_devices = if let Some(specified_gpu) = gpu_device {
+        // User specified a specific GPU device
+        if available_gpus.contains(&specified_gpu) {
+            vec![specified_gpu]
+        } else {
+            tracing::warn!("Specified GPU device {} not available, using detected GPUs: {:?}", specified_gpu, available_gpus);
+            available_gpus.clone()
+        }
+    } else {
+        // Use all available GPUs
+        available_gpus.clone()
+    };
+    
+    // Calculate optimal number of worker processes based on GPU count
+    let worker_processes = if gpu_devices.is_empty() {
+        // No GPUs available, use CPU-based calculation
+        config.map_or(2, |c| {
+            let cores = num_cpus::get();
+            std::cmp::min(cores / 4, 4) // Conservative for CPU-only
+        })
+    } else {
+        // Use 2 workers per GPU for optimal performance
+        gpu_devices.len() * 2
+    };
+    
     let multiprocess_config = MultiProcessConfig {
-        worker_processes: workers.unwrap_or_else(|| {
-            config.map_or(4, |c| {
-                // Use CPU cores / 2 for optimal performance
-                let cores = num_cpus::get();
-                std::cmp::min(cores / 2, 8) // Cap at 8 workers
-            })
-        }),
+        worker_processes,
         batch_size_per_worker: config.map_or(50, |c| c.embeddings_batch_size() / 4),
-        gpu_devices: vec![0], // TODO: Support multiple GPUs
+        gpu_devices,
         worker_startup_timeout_secs: 30,
         max_retries: 3,
     };
@@ -71,6 +135,7 @@ pub async fn backfill_cast_embeddings_multiprocess(
         multiprocess_config.worker_processes,
         multiprocess_config.batch_size_per_worker
     );
+    info!("GPU devices: {:?}", multiprocess_config.gpu_devices);
 
     // Create multi-process generator
     let mut generator = MultiProcessEmbeddingGenerator::new(multiprocess_config.clone());

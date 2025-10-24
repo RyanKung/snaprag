@@ -210,8 +210,6 @@ async fn main() -> Result<()> {
                 #[cfg(feature = "local-gpu")]
                 multiprocess,
                 #[cfg(feature = "local-gpu")]
-                workers,
-                #[cfg(feature = "local-gpu")]
                 gpu_device,
             } => {
                 snaprag::cli::handle_embeddings_backfill(
@@ -225,8 +223,6 @@ async fn main() -> Result<()> {
                     local_gpu,
                     #[cfg(feature = "local-gpu")]
                     multiprocess,
-                    #[cfg(feature = "local-gpu")]
-                    workers,
                     #[cfg(feature = "local-gpu")]
                     gpu_device,
                 )
@@ -255,8 +251,6 @@ async fn main() -> Result<()> {
                     #[cfg(feature = "local-gpu")]
                     multiprocess,
                     #[cfg(feature = "local-gpu")]
-                    workers,
-                    #[cfg(feature = "local-gpu")]
                     gpu_device,
                 } => {
                     snaprag::cli::handle_cast_embeddings_backfill(
@@ -267,8 +261,6 @@ async fn main() -> Result<()> {
                         local_gpu,
                         #[cfg(feature = "local-gpu")]
                         multiprocess,
-                        #[cfg(feature = "local-gpu")]
-                        workers,
                         #[cfg(feature = "local-gpu")]
                         gpu_device,
                     )
@@ -288,8 +280,6 @@ async fn main() -> Result<()> {
                 #[cfg(feature = "local-gpu")]
                 multiprocess,
                 #[cfg(feature = "local-gpu")]
-                workers,
-                #[cfg(feature = "local-gpu")]
                 gpu_device,
             } => {
                 snaprag::cli::handle_cast_embeddings_backfill(
@@ -300,8 +290,6 @@ async fn main() -> Result<()> {
                     local_gpu,
                     #[cfg(feature = "local-gpu")]
                     multiprocess,
-                    #[cfg(feature = "local-gpu")]
-                    workers,
                     #[cfg(feature = "local-gpu")]
                     gpu_device,
                 )

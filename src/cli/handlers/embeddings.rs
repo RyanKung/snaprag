@@ -14,7 +14,6 @@ pub async fn handle_cast_embeddings_backfill(
     endpoint_name: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
     #[cfg(feature = "local-gpu")] multiprocess: bool,
-    #[cfg(feature = "local-gpu")] workers: Option<usize>,
     #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
 ) -> Result<()> {
     use std::sync::Arc;
@@ -122,7 +121,7 @@ pub async fn handle_cast_embeddings_backfill(
         #[cfg(feature = "local-gpu")]
         if multiprocess && local_gpu {
             print_info("🚀 Using multi-process parallel processing for maximum performance...");
-            backfill_cast_embeddings_multiprocess(database, limit, Some(config), workers).await?
+            backfill_cast_embeddings_multiprocess(database, limit, Some(config), gpu_device).await?
         } else {
             crate::embeddings::cast_backfill::backfill_cast_embeddings_with_config(
                 database,
@@ -172,7 +171,6 @@ pub async fn handle_embeddings_backfill(
     endpoint: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
     #[cfg(feature = "local-gpu")] multiprocess: bool,
-    #[cfg(feature = "local-gpu")] workers: Option<usize>,
     #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
 ) -> Result<()> {
     match data_type {
@@ -195,8 +193,6 @@ pub async fn handle_embeddings_backfill(
                 local_gpu,
                 #[cfg(feature = "local-gpu")]
                 multiprocess,
-                #[cfg(feature = "local-gpu")]
-                workers,
                 #[cfg(feature = "local-gpu")]
                 gpu_device,
             )
