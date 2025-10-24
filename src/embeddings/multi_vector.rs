@@ -103,15 +103,9 @@ impl MultiVectorEmbeddingService {
             return Err(SnapRagError::EmbeddingError("No valid chunks generated".to_string()));
         }
 
-        tracing::debug!("Generated {} chunks for text of {} chars", chunks.len(), text.len());
-        for (i, (metadata, chunk_text)) in chunks.iter().enumerate() {
-            tracing::debug!("Chunk {}: {} chars, preview: {:?}", i, chunk_text.len(), &chunk_text[..chunk_text.len().min(100)]);
-        }
-
         // Generate embeddings for each chunk
         let mut chunk_embeddings = Vec::new();
         for (metadata, chunk_text) in chunks {
-            tracing::debug!("Generating embedding for chunk {} ({} chars)", metadata.chunk_index, chunk_text.len());
             let embedding = self.embedding_service.generate(&chunk_text).await?;
             chunk_embeddings.push((metadata, embedding));
         }
