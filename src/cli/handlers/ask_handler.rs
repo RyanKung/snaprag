@@ -59,6 +59,7 @@ pub async fn handle_ask(
         &lazy_loader,
         &database,
         &embedding_service,
+        config,
         fid,
         fetch_casts,
         verbose,
@@ -108,6 +109,7 @@ async fn load_user_data(
     lazy_loader: &LazyLoader,
     database: &Database,
     embedding_service: &EmbeddingService,
+    config: &AppConfig,
     fid: u64,
     fetch_casts: bool,
     verbose: bool,
@@ -191,19 +193,96 @@ async fn load_user_data(
         for (idx, cast) in casts_without_embeddings.iter().enumerate() {
             if let Some(ref text) = cast.text {
                 if !text.trim().is_empty() {
-                    match embedding_service.generate(text).await {
-                        Ok(embedding) => {
-                            if let Err(e) = database
-                                .store_cast_embedding(
-                                    &cast.message_hash,
-                                    cast.fid,
-                                    text,
-                                    &embedding,
-                                )
-                                .await
-                            {
-                                tracing::warn!("Failed to store embedding: {}", e);
+                    // Use multi-vector approach for long texts, single vector for short texts
+                    let result = if text.len() >= 500 {
+                        // Use multi-vector for long texts
+                        use crate::embeddings::{MultiVectorEmbeddingService, ChunkStrategy, AggregationStrategy};
+                        
+                        // Create a new EmbeddingService instance for multi-vector processing
+                        let multi_vector_embedding_service = crate::embeddings::EmbeddingService::new(config)?;
+                        let multi_vector_service = MultiVectorEmbeddingService::new(
+                            multi_vector_embedding_service,
+                            1500, // default chunk size
+                            ChunkStrategy::Importance,
+                            AggregationStrategy::WeightedMean,
+                        );
+                        
+                        multi_vector_service.generate_cast_embeddings(
+                            cast.message_hash.clone(),
+                            cast.fid,
+                            text,
+                            None, // Use default strategy
+                            None, // Use default aggregation
+                        ).await
+                    } else {
+                        // Use single vector for short texts
+                        match embedding_service.generate(text).await {
+                            Ok(embedding) => {
+                                Ok(crate::embeddings::ChunkedEmbeddingResult {
+                                    message_hash: cast.message_hash.clone(),
+                                    fid: cast.fid,
+                                    original_text: text.clone(),
+                                    chunks: vec![(
+                                        crate::embeddings::ChunkMetadata {
+                                            chunk_index: 0,
+                                            chunk_text: text.clone(),
+                                            chunk_length: text.len(),
+                                            chunk_strategy: crate::embeddings::ChunkStrategy::Single,
+                                            importance_score: None,
+                                        },
+                                        embedding,
+                                    )],
+                                    aggregated_embedding: None,
+                                    aggregation_strategy: crate::embeddings::AggregationStrategy::FirstChunk,
+                                })
+                            }
+                            Err(e) => Err(e),
+                        }
+                    };
+                    
+                    match result {
+                        Ok(chunked_result) => {
+                            // Store chunked embeddings
+                            let chunks: Vec<(usize, String, Vec<f32>, String)> = chunked_result.chunks
+                                .iter()
+                                .map(|(metadata, embedding)| (
+                                    metadata.chunk_index,
+                                    metadata.chunk_text.clone(),
+                                    embedding.clone(),
+                                    format!("{:?}", metadata.chunk_strategy),
+                                ))
+                                .collect();
+
+                            if let Err(e) = database.store_cast_embedding_chunks(&cast.message_hash, cast.fid, &chunks).await {
+                                tracing::warn!("Failed to store chunked embeddings: {}", e);
                             } else {
+                                // Store aggregated embedding if available
+                                if let Some(aggregated_embedding) = chunked_result.aggregated_embedding {
+                                    if let Err(e) = database.store_cast_embedding_aggregated(
+                                        &cast.message_hash,
+                                        cast.fid,
+                                        text,
+                                        &aggregated_embedding,
+                                        &format!("{:?}", chunked_result.aggregation_strategy),
+                                        chunked_result.chunks.len(),
+                                        text.len(),
+                                    ).await {
+                                        tracing::warn!("Failed to store aggregated embedding: {}", e);
+                                    }
+                                }
+                                
+                                // Also store in single vector table for backward compatibility
+                                if let Some(first_embedding) = chunked_result.chunks.first().map(|(_, emb)| emb.clone()) {
+                                    if let Err(e) = database.store_cast_embedding(
+                                        &cast.message_hash,
+                                        cast.fid,
+                                        text,
+                                        &first_embedding,
+                                    ).await {
+                                        tracing::warn!("Failed to store single vector embedding: {}", e);
+                                    }
+                                }
+                                
                                 success += 1;
                             }
                         }
