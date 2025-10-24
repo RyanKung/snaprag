@@ -446,6 +446,22 @@ pub enum EmbeddingsCommands {
         /// Text to generate embedding for
         text: String,
     },
+    /// Test embedding generation for a specific cast (by message hash)
+    TestCast {
+        /// Message hash of the cast to test
+        message_hash: String,
+        /// Embedding endpoint to use (from config.toml endpoints list)
+        #[arg(short, long)]
+        endpoint: Option<String>,
+        /// Use local GPU for embedding generation
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        local_gpu: bool,
+        /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        gpu_device: Option<usize>,
+    },
     /// Show embedding statistics
     Stats,
     /// Reset all embeddings (remove vectorization)
@@ -524,6 +540,58 @@ pub enum CastEmbeddingAction {
         #[arg(short, long)]
         force: bool,
     },
+    /// Backfill cast embeddings with optional multi-vector support
+    BackfillMultiVector {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        /// Maximum number of casts to process
+        #[arg(short, long)]
+        limit: Option<usize>,
+        /// Embedding endpoint to use (from config.toml endpoints list)
+        #[arg(short, long)]
+        endpoint: Option<String>,
+        /// Use local GPU for embedding generation
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        local_gpu: bool,
+        /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        gpu_device: Option<usize>,
+        /// Enable multi-vector processing for long texts
+        #[arg(long)]
+        enable_multi_vector: bool,
+        /// Chunking strategy: single, paragraph, sentence, importance, sliding_window
+        #[arg(long, default_value = "importance")]
+        strategy: String,
+        /// Aggregation strategy: first_chunk, mean, weighted_mean, max
+        #[arg(long, default_value = "weighted_mean")]
+        aggregation: String,
+        /// Minimum text length to use multi-vector (default: 500 chars)
+        #[arg(long, default_value = "500")]
+        min_length: usize,
+    },
+    /// Migrate existing embeddings to multi-vector format
+    Migrate {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        /// Minimum text length to migrate (default: 1000)
+        #[arg(long, default_value = "1000")]
+        min_length: usize,
+        /// Chunking strategy: single, paragraph, sentence, importance, sliding_window
+        #[arg(long, default_value = "importance")]
+        strategy: String,
+        /// Keep original embeddings in cast_embeddings table
+        #[arg(long, default_value = "true")]
+        keep_original: bool,
+        /// Batch size for processing
+        #[arg(long, default_value = "100")]
+        batch_size: usize,
+    },
+    /// Analyze existing embeddings for migration planning
+    Analyze,
 }
 
 #[derive(Subcommand)]
