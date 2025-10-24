@@ -207,6 +207,10 @@ async fn main() -> Result<()> {
                 endpoint,
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
+                #[cfg(feature = "local-gpu")]
+                multiprocess,
+                #[cfg(feature = "local-gpu")]
+                gpu_device,
             } => {
                 snaprag::cli::handle_embeddings_backfill(
                     &config,
@@ -217,6 +221,10 @@ async fn main() -> Result<()> {
                     endpoint,
                     #[cfg(feature = "local-gpu")]
                     local_gpu,
+                    #[cfg(feature = "local-gpu")]
+                    multiprocess,
+                    #[cfg(feature = "local-gpu")]
+                    gpu_device,
                 )
                 .await?;
             }
@@ -261,6 +269,31 @@ async fn main() -> Result<()> {
                 snaprag::cli::CastEmbeddingAction::Reset { force } => {
                     snaprag::cli::handle_cast_embeddings_reset(&config, force).await?;
                 }
+            }
+            EmbeddingsCommands::BackfillCasts {
+                force,
+                batch_size,
+                limit,
+                endpoint,
+                #[cfg(feature = "local-gpu")]
+                local_gpu,
+                #[cfg(feature = "local-gpu")]
+                multiprocess,
+                #[cfg(feature = "local-gpu")]
+                gpu_device,
+            } => {
+                snaprag::cli::handle_cast_embeddings_backfill(
+                    &config,
+                    limit,
+                    endpoint,
+                    #[cfg(feature = "local-gpu")]
+                    local_gpu,
+                    #[cfg(feature = "local-gpu")]
+                    multiprocess,
+                    #[cfg(feature = "local-gpu")]
+                    gpu_device,
+                )
+                .await?;
             }
         },
         Commands::Ask {

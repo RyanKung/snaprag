@@ -423,6 +423,14 @@ pub enum EmbeddingsCommands {
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
         local_gpu: bool,
+        /// Use multi-process parallel processing for maximum performance
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        multiprocess: bool,
+        /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        gpu_device: Option<usize>,
     },
     /// Generate embeddings for a specific profile
     Generate {
@@ -450,6 +458,34 @@ pub enum EmbeddingsCommands {
     Cast {
         #[command(subcommand)]
         action: CastEmbeddingAction,
+    },
+    /// Generate embeddings for cast content (alias for 'cast backfill')
+    #[command(name = "backfill-casts")]
+    BackfillCasts {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        force: bool,
+        /// Process in batches of N casts
+        #[arg(short, long, default_value = "1000")]
+        batch_size: usize,
+        /// Maximum number of casts to process
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Embedding endpoint to use (from config.toml endpoints list)
+        #[arg(short, long)]
+        endpoint: Option<String>,
+        /// Use local GPU for embedding generation
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        local_gpu: bool,
+        /// Use multi-process parallel processing for maximum performance
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        multiprocess: bool,
+        /// GPU device ID to use (0, 1, 2, etc.) - only applies with --local-gpu
+        #[cfg(feature = "local-gpu")]
+        #[arg(long)]
+        gpu_device: Option<usize>,
     },
 }
 

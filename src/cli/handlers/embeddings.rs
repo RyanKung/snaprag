@@ -170,6 +170,8 @@ pub async fn handle_embeddings_backfill(
     limit: Option<usize>,
     endpoint: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
+    #[cfg(feature = "local-gpu")] multiprocess: bool,
+    #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
 ) -> Result<()> {
     match data_type {
         crate::cli::EmbeddingDataType::User => {
@@ -190,9 +192,9 @@ pub async fn handle_embeddings_backfill(
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
                 #[cfg(feature = "local-gpu")]
-                false, // Default to single-process for general backfill
+                multiprocess,
                 #[cfg(feature = "local-gpu")]
-                None, // Default to None for non-local-gpu calls
+                gpu_device,
             )
             .await
         }
