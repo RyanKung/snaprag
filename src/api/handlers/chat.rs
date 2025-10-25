@@ -159,22 +159,12 @@ pub async fn create_chat_session(
         }
     };
 
-    // Count user's casts
-    let casts_count = match state
-        .database
-        .get_casts_by_fid(fid as i64, Some(1), Some(0))
+    // Count user's casts - optimized query
+    let casts_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts WHERE fid = $1")
+        .bind(fid as i64)
+        .fetch_one(state.database.pool())
         .await
-    {
-        Ok(casts) => {
-            // Get actual count
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts WHERE fid = $1")
-                .bind(fid as i64)
-                .fetch_one(state.database.pool())
-                .await
-                .unwrap_or(0) as usize
-        }
-        Err(_) => 0,
-    };
+        .unwrap_or(0) as usize;
 
     // Create session
     let session = state.session_manager.create_session(
