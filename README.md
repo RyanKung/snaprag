@@ -91,6 +91,7 @@ SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for
 - [**Library Usage**](#-using-as-a-library) ⭐ NEW
 - [CLI Commands](#️-available-cli-commands)
 - [Database Schema](#️-database-schema)
+- [Text Search Capabilities](#-text-search-capabilities)
 - [Block Data Distribution](#block-data-distribution)
 - [Installation](#-installation)
 - [Usage](#-usage)
@@ -118,9 +119,10 @@ cp config.example.toml config.toml
 # 4. Check your configuration
 make check-config  # Verify config.toml is valid
 
-# 5. Ensure pgvector extension is enabled on your database
+# 5. Ensure required extensions are enabled on your database
 # Connect to your database and run:
 # CREATE EXTENSION IF NOT EXISTS vector;
+# CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 # 6. Run database migrations and application
 make migrate     # Run database migrations
@@ -252,6 +254,86 @@ The system uses the following main tables:
 - `sync_state`: Synchronization state and progress
 - `shard_block_info`: Shard and block tracking for data origin
 
+## 🔍 Text Search Capabilities
+
+SnapRAG includes built-in support for PostgreSQL's `pg_trgm` extension, providing powerful trigram-based text search capabilities across all text fields.
+
+### Supported Text Search Operations
+
+#### 1. Similarity Search
+Find text with high similarity using trigram matching:
+
+```sql
+-- Find casts with text similar to "crypto" (similarity threshold: 0.3)
+SELECT fid, text, similarity(text, 'crypto') as sim
+FROM casts 
+WHERE text % 'crypto' 
+ORDER BY sim DESC 
+LIMIT 10;
+
+-- Find usernames similar to "alice" 
+SELECT fid, username, similarity(username, 'alice') as sim
+FROM username_proofs 
+WHERE username % 'alice' 
+ORDER BY sim DESC;
+```
+
+#### 2. Pattern Matching
+Use ILIKE with trigram optimization for pattern searches:
+
+```sql
+-- Find casts containing "bitcoin" (case-insensitive)
+SELECT fid, text 
+FROM casts 
+WHERE text ILIKE '%bitcoin%' 
+ORDER BY timestamp DESC 
+LIMIT 20;
+
+-- Find usernames starting with "crypto"
+SELECT fid, username 
+FROM username_proofs 
+WHERE username ILIKE 'crypto%';
+```
+
+#### 3. Fuzzy Text Search
+Find text with typos or variations:
+
+```sql
+-- Find casts mentioning "ethereum" with fuzzy matching
+SELECT fid, text, similarity(text, 'ethereum') as sim
+FROM casts 
+WHERE text % 'ethereum' 
+  AND similarity(text, 'ethereum') > 0.4
+ORDER BY sim DESC;
+```
+
+### Optimized Indexes
+
+The following GIN indexes are automatically created for optimal text search performance:
+
+- `idx_casts_text_trgm`: Fast text search on cast content
+- `idx_cast_embeddings_text_trgm`: Text search on embedding text
+- `idx_cast_embedding_chunks_text_trgm`: Text search on embedding chunks
+- `idx_user_profile_changes_value_trgm`: Text search on profile field values
+- `idx_username_proofs_username_trgm`: Text search on usernames
+
+### Performance Tips
+
+1. **Use similarity thresholds**: Always specify minimum similarity thresholds for better performance
+2. **Combine with other filters**: Use text search with timestamp or user filters
+3. **Index utilization**: The trigram indexes are automatically used by PostgreSQL when appropriate
+
+```sql
+-- Example: Efficient combined query
+SELECT fid, text, timestamp
+FROM casts 
+WHERE text % 'defi' 
+  AND similarity(text, 'defi') > 0.3
+  AND timestamp > extract(epoch from now() - interval '7 days') * 1000
+ORDER BY timestamp DESC 
+LIMIT 50;
+```
+
 ## Block Data Distribution
 
 Based on our analysis of the snapchain network, here's the distribution of user messages across different block ranges:
@@ -291,7 +373,7 @@ Based on our analysis of the snapchain network, here's the distribution of user 
 ### Prerequisites
 
 - Rust 1.70+ 
-- PostgreSQL 15+ with pgvector extension
+- PostgreSQL 15+ with pgvector and pg_trgm extensions
 - Remote database access
 
 ### Quick Start with Remote Database
@@ -305,9 +387,10 @@ cd snaprag
 cp config.example.toml config.toml
 # Edit config.toml and update the database.url field
 
-# 3. Ensure pgvector extension is enabled on your remote database
+# 3. Ensure required extensions are enabled on your remote database
 # Connect to your database and run:
 # CREATE EXTENSION IF NOT EXISTS vector;
+# CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 # 4. Run database migrations
 make migrate
@@ -322,10 +405,11 @@ cargo run
 For production or development with remote databases:
 
 ```bash
-# 1. Ensure your remote PostgreSQL has pgvector extension
+# 1. Ensure your remote PostgreSQL has required extensions
 # Connect to your remote database and run:
 psql -h your-db-host -U your-username -d your-database
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 \q
 
 # 2. Create and configure config.toml
@@ -345,9 +429,9 @@ cargo run
 If you need to set up PostgreSQL locally for development:
 
 ```bash
-# 1. Install PostgreSQL and pgvector extension
+# 1. Install PostgreSQL and required extensions
 # On Ubuntu/Debian:
-sudo apt-get install postgresql-15 postgresql-15-pgvector
+sudo apt-get install postgresql-15 postgresql-15-pgvector postgresql-15-pgtrgm
 
 # On macOS with Homebrew:
 brew install postgresql@15 pgvector
@@ -363,9 +447,10 @@ CREATE USER snaprag WITH PASSWORD 'snaprag123';
 GRANT ALL PRIVILEGES ON DATABASE snaprag TO snaprag;
 \q
 
-# 3. Connect to database and enable pgvector extension
+# 3. Connect to database and enable required extensions
 psql -U snaprag -d snaprag -h localhost
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 \q
 
 # 4. Create and configure config.toml
@@ -850,15 +935,16 @@ ls -la config.toml
 cargo run --bin migrate  # This will show detailed connection info
 ```
 
-#### 2. pgvector Extension Not Found
+#### 2. Required Extensions Not Found
 ```bash
-# Connect to your remote database and enable pgvector:
+# Connect to your remote database and enable required extensions:
 psql -h your-db-host -U your-username -d your-database -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql -h your-db-host -U your-username -d your-database -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 
-# If pgvector is not installed on your remote database, contact your database administrator
-# or install it on your local development environment:
-sudo apt-get install postgresql-15-pgvector  # Ubuntu/Debian
-brew install pgvector                        # macOS
+# If extensions are not installed on your remote database, contact your database administrator
+# or install them on your local development environment:
+sudo apt-get install postgresql-15-pgvector postgresql-15-pgtrgm  # Ubuntu/Debian
+brew install pgvector                        # macOS (pg_trgm is included in PostgreSQL contrib)
 ```
 
 #### 3. Sync Process Issues

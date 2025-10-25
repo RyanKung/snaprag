@@ -10,6 +10,10 @@
 -- If this fails, run on DB server: sudo -u postgres psql -d snaprag -c 'CREATE EXTENSION IF NOT EXISTS vector;'
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Enable pg_trgm extension for trigram text search (requires superuser)
+-- If this fails, run on DB server: sudo -u postgres psql -d snaprag -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- ==============================================================================
 -- 1. USER PROFILES (Event-Sourcing Architecture)
 -- ==============================================================================
@@ -476,6 +480,35 @@ ON cast_embeddings USING btree(message_hash);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_hash_desc_composite 
 ON casts(message_hash DESC, fid, timestamp) 
 WHERE text IS NOT NULL AND length(text) > 0;
+
+-- ==============================================================================
+-- 10. PG_TRGM TEXT SEARCH INDEXES
+-- ==============================================================================
+
+-- GIN indexes using pg_trgm for fast text search on casts
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_trgm 
+ON casts USING gin(text gin_trgm_ops) 
+WHERE text IS NOT NULL AND length(text) > 0;
+
+-- GIN indexes for cast embeddings text search
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embeddings_text_trgm 
+ON cast_embeddings USING gin(text gin_trgm_ops) 
+WHERE text IS NOT NULL AND length(text) > 0;
+
+-- GIN indexes for cast embedding chunks text search
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_chunks_text_trgm 
+ON cast_embedding_chunks USING gin(chunk_text gin_trgm_ops) 
+WHERE chunk_text IS NOT NULL AND length(chunk_text) > 0;
+
+-- GIN indexes for user profile fields text search
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profile_changes_value_trgm 
+ON user_profile_changes USING gin(field_value gin_trgm_ops) 
+WHERE field_value IS NOT NULL AND length(field_value) > 0;
+
+-- GIN indexes for username proofs text search
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_username_proofs_username_trgm 
+ON username_proofs USING gin(username gin_trgm_ops) 
+WHERE username IS NOT NULL AND length(username) > 0;
 
 -- ==============================================================================
 -- 8. FOREIGN KEY (if needed)

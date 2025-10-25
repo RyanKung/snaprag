@@ -175,7 +175,11 @@ pub async fn handle_fetch_user(
                             }
                             Err(e) => {
                                 let hash_str = hex::encode(&cast.message_hash);
-                                tracing::error!("Failed to generate embedding for cast {}: {}", hash_str, e);
+                                tracing::error!(
+                                    "Failed to generate embedding for cast {}: {}",
+                                    hash_str,
+                                    e
+                                );
                                 failed += 1;
                             }
                         }

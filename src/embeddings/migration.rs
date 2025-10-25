@@ -1,12 +1,18 @@
 //! Migration utilities for converting existing embeddings to multi-vector format
-//! 
+//!
 //! This module provides tools to migrate existing single-vector embeddings
 //! to the new multi-vector format while maintaining backward compatibility.
 
-use crate::errors::{Result, SnapRagError};
-use crate::embeddings::{MultiVectorEmbeddingService, ChunkStrategy, AggregationStrategy};
+use tracing::error;
+use tracing::info;
+use tracing::warn;
+
 use crate::database::Database;
-use tracing::{info, warn, error};
+use crate::embeddings::AggregationStrategy;
+use crate::embeddings::ChunkStrategy;
+use crate::embeddings::MultiVectorEmbeddingService;
+use crate::errors::Result;
+use crate::errors::SnapRagError;
 
 /// Migration statistics
 #[derive(Debug, Clone)]
@@ -104,7 +110,9 @@ pub async fn migrate_existing_embeddings(
                 database,
                 embedding_service,
                 &options,
-            ).await {
+            )
+            .await
+            {
                 Ok(MigrationResult::Migrated) => {
                     stats.migrated_count += 1;
                     if text.len() > options.min_text_length {
@@ -118,7 +126,11 @@ pub async fn migrate_existing_embeddings(
                 }
                 Err(e) => {
                     stats.failed_count += 1;
-                    error!("Failed to migrate embedding for {}: {}", hex::encode(&message_hash), e);
+                    error!(
+                        "Failed to migrate embedding for {}: {}",
+                        hex::encode(&message_hash),
+                        e
+                    );
                 }
             }
         }
@@ -153,50 +165,58 @@ async fn migrate_single_embedding(
     }
 
     // Check if already migrated
-    let existing_chunks: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM cast_embedding_chunks WHERE message_hash = $1"
-    )
-    .bind(message_hash)
-    .fetch_one(database.pool())
-    .await?;
+    let existing_chunks: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM cast_embedding_chunks WHERE message_hash = $1")
+            .bind(message_hash)
+            .fetch_one(database.pool())
+            .await?;
 
     if existing_chunks > 0 {
         return Ok(MigrationResult::Skipped);
     }
 
     // Generate multi-vector embeddings
-    let result = embedding_service.generate_cast_embeddings(
-        message_hash.to_vec(),
-        fid,
-        text,
-        Some(options.chunk_strategy.clone()),
-        Some(options.aggregation_strategy.clone()),
-    ).await?;
+    let result = embedding_service
+        .generate_cast_embeddings(
+            message_hash.to_vec(),
+            fid,
+            text,
+            Some(options.chunk_strategy.clone()),
+            Some(options.aggregation_strategy.clone()),
+        )
+        .await?;
 
     // Store chunked embeddings
-    let chunks: Vec<(usize, String, Vec<f32>, String)> = result.chunks
+    let chunks: Vec<(usize, String, Vec<f32>, String)> = result
+        .chunks
         .iter()
-        .map(|(metadata, embedding)| (
-            metadata.chunk_index,
-            metadata.chunk_text.clone(),
-            embedding.clone(),
-            format!("{:?}", metadata.chunk_strategy),
-        ))
+        .map(|(metadata, embedding)| {
+            (
+                metadata.chunk_index,
+                metadata.chunk_text.clone(),
+                embedding.clone(),
+                format!("{:?}", metadata.chunk_strategy),
+            )
+        })
         .collect();
 
-    database.store_cast_embedding_chunks(message_hash, fid, &chunks).await?;
+    database
+        .store_cast_embedding_chunks(message_hash, fid, &chunks)
+        .await?;
 
     // Store aggregated embedding if available
     if let Some(aggregated_embedding) = result.aggregated_embedding {
-        database.store_cast_embedding_aggregated(
-            message_hash,
-            fid,
-            text,
-            &aggregated_embedding,
-            &format!("{:?}", result.aggregation_strategy),
-            result.chunks.len(),
-            text.len(),
-        ).await?;
+        database
+            .store_cast_embedding_aggregated(
+                message_hash,
+                fid,
+                text,
+                &aggregated_embedding,
+                &format!("{:?}", result.aggregation_strategy),
+                result.chunks.len(),
+                text.len(),
+            )
+            .await?;
     }
 
     Ok(MigrationResult::Migrated)
@@ -215,7 +235,7 @@ pub async fn analyze_existing_embeddings(database: &Database) -> Result<Migratio
             COUNT(CASE WHEN length(text) > 2000 THEN 1 END) as very_long_texts,
             COUNT(CASE WHEN length(text) < 500 THEN 1 END) as short_texts
         FROM cast_embeddings
-        "
+        ",
     )
     .fetch_one(database.pool())
     .await?;
@@ -223,10 +243,11 @@ pub async fn analyze_existing_embeddings(database: &Database) -> Result<Migratio
     let (total, long_texts, very_long_texts, short_texts) = stats;
 
     // Get average text length
-    let avg_length: f64 = sqlx::query_scalar::<_, Option<f64>>("SELECT AVG(length(text)) FROM cast_embeddings")
-        .fetch_one(database.pool())
-        .await?
-        .unwrap_or(0.0);
+    let avg_length: f64 =
+        sqlx::query_scalar::<_, Option<f64>>("SELECT AVG(length(text)) FROM cast_embeddings")
+            .fetch_one(database.pool())
+            .await?
+            .unwrap_or(0.0);
 
     let analysis = MigrationAnalysis {
         total_embeddings: total as usize,

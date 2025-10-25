@@ -8,17 +8,18 @@ use futures::stream::StreamExt;
 use futures::stream::{
     self,
 };
-use rayon::prelude::*;  // CPU parallel processing
+use rayon::prelude::*; // CPU parallel processing
 use tracing::debug;
 use tracing::info;
 use tracing::warn;
 
 use super::generator::EmbeddingService;
+#[cfg(feature = "local-gpu")]
+use super::multiprocess::MultiProcessConfig;
+#[cfg(feature = "local-gpu")]
+use super::multiprocess::MultiProcessEmbeddingGenerator;
 use crate::database::Database;
 use crate::errors::Result;
-
-#[cfg(feature = "local-gpu")]
-use super::multiprocess::{MultiProcessEmbeddingGenerator, MultiProcessConfig};
 
 /// Backfill embeddings for all casts with parallel processing
 pub async fn backfill_cast_embeddings(
@@ -33,19 +34,20 @@ pub async fn backfill_cast_embeddings(
 #[cfg(feature = "local-gpu")]
 fn detect_available_gpus() -> Vec<usize> {
     use candle_core::Device;
-    
+
     let mut available_gpus = Vec::new();
-    
+
     // Check CUDA devices (Linux/Windows)
     #[cfg(not(target_os = "macos"))]
     {
-        for i in 0..8 { // Check up to 8 CUDA devices
+        for i in 0..8 {
+            // Check up to 8 CUDA devices
             if Device::cuda_if_available(i).is_ok() {
                 available_gpus.push(i);
             }
         }
     }
-    
+
     // For macOS, use a simpler approach - just try Metal device 0
     #[cfg(target_os = "macos")]
     {
@@ -60,14 +62,18 @@ fn detect_available_gpus() -> Vec<usize> {
             }
         }
     }
-    
+
     // If no GPUs found, return empty vector (will fall back to CPU)
     if available_gpus.is_empty() {
         tracing::warn!("No GPU devices detected, will use CPU");
     } else {
-        tracing::info!("Detected {} GPU devices: {:?}", available_gpus.len(), available_gpus);
+        tracing::info!(
+            "Detected {} GPU devices: {:?}",
+            available_gpus.len(),
+            available_gpus
+        );
     }
-    
+
     available_gpus
 }
 
@@ -95,21 +101,25 @@ pub async fn backfill_cast_embeddings_multiprocess(
 
     // Detect available GPUs and configure multi-process settings
     let available_gpus = detect_available_gpus();
-    
+
     // Determine GPU devices to use
     let gpu_devices = if let Some(specified_gpu) = gpu_device {
         // User specified a specific GPU device
         if available_gpus.contains(&specified_gpu) {
             vec![specified_gpu]
         } else {
-            tracing::warn!("Specified GPU device {} not available, using detected GPUs: {:?}", specified_gpu, available_gpus);
+            tracing::warn!(
+                "Specified GPU device {} not available, using detected GPUs: {:?}",
+                specified_gpu,
+                available_gpus
+            );
             available_gpus.clone()
         }
     } else {
         // Use all available GPUs
         available_gpus.clone()
     };
-    
+
     // Calculate optimal number of worker processes based on GPU count
     let worker_processes = if gpu_devices.is_empty() {
         // No GPUs available, use CPU-based calculation
@@ -121,7 +131,7 @@ pub async fn backfill_cast_embeddings_multiprocess(
         // Use 2 workers per GPU for optimal performance
         gpu_devices.len() * 2
     };
-    
+
     let multiprocess_config = MultiProcessConfig {
         worker_processes,
         batch_size_per_worker: config.map_or(50, |c| c.embeddings_batch_size() / 4),
@@ -132,14 +142,13 @@ pub async fn backfill_cast_embeddings_multiprocess(
 
     info!(
         "Using {} worker processes with batch size {} per worker",
-        multiprocess_config.worker_processes,
-        multiprocess_config.batch_size_per_worker
+        multiprocess_config.worker_processes, multiprocess_config.batch_size_per_worker
     );
     info!("GPU devices: {:?}", multiprocess_config.gpu_devices);
 
     // Create multi-process generator
     let mut generator = MultiProcessEmbeddingGenerator::new(multiprocess_config.clone());
-    
+
     // Start workers
     generator.start_workers().await?;
 
@@ -165,17 +174,15 @@ pub async fn backfill_cast_embeddings_multiprocess(
 
         let batch_start = processed + 1;
         let batch_end = processed + casts.len();
-        
+
         info!(
             "Processing batch: {}-{}/{} casts using multi-process",
-            batch_start,
-            batch_end,
-            process_limit
+            batch_start, batch_end, process_limit
         );
 
         // Process casts using multi-process
         let multiprocess_stats = generator.process_casts(casts, Arc::clone(&db)).await?;
-        
+
         // Aggregate results
         stats.success += multiprocess_stats.success;
         stats.failed += multiprocess_stats.failed;
@@ -222,7 +229,7 @@ pub async fn backfill_cast_embeddings_multiprocess(
         0.0
     };
     let overall_rate = total_processed as f64 / elapsed.as_secs_f64();
-    
+
     info!(
         "Multi-process cast embeddings backfill complete in {:.1}s: {} processed ({} success, {} failed) - {:.1}% success rate, {:.1} casts/sec",
         elapsed.as_secs_f64(),
@@ -299,7 +306,7 @@ pub async fn backfill_cast_embeddings_with_config(
 
         let batch_start = processed + 1;
         let batch_end = processed + casts.len();
-        
+
         // Calculate rate based on total processed casts (success + skipped + failed)
         let total_processed = stats.success + stats.skipped + stats.failed;
         let elapsed_secs = start_time.elapsed().as_secs_f64();
@@ -311,15 +318,18 @@ pub async fn backfill_cast_embeddings_with_config(
 
         info!(
             "Processing batch: {}-{}/{} casts (rate: {:.1} casts/sec, processed: {})",
-            batch_start,
-            batch_end,
-            process_limit,
-            current_rate,
-            total_processed
+            batch_start, batch_end, process_limit, current_rate, total_processed
         );
 
         // Process casts with separated GPU computation and DB insertion concurrency
-        let results = process_casts_with_separated_concurrency(casts, &db, &embedding_service, parallel_tasks, cpu_threads).await;
+        let results = process_casts_with_separated_concurrency(
+            casts,
+            &db,
+            &embedding_service,
+            parallel_tasks,
+            cpu_threads,
+        )
+        .await;
 
         // Aggregate results
         for result in results {
@@ -369,7 +379,7 @@ pub async fn backfill_cast_embeddings_with_config(
         0.0
     };
     let overall_rate = total_processed as f64 / elapsed.as_secs_f64();
-    
+
     info!(
         "Cast embeddings backfill complete in {:.1}s: {} processed ({} success, {} skipped, {} failed) - {:.1}% success rate, {:.1} casts/sec",
         elapsed.as_secs_f64(),
@@ -485,10 +495,10 @@ async fn process_casts_with_separated_concurrency(
     cpu_threads: Option<usize>,
 ) -> Vec<ProcessResult> {
     use futures::stream::StreamExt;
-    
+
     // Step 0: CPU parallel preprocessing using rayon for true CPU parallelism
     let cpu_concurrency = std::cmp::min(56, casts.len()); // Use all available CPU cores
-    
+
     // Configure rayon thread pool if specified
     if let Some(threads) = cpu_threads {
         rayon::ThreadPoolBuilder::new()
@@ -499,25 +509,34 @@ async fn process_casts_with_separated_concurrency(
             });
         info!("Configured rayon to use {} CPU threads", threads);
     }
-    
-    info!("Starting CPU parallel preprocessing with {} cores for {} casts", cpu_concurrency, casts.len());
-    
+
+    info!(
+        "Starting CPU parallel preprocessing with {} cores for {} casts",
+        cpu_concurrency,
+        casts.len()
+    );
+
     // Use rayon for true CPU parallel processing
     let preprocessed_casts: Vec<(crate::models::Cast, bool)> = casts
-        .into_par_iter()  // Parallel iteration using rayon
+        .into_par_iter() // Parallel iteration using rayon
         .map(|cast| {
             // Simplified preprocessing with debugging
             let text_len = cast.text.as_ref().map(|t| t.len()).unwrap_or(0);
-            let text_preview = cast.text.as_ref()
+            let text_preview = cast
+                .text
+                .as_ref()
                 .map(|t| t.chars().take(50).collect::<String>())
                 .unwrap_or_else(|| "None".to_string());
-            
-            debug!("Cast {}: text_len={}, preview='{}'", 
-                   hex::encode(&cast.message_hash), text_len, text_preview);
-            
-            let is_valid = cast.text.is_some() && 
-                          !cast.text.as_ref().unwrap().trim().is_empty();
-            
+
+            debug!(
+                "Cast {}: text_len={}, preview='{}'",
+                hex::encode(&cast.message_hash),
+                text_len,
+                text_preview
+            );
+
+            let is_valid = cast.text.is_some() && !cast.text.as_ref().unwrap().trim().is_empty();
+
             if is_valid {
                 let text = cast.text.as_ref().unwrap();
                 // Use comprehensive text preprocessing
@@ -528,8 +547,11 @@ async fn process_casts_with_separated_concurrency(
                         (processed_cast, true)
                     }
                     Err(e) => {
-                        debug!("Failed to preprocess cast {}: {}", 
-                               hex::encode(&cast.message_hash), e);
+                        debug!(
+                            "Failed to preprocess cast {}: {}",
+                            hex::encode(&cast.message_hash),
+                            e
+                        );
                         (cast, false)
                     }
                 }
@@ -538,36 +560,44 @@ async fn process_casts_with_separated_concurrency(
             }
         })
         .collect();
-    
+
     // Filter out invalid casts and collect stats
     let total_casts = preprocessed_casts.len();
     let valid_casts: Vec<crate::models::Cast> = preprocessed_casts
         .into_iter()
         .filter_map(|(cast, is_valid)| if is_valid { Some(cast) } else { None })
         .collect();
-    
-    info!("Preprocessed {} casts, {} valid for GPU processing", 
-          total_casts, valid_casts.len());
-    
+
+    info!(
+        "Preprocessed {} casts, {} valid for GPU processing",
+        total_casts,
+        valid_casts.len()
+    );
+
     // Step 1: Generate embeddings with high GPU concurrency
-    info!("Starting GPU embedding generation for {} casts with {} GPU concurrency", 
-          valid_casts.len(), gpu_concurrency);
-    
-    let embedding_results: Vec<(crate::models::Cast, crate::errors::Result<Vec<f32>>)> = 
+    info!(
+        "Starting GPU embedding generation for {} casts with {} GPU concurrency",
+        valid_casts.len(),
+        gpu_concurrency
+    );
+
+    let embedding_results: Vec<(crate::models::Cast, crate::errors::Result<Vec<f32>>)> =
         stream::iter(valid_casts)
             .map(|cast| {
                 let embedding_service = Arc::clone(embedding_service);
                 async move {
-                    let result = embedding_service.generate(cast.text.as_ref().unwrap()).await;
+                    let result = embedding_service
+                        .generate(cast.text.as_ref().unwrap())
+                        .await;
                     (cast, result)
                 }
             })
             .buffered(gpu_concurrency) // High concurrency for GPU computation
             .collect()
             .await;
-    
+
     info!("Completed GPU embedding generation, starting database storage");
-    
+
     // Step 2: Store embeddings with lower DB concurrency
     let db_concurrency = std::cmp::min(50, gpu_concurrency / 4); // Much lower DB concurrency
     let results: Vec<ProcessResult> = stream::iter(embedding_results)
@@ -579,15 +609,29 @@ async fn process_casts_with_separated_concurrency(
                         // Store embedding in database with retry logic
                         let hash_str = hex::encode(&cast.message_hash);
                         for attempt in 1..=3 {
-                            match db.store_cast_embedding(&cast.message_hash, cast.fid, cast.text.as_ref().unwrap(), &embedding).await {
+                            match db
+                                .store_cast_embedding(
+                                    &cast.message_hash,
+                                    cast.fid,
+                                    cast.text.as_ref().unwrap(),
+                                    &embedding,
+                                )
+                                .await
+                            {
                                 Ok(()) => {
                                     debug!("✓ Generated embedding for cast {}", hash_str);
                                     return ProcessResult::Success;
                                 }
                                 Err(e) => {
-                                    warn!("Attempt {}/3: Failed to store embedding for cast {}: {}", attempt, hash_str, e);
+                                    warn!(
+                                        "Attempt {}/3: Failed to store embedding for cast {}: {}",
+                                        attempt, hash_str, e
+                                    );
                                     if attempt < 3 {
-                                        tokio::time::sleep(Duration::from_millis(100 * attempt as u64)).await;
+                                        tokio::time::sleep(Duration::from_millis(
+                                            100 * attempt as u64,
+                                        ))
+                                        .await;
                                         continue;
                                     }
                                 }
@@ -602,6 +646,6 @@ async fn process_casts_with_separated_concurrency(
         .buffered(db_concurrency) // Lower concurrency for DB operations
         .collect()
         .await;
-    
+
     results
 }

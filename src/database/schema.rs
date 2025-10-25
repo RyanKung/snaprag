@@ -53,6 +53,28 @@ impl Database {
             return Ok(false);
         }
 
+        // Check if required extensions are installed
+        let required_extensions = vec!["vector", "pg_trgm"];
+
+        for extension_name in required_extensions {
+            let has_extension = sqlx::query_scalar::<_, bool>(
+                r"
+                SELECT EXISTS (
+                    SELECT FROM pg_extension 
+                    WHERE extname = $1
+                )
+                ",
+            )
+            .bind(extension_name)
+            .fetch_one(&self.pool)
+            .await?;
+
+            if !has_extension {
+                tracing::debug!("Missing required extension: {}", extension_name);
+                return Ok(false);
+            }
+        }
+
         Ok(true)
     }
 
@@ -63,6 +85,10 @@ impl Database {
                 "❌ Database schema not initialized!\n\n\
                  Please run the following command to initialize the database:\n\n\
                  \x1b[1;32msnaprag init --force\x1b[0m\n\n\
+                 Note: This will also install required extensions (vector, pg_trgm).\n\
+                 If extensions fail to install, run manually:\n\
+                 \x1b[1;33msudo -u postgres psql -d your-database -c 'CREATE EXTENSION IF NOT EXISTS vector;'\x1b[0m\n\
+                 \x1b[1;33msudo -u postgres psql -d your-database -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm;'\x1b[0m\n\n\
                  Then start sync again."
                     .to_string(),
             ));

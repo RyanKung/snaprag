@@ -1,10 +1,12 @@
 //! Text preprocessing utilities for embedding generation
 
+use tracing::debug;
+use tracing::warn;
+
 use crate::errors::SnapRagError;
-use tracing::{debug, warn};
 
 /// Preprocess text for embedding generation with intelligent chunking
-/// 
+///
 /// This function handles:
 /// - Normalizing whitespace and newlines
 /// - Removing or replacing invalid characters
@@ -12,27 +14,38 @@ use tracing::{debug, warn};
 /// - Basic sanitization
 pub fn preprocess_text_for_embedding(text: &str) -> Result<String, SnapRagError> {
     if text.is_empty() {
-        return Err(SnapRagError::EmbeddingError("Empty text provided".to_string()));
+        return Err(SnapRagError::EmbeddingError(
+            "Empty text provided".to_string(),
+        ));
     }
 
     // Step 1: Normalize whitespace and newlines
     let normalized = normalize_whitespace(text);
-    
+
     // Step 2: Remove invalid characters
     let sanitized = sanitize_text(&normalized);
-    
+
     // Step 3: Handle long text intelligently
     if sanitized.len() > 1500 {
-        warn!("Text too long ({} chars), applying intelligent chunking", sanitized.len());
+        warn!(
+            "Text too long ({} chars), applying intelligent chunking",
+            sanitized.len()
+        );
         return Ok(intelligent_text_chunking(&sanitized, 1500));
     }
-    
+
     // Step 4: Final validation
     if sanitized.trim().is_empty() {
-        return Err(SnapRagError::EmbeddingError("Text contains only whitespace after preprocessing".to_string()));
+        return Err(SnapRagError::EmbeddingError(
+            "Text contains only whitespace after preprocessing".to_string(),
+        ));
     }
-    
-    debug!("Preprocessed text: {} -> {} chars", text.len(), sanitized.len());
+
+    debug!(
+        "Preprocessed text: {} -> {} chars",
+        text.len(),
+        sanitized.len()
+    );
     Ok(sanitized)
 }
 
@@ -40,9 +53,9 @@ pub fn preprocess_text_for_embedding(text: &str) -> Result<String, SnapRagError>
 fn normalize_whitespace(text: &str) -> String {
     text
         // Replace various newline types with spaces
-        .replace("\r\n", " ")  // Windows CRLF
-        .replace('\n', " ")    // Unix LF
-        .replace('\r', " ")    // Mac CR
+        .replace("\r\n", " ") // Windows CRLF
+        .replace('\n', " ") // Unix LF
+        .replace('\r', " ") // Mac CR
         // Replace tabs with spaces
         .replace('\t', " ")
         // Replace multiple spaces with single space
@@ -123,7 +136,8 @@ fn chunk_by_paragraphs(text: &str, max_length: usize) -> Option<String> {
         }
     }
 
-    if result.len() > max_length * 2 / 3 {  // Only use if we got a substantial chunk
+    if result.len() > max_length * 2 / 3 {
+        // Only use if we got a substantial chunk
         Some(result)
     } else {
         None
@@ -165,11 +179,38 @@ fn chunk_by_sentences(text: &str, max_length: usize) -> Option<String> {
 fn chunk_by_importance(text: &str, max_length: usize) -> Option<String> {
     // Key terms that indicate important content
     let important_terms = [
-        "TL;DR", "summary", "conclusion", "key", "important", "main", "primary",
-        "first", "second", "third", "finally", "overall", "in summary", "to summarize",
-        "the main", "the key", "the primary", "the most", "the best", "the worst",
-        "however", "but", "although", "despite", "nevertheless", "furthermore",
-        "additionally", "moreover", "therefore", "thus", "consequently", "as a result"
+        "TL;DR",
+        "summary",
+        "conclusion",
+        "key",
+        "important",
+        "main",
+        "primary",
+        "first",
+        "second",
+        "third",
+        "finally",
+        "overall",
+        "in summary",
+        "to summarize",
+        "the main",
+        "the key",
+        "the primary",
+        "the most",
+        "the best",
+        "the worst",
+        "however",
+        "but",
+        "although",
+        "despite",
+        "nevertheless",
+        "furthermore",
+        "additionally",
+        "moreover",
+        "therefore",
+        "thus",
+        "consequently",
+        "as a result",
     ];
 
     let sentences: Vec<&str> = text
@@ -186,7 +227,8 @@ fn chunk_by_importance(text: &str, max_length: usize) -> Option<String> {
         .iter()
         .enumerate()
         .map(|(i, sentence)| {
-            let score = important_terms.iter()
+            let score = important_terms
+                .iter()
                 .map(|term| sentence.to_lowercase().matches(term).count())
                 .sum::<usize>();
             (score, *sentence)
@@ -221,15 +263,16 @@ fn smart_truncate_text(text: &str, max_length: usize) -> String {
     if text.len() <= max_length {
         return text.to_string();
     }
-    
+
     // Try to truncate at word boundary
     let truncated = &text[..max_length];
     if let Some(last_space) = truncated.rfind(' ') {
-        if last_space > max_length * 3 / 4 {  // Only use word boundary if it's not too far back
+        if last_space > max_length * 3 / 4 {
+            // Only use word boundary if it's not too far back
             return truncated[..last_space].to_string();
         }
     }
-    
+
     // Fallback to character truncation
     truncated.to_string()
 }
@@ -242,36 +285,49 @@ fn truncate_text(text: &str, max_length: usize) -> String {
 /// Validate text for embedding generation
 pub fn validate_text_for_embedding(text: &str) -> Result<(), SnapRagError> {
     if text.is_empty() {
-        return Err(SnapRagError::EmbeddingError("Empty text provided".to_string()));
+        return Err(SnapRagError::EmbeddingError(
+            "Empty text provided".to_string(),
+        ));
     }
-    
+
     if text.trim().is_empty() {
-        return Err(SnapRagError::EmbeddingError("Text contains only whitespace".to_string()));
+        return Err(SnapRagError::EmbeddingError(
+            "Text contains only whitespace".to_string(),
+        ));
     }
-    
+
     if text.len() > 1500 {
-        return Err(SnapRagError::EmbeddingError("Text too long (max 1500 chars for BGE model)".to_string()));
+        return Err(SnapRagError::EmbeddingError(
+            "Text too long (max 1500 chars for BGE model)".to_string(),
+        ));
     }
-    
+
     // Check for excessive control characters
     let control_char_count = text.chars().filter(|c| c.is_control()).count();
     if control_char_count > text.len() / 2 {
-        return Err(SnapRagError::EmbeddingError("Text contains too many control characters".to_string()));
+        return Err(SnapRagError::EmbeddingError(
+            "Text contains too many control characters".to_string(),
+        ));
     }
-    
+
     Ok(())
 }
 
 /// Generate multiple chunks for long texts (for advanced use cases)
 /// Returns a vector of text chunks that can be processed separately
-pub fn generate_text_chunks(text: &str, max_chunk_size: usize) -> Result<Vec<String>, SnapRagError> {
+pub fn generate_text_chunks(
+    text: &str,
+    max_chunk_size: usize,
+) -> Result<Vec<String>, SnapRagError> {
     if text.is_empty() {
-        return Err(SnapRagError::EmbeddingError("Empty text provided".to_string()));
+        return Err(SnapRagError::EmbeddingError(
+            "Empty text provided".to_string(),
+        ));
     }
 
     let normalized = normalize_whitespace(text);
     let sanitized = sanitize_text(&normalized);
-    
+
     if sanitized.len() <= max_chunk_size {
         return Ok(vec![sanitized]);
     }
@@ -295,7 +351,7 @@ pub fn generate_text_chunks(text: &str, max_chunk_size: usize) -> Result<Vec<Str
 
         let chunk_len = chunk.len();
         chunks.push(chunk);
-        
+
         // Move to next part
         remaining = &remaining[chunk_len..];
         remaining = remaining.trim_start();

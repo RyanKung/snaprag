@@ -138,22 +138,25 @@ impl Database {
         // For large datasets, it's much faster to calculate:
         // total_casts - existing_embeddings = missing_embeddings
         // This avoids the expensive NOT IN subquery on 200M+ rows
-        
+
         let total_casts = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts")
             .fetch_one(&self.pool)
             .await?;
-            
-        let existing_embeddings = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM cast_embeddings")
-            .fetch_one(&self.pool)
-            .await?;
-            
+
+        let existing_embeddings =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM cast_embeddings")
+                .fetch_one(&self.pool)
+                .await?;
+
         let missing = total_casts - existing_embeddings;
-        
+
         tracing::debug!(
             "Count calculation: {} total casts - {} existing embeddings = {} missing",
-            total_casts, existing_embeddings, missing
+            total_casts,
+            existing_embeddings,
+            missing
         );
-        
+
         Ok(missing)
     }
 
@@ -414,36 +417,45 @@ impl Database {
         .await?;
 
         // Deduplicate results by message_hash, keeping the highest similarity score
-        let mut deduplicated: std::collections::HashMap<Vec<u8>, CastSearchResult> = std::collections::HashMap::new();
-        
+        let mut deduplicated: std::collections::HashMap<Vec<u8>, CastSearchResult> =
+            std::collections::HashMap::new();
+
         for r in raw_results {
             let message_hash = r.message_hash.clone();
             let similarity = r.similarity as f32;
-            
+
             // Only keep if this is a new message_hash or has higher similarity
-            if !deduplicated.contains_key(&message_hash) || 
-               deduplicated.get(&message_hash).unwrap().similarity < similarity {
-                deduplicated.insert(message_hash, CastSearchResult {
-                    message_hash: r.message_hash,
-                    fid: r.fid,
-                    text: r.text,
-                    timestamp: r.timestamp,
-                    parent_hash: r.parent_hash,
-                    embeds: r.embeds,
-                    mentions: r.mentions,
-                    similarity,
-                    reply_count: None,
-                    reaction_count: None,
-                    chunk_index: r.chunk_index,
-                    chunk_text: r.chunk_text,
-                    chunk_strategy: r.chunk_strategy,
-                });
+            if !deduplicated.contains_key(&message_hash)
+                || deduplicated.get(&message_hash).unwrap().similarity < similarity
+            {
+                deduplicated.insert(
+                    message_hash,
+                    CastSearchResult {
+                        message_hash: r.message_hash,
+                        fid: r.fid,
+                        text: r.text,
+                        timestamp: r.timestamp,
+                        parent_hash: r.parent_hash,
+                        embeds: r.embeds,
+                        mentions: r.mentions,
+                        similarity,
+                        reply_count: None,
+                        reaction_count: None,
+                        chunk_index: r.chunk_index,
+                        chunk_text: r.chunk_text,
+                        chunk_strategy: r.chunk_strategy,
+                    },
+                );
             }
         }
 
         // Convert back to Vec and sort by similarity
         let mut results: Vec<CastSearchResult> = deduplicated.into_values().collect();
-        results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit as usize);
 
         Ok(results)
@@ -596,7 +608,8 @@ impl Database {
         }
 
         let query = match strategy {
-            "chunks" => r"
+            "chunks" => {
+                r"
                 SELECT 
                     cec.message_hash,
                     cec.fid,
@@ -614,8 +627,10 @@ impl Database {
                 WHERE 1 - (cec.embedding <=> $1::vector) > $2
                 ORDER BY cec.embedding <=> $1::vector
                 LIMIT $3
-            ",
-            "aggregated" => r"
+            "
+            }
+            "aggregated" => {
+                r"
                 SELECT 
                     cea.message_hash,
                     cea.fid,
@@ -633,8 +648,10 @@ impl Database {
                 WHERE 1 - (cea.embedding <=> $1::vector) > $2
                 ORDER BY cea.embedding <=> $1::vector
                 LIMIT $3
-            ",
-            "both" => r"
+            "
+            }
+            "both" => {
+                r"
                 (
                     SELECT 
                         cec.message_hash,
@@ -672,8 +689,13 @@ impl Database {
                 )
                 ORDER BY similarity DESC
                 LIMIT $3
-            ",
-            _ => return Err(crate::SnapRagError::Custom("Invalid search strategy".to_string())),
+            "
+            }
+            _ => {
+                return Err(crate::SnapRagError::Custom(
+                    "Invalid search strategy".to_string(),
+                ))
+            }
         };
 
         let raw_results = sqlx::query_as::<_, RawResult>(query)

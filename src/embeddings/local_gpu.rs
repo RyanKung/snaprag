@@ -9,18 +9,33 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 #[cfg(feature = "local-gpu")]
-use candle_core::{Device, Tensor, Module, DType};
+use candle_core::DType;
+#[cfg(feature = "local-gpu")]
+use candle_core::Device;
 #[cfg(feature = "local-gpu")]
 use candle_core::IndexOp;
 #[cfg(feature = "local-gpu")]
-use candle_nn::{VarBuilder, Embedding, Linear, LayerNorm, Dropout};
+use candle_core::Module;
 #[cfg(feature = "local-gpu")]
-use candle_transformers::models::bert::{BertModel, Config as BertConfig};
+use candle_core::Tensor;
 #[cfg(feature = "local-gpu")]
-use rayon::prelude::*;  // Parallel processing support
-
+use candle_nn::Dropout;
+#[cfg(feature = "local-gpu")]
+use candle_nn::Embedding;
+#[cfg(feature = "local-gpu")]
+use candle_nn::LayerNorm;
+#[cfg(feature = "local-gpu")]
+use candle_nn::Linear;
+#[cfg(feature = "local-gpu")]
+use candle_nn::VarBuilder;
+#[cfg(feature = "local-gpu")]
+use candle_transformers::models::bert::BertModel;
+#[cfg(feature = "local-gpu")]
+use candle_transformers::models::bert::Config as BertConfig;
 #[cfg(feature = "local-gpu")]
 use hf_hub::api::tokio::Api;
+#[cfg(feature = "local-gpu")]
+use rayon::prelude::*; // Parallel processing support
 #[cfg(feature = "local-gpu")]
 use tokenizers::Tokenizer;
 use tracing::debug;
@@ -46,17 +61,25 @@ impl LocalGPUClient {
     pub async fn new(model_name: &str) -> Result<Self> {
         Self::new_with_dimension(model_name, 384, None).await
     }
-    
+
     /// Create a new local GPU client with specified embedding dimension and GPU device
     /// BGE small model supports 384 dimensions
-    pub async fn new_with_dimension(model_name: &str, embedding_dim: usize, gpu_device_id: Option<usize>) -> Result<Self> {
-        info!("Initializing local GPU client for model: {} with dimension: {}", model_name, embedding_dim);
-        
+    pub async fn new_with_dimension(
+        model_name: &str,
+        embedding_dim: usize,
+        gpu_device_id: Option<usize>,
+    ) -> Result<Self> {
+        info!(
+            "Initializing local GPU client for model: {} with dimension: {}",
+            model_name, embedding_dim
+        );
+
         // Validate embedding dimension for BGE small model
         if embedding_dim != 384 {
-            return Err(SnapragError::EmbeddingError(
-                format!("BGE small model only supports 384 dimensions, got: {}", embedding_dim)
-            ));
+            return Err(SnapragError::EmbeddingError(format!(
+                "BGE small model only supports 384 dimensions, got: {}",
+                embedding_dim
+            )));
         }
 
         // Determine device (CUDA > Metal > CPU) with optional GPU selection
@@ -149,11 +172,11 @@ impl LocalGPUClient {
     /// Download model from HuggingFace if not already cached
     async fn download_model(model_name: &str) -> Result<PathBuf> {
         info!("Initializing HuggingFace API...");
-        
+
         let api = Api::new().map_err(|e| {
             SnapragError::EmbeddingError(format!("Failed to initialize HuggingFace API: {}", e))
         })?;
-        
+
         info!("Creating model repository reference for: {}", model_name);
         let repo = api.model(model_name.to_string());
 
@@ -164,7 +187,7 @@ impl LocalGPUClient {
                 let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
                 PathBuf::from(home).join(".cache").join("snaprag")
             });
-        
+
         let model_dir = cache_root
             .join("hf")
             .join("models")
@@ -174,21 +197,21 @@ impl LocalGPUClient {
         std::fs::create_dir_all(&model_dir).map_err(|e| {
             SnapragError::EmbeddingError(format!("Failed to create model directory: {}", e))
         })?;
-        
+
         // Download model files
         let model_path = model_dir.join("model.safetensors");
-        
+
         if !model_path.exists() {
             info!("Downloading model.safetensors...");
             let api_model_path = repo.get("model.safetensors").await.map_err(|e| {
                 SnapragError::EmbeddingError(format!("Failed to download model.safetensors: {}", e))
             })?;
-            
+
             std::fs::copy(&api_model_path, &model_path).map_err(|e| {
                 SnapragError::EmbeddingError(format!("Failed to copy model.safetensors: {}", e))
             })?;
         }
-        
+
         // Download config.json
         let config_path = model_dir.join("config.json");
         if !config_path.exists() {
@@ -201,35 +224,53 @@ impl LocalGPUClient {
                     info!("Successfully downloaded config.json");
                 }
                 Err(e) => {
-                    warn!("Failed to download config.json via API: {}. Trying direct download.", e);
+                    warn!(
+                        "Failed to download config.json via API: {}. Trying direct download.",
+                        e
+                    );
                     // Try direct download
-                    let url = format!("https://huggingface.co/{}/resolve/main/config.json", model_name);
+                    let url = format!(
+                        "https://huggingface.co/{}/resolve/main/config.json",
+                        model_name
+                    );
                     info!("Trying direct download from: {}", url);
-                    
+
                     match reqwest::get(&url).await {
                         Ok(response) => {
                             if response.status().is_success() {
                                 let content = response.bytes().await.map_err(|e| {
-                                    SnapragError::EmbeddingError(format!("Failed to read config response: {}", e))
+                                    SnapragError::EmbeddingError(format!(
+                                        "Failed to read config response: {}",
+                                        e
+                                    ))
                                 })?;
-                                
+
                                 std::fs::write(&config_path, content).map_err(|e| {
-                                    SnapragError::EmbeddingError(format!("Failed to write config.json: {}", e))
+                                    SnapragError::EmbeddingError(format!(
+                                        "Failed to write config.json: {}",
+                                        e
+                                    ))
                                 })?;
-                                
+
                                 info!("Successfully downloaded config.json via direct URL");
                             } else {
-                                return Err(SnapragError::EmbeddingError(format!("Failed to download config.json: {}", response.status())));
+                                return Err(SnapragError::EmbeddingError(format!(
+                                    "Failed to download config.json: {}",
+                                    response.status()
+                                )));
                             }
                         }
                         Err(e) => {
-                            return Err(SnapragError::EmbeddingError(format!("Failed to download config.json: {}", e)));
+                            return Err(SnapragError::EmbeddingError(format!(
+                                "Failed to download config.json: {}",
+                                e
+                            )));
                         }
                     }
                 }
             }
         }
-        
+
         // Download tokenizer files
         let tokenizer_files = ["tokenizer.json", "tokenizer_config.json", "vocab.txt"];
         for tokenizer_file in &tokenizer_files {
@@ -244,11 +285,17 @@ impl LocalGPUClient {
                         info!("Successfully downloaded {}", tokenizer_file);
                     }
                     Err(e) => {
-                        warn!("Failed to download {} via API: {}. Trying direct download.", tokenizer_file, e);
+                        warn!(
+                            "Failed to download {} via API: {}. Trying direct download.",
+                            tokenizer_file, e
+                        );
                         // Try direct download
-                        let url = format!("https://huggingface.co/{}/resolve/main/{}", model_name, tokenizer_file);
+                        let url = format!(
+                            "https://huggingface.co/{}/resolve/main/{}",
+                            model_name, tokenizer_file
+                        );
                         info!("Trying direct download from: {}", url);
-                        
+
                         match reqwest::get(&url).await {
                             Ok(response) => {
                                 if response.status().is_success() {
@@ -259,11 +306,18 @@ impl LocalGPUClient {
                                         if let Err(e) = std::fs::write(&tokenizer_path, content) {
                                             warn!("Failed to write {}: {}", tokenizer_file, e);
                                         } else {
-                                            info!("Successfully downloaded {} via direct URL", tokenizer_file);
+                                            info!(
+                                                "Successfully downloaded {} via direct URL",
+                                                tokenizer_file
+                                            );
                                         }
                                     }
                                 } else {
-                                    warn!("Direct download failed for {}: {}", tokenizer_file, response.status());
+                                    warn!(
+                                        "Direct download failed for {}: {}",
+                                        tokenizer_file,
+                                        response.status()
+                                    );
                                 }
                             }
                             Err(e) => {
@@ -281,22 +335,21 @@ impl LocalGPUClient {
 
     /// Load tokenizer from model path
     fn load_tokenizer(model_path: &PathBuf) -> Result<Tokenizer> {
-        let tokenizer_files = [
-            "tokenizer.json",
-            "tokenizer_config.json", 
-            "vocab.txt"
-        ];
-        
+        let tokenizer_files = ["tokenizer.json", "tokenizer_config.json", "vocab.txt"];
+
         for tokenizer_file in &tokenizer_files {
             let tokenizer_path = model_path.join(tokenizer_file);
             if tokenizer_path.exists() {
                 info!("Loading tokenizer from: {:?}", tokenizer_path);
                 return Tokenizer::from_file(&tokenizer_path).map_err(|e| {
-                    SnapragError::EmbeddingError(format!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e))
+                    SnapragError::EmbeddingError(format!(
+                        "Failed to load tokenizer from {:?}: {}",
+                        tokenizer_path, e
+                    ))
                 });
             }
         }
-        
+
         Err(SnapragError::EmbeddingError(format!(
             "No tokenizer files found in {:?}. Expected one of: {:?}",
             model_path, tokenizer_files
@@ -306,23 +359,25 @@ impl LocalGPUClient {
     /// Load BERT model from downloaded files
     fn load_bert_model(model_path: &PathBuf, device: &Device) -> Result<BertModel> {
         info!("Loading BERT model from: {:?}", model_path);
-        
+
         // Load config
         let config_path = model_path.join("config.json");
         let config_content = std::fs::read_to_string(&config_path)
             .map_err(|e| SnapragError::EmbeddingError(format!("Failed to read config: {}", e)))?;
-        
+
         let config: BertConfig = serde_json::from_str(&config_content)
             .map_err(|e| SnapragError::EmbeddingError(format!("Failed to parse config: {}", e)))?;
-        
+
         // Load model weights
         let model_file = model_path.join("model.safetensors");
-        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[&model_file], DType::F32, device)? };
-        
+        let vb =
+            unsafe { VarBuilder::from_mmaped_safetensors(&[&model_file], DType::F32, device)? };
+
         // Create model
-        let model = BertModel::load(vb, &config)
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to load BERT model: {}", e)))?;
-        
+        let model = BertModel::load(vb, &config).map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to load BERT model: {}", e))
+        })?;
+
         info!("BERT model loaded successfully");
         Ok(model)
     }
@@ -343,44 +398,65 @@ impl LocalGPUClient {
         // Validate tokenization results
         let input_ids = encoding.get_ids();
         let attention_mask = encoding.get_attention_mask();
-        
+
         if input_ids.is_empty() {
-            return Err(SnapragError::EmbeddingError("No tokens generated".to_string()));
-        }
-        
-        if input_ids.len() > 512 {
-            return Err(SnapragError::EmbeddingError("Too many tokens (max 512)".to_string()));
+            return Err(SnapragError::EmbeddingError(
+                "No tokens generated".to_string(),
+            ));
         }
 
-        let input_ids_tensor = Tensor::new(input_ids, &self.device)
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to create input_ids tensor: {}", e)))?;
-        let attention_mask_tensor = Tensor::new(attention_mask, &self.device)
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to create attention_mask tensor: {}", e)))?;
+        if input_ids.len() > 512 {
+            return Err(SnapragError::EmbeddingError(
+                "Too many tokens (max 512)".to_string(),
+            ));
+        }
+
+        let input_ids_tensor = Tensor::new(input_ids, &self.device).map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to create input_ids tensor: {}", e))
+        })?;
+        let attention_mask_tensor = Tensor::new(attention_mask, &self.device).map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to create attention_mask tensor: {}", e))
+        })?;
 
         // Add batch dimension
-        let input_ids = input_ids_tensor.unsqueeze(0)
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to add batch dimension to input_ids: {}", e)))?;
-        let attention_mask = attention_mask_tensor.unsqueeze(0)
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to add batch dimension to attention_mask: {}", e)))?;
+        let input_ids = input_ids_tensor.unsqueeze(0).map_err(|e| {
+            SnapragError::EmbeddingError(format!(
+                "Failed to add batch dimension to input_ids: {}",
+                e
+            ))
+        })?;
+        let attention_mask = attention_mask_tensor.unsqueeze(0).map_err(|e| {
+            SnapragError::EmbeddingError(format!(
+                "Failed to add batch dimension to attention_mask: {}",
+                e
+            ))
+        })?;
 
         // Use the real BERT model for embedding computation with error handling
-        let embeddings = self.compute_embeddings_real(&input_ids, &attention_mask)
-            .map_err(|e| SnapragError::EmbeddingError(format!("BERT forward pass failed: {}", e)))?;
+        let embeddings = self
+            .compute_embeddings_real(&input_ids, &attention_mask)
+            .map_err(|e| {
+                SnapragError::EmbeddingError(format!("BERT forward pass failed: {}", e))
+            })?;
 
         // Mean pooling
-        let pooled = self.mean_pooling(&embeddings, &attention_mask)
+        let pooled = self
+            .mean_pooling(&embeddings, &attention_mask)
             .map_err(|e| SnapragError::EmbeddingError(format!("Mean pooling failed: {}", e)))?;
 
         // Normalize - squeeze to remove batch dimension
-        let pooled_squeezed = pooled.squeeze(0)
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to squeeze pooled tensor: {}", e)))?;
-        let normalized = self.normalize(&pooled_squeezed)
+        let pooled_squeezed = pooled.squeeze(0).map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to squeeze pooled tensor: {}", e))
+        })?;
+        let normalized = self
+            .normalize(&pooled_squeezed)
             .map_err(|e| SnapragError::EmbeddingError(format!("Normalization failed: {}", e)))?;
 
         // Convert to Vec<f32>
-        let embedding_vec: Vec<f32> = normalized.to_vec1()
-            .map_err(|e| SnapragError::EmbeddingError(format!("Failed to convert tensor to vector: {}", e)))?;
-        
+        let embedding_vec: Vec<f32> = normalized.to_vec1().map_err(|e| {
+            SnapragError::EmbeddingError(format!("Failed to convert tensor to vector: {}", e))
+        })?;
+
         debug!(
             "Generated embedding with {} dimensions",
             embedding_vec.len()
@@ -415,15 +491,19 @@ impl LocalGPUClient {
         // Dynamic batch sizing based on text length to maximize GPU memory usage
         let avg_text_len = texts.iter().map(|t| t.len()).sum::<usize>() / texts.len();
         let dynamic_batch_size = if avg_text_len < 100 {
-            2048  // Short texts: can handle larger batches
+            2048 // Short texts: can handle larger batches
         } else if avg_text_len < 500 {
-            1024  // Medium texts: moderate batches
+            1024 // Medium texts: moderate batches
         } else {
-            512   // Long texts: smaller batches to avoid OOM
+            512 // Long texts: smaller batches to avoid OOM
         };
 
-        info!("Processing {} texts with dynamic batch size: {} (avg text length: {})", 
-              texts.len(), dynamic_batch_size, avg_text_len);
+        info!(
+            "Processing {} texts with dynamic batch size: {} (avg text length: {})",
+            texts.len(),
+            dynamic_batch_size,
+            avg_text_len
+        );
 
         let mut embeddings = Vec::with_capacity(texts.len());
 
@@ -444,7 +524,7 @@ impl LocalGPUClient {
 
         // CPU parallel tokenization using rayon for maximum CPU utilization
         let encodings: Result<Vec<_>> = texts
-            .par_iter()  // Parallel iteration using rayon
+            .par_iter() // Parallel iteration using rayon
             .map(|text| {
                 self.tokenizer.encode(text.to_string(), true).map_err(|e| {
                     SnapragError::EmbeddingError(format!("Tokenization failed: {}", e))
@@ -467,15 +547,15 @@ impl LocalGPUClient {
             .map(|encoding| {
                 let ids = encoding.get_ids();
                 let mask = encoding.get_attention_mask();
-                
+
                 let mut padded_ids = Vec::with_capacity(max_len);
                 let mut padded_mask = Vec::with_capacity(max_len);
-                
+
                 for i in 0..max_len {
                     padded_ids.push(if i < ids.len() { ids[i] } else { 0 });
                     padded_mask.push(if i < mask.len() { mask[i] } else { 0 });
                 }
-                
+
                 (padded_ids, padded_mask)
             })
             .collect();
@@ -486,7 +566,8 @@ impl LocalGPUClient {
             attention_mask.extend(mask);
         }
 
-        let input_ids = Tensor::new(input_ids.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
+        let input_ids =
+            Tensor::new(input_ids.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
         let attention_mask =
             Tensor::new(attention_mask.as_slice(), &self.device)?.reshape((batch_size, max_len))?;
 
@@ -495,10 +576,10 @@ impl LocalGPUClient {
 
         // Batch mean pooling for the entire batch at once
         let pooled = self.mean_pooling_batch(&embeddings, &attention_mask)?;
-        
+
         // Batch normalization for the entire batch at once
         let normalized = self.normalize_batch(&pooled)?;
-        
+
         // Convert to Vec<Vec<f32>>
         let results: Result<Vec<Vec<f32>>> = (0..batch_size)
             .into_par_iter()
@@ -512,11 +593,15 @@ impl LocalGPUClient {
     }
 
     /// Real embedding computation using BERT model
-    fn compute_embeddings_real(&self, input_ids: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
+    fn compute_embeddings_real(
+        &self,
+        input_ids: &Tensor,
+        attention_mask: &Tensor,
+    ) -> Result<Tensor> {
         // Forward pass through BERT model
         // BERT forward takes: input_ids, attention_mask, token_type_ids (optional)
         let hidden_states = self.model.forward(input_ids, attention_mask, None)?;
-        
+
         // Return the last hidden states (shape: [batch_size, seq_len, hidden_size])
         Ok(hidden_states)
     }
@@ -525,7 +610,9 @@ impl LocalGPUClient {
     fn mean_pooling(&self, embeddings: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
         // Convert attention_mask to f32 to match embeddings dtype
         let mask_f32 = attention_mask.to_dtype(DType::F32)?;
-        let mask_expanded = mask_f32.unsqueeze(attention_mask.dims().len())?.expand(embeddings.shape())?;
+        let mask_expanded = mask_f32
+            .unsqueeze(attention_mask.dims().len())?
+            .expand(embeddings.shape())?;
         let sum_embeddings = (embeddings * &mask_expanded)?.sum(1)?;
         let sum_mask = mask_expanded.sum(1)?.clamp(1e-9, f32::MAX)?;
         Ok(sum_embeddings.broadcast_div(&sum_mask)?)
@@ -535,7 +622,9 @@ impl LocalGPUClient {
     fn mean_pooling_batch(&self, embeddings: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
         // Convert attention_mask to f32 to match embeddings dtype
         let mask_f32 = attention_mask.to_dtype(DType::F32)?;
-        let mask_expanded = mask_f32.unsqueeze(attention_mask.dims().len())?.expand(embeddings.shape())?;
+        let mask_expanded = mask_f32
+            .unsqueeze(attention_mask.dims().len())?
+            .expand(embeddings.shape())?;
         let sum_embeddings = (embeddings * &mask_expanded)?.sum(1)?;
         let sum_mask = mask_expanded.sum(1)?.clamp(1e-9, f32::MAX)?;
         Ok(sum_embeddings.broadcast_div(&sum_mask)?)
@@ -566,7 +655,12 @@ mod tests {
     async fn test_bge_embedding() {
         let client = LocalGPUClient::new("BAAI/bge-small-en-v1.5").await.unwrap();
         let embedding = client.generate("What is machine learning?").await.unwrap();
-        assert_eq!(embedding.len(), 384, "Expected dimension 384 but got {}", embedding.len());
+        assert_eq!(
+            embedding.len(),
+            384,
+            "Expected dimension 384 but got {}",
+            embedding.len()
+        );
     }
 }
 

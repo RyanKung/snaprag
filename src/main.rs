@@ -337,7 +337,7 @@ async fn main() -> Result<()> {
                 snaprag::cli::CastEmbeddingAction::Analyze => {
                     snaprag::cli::handle_cast_embeddings_analyze(&config).await?;
                 }
-            }
+            },
             EmbeddingsCommands::BackfillCasts {
                 force,
                 batch_size,

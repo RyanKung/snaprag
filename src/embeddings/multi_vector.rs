@@ -1,14 +1,18 @@
 //! Multi-vector embedding service for handling chunked text embeddings
-//! 
+//!
 //! This module provides support for:
 //! - Chunking long texts into multiple pieces
 //! - Storing multiple embeddings per cast
 //! - Aggregating multiple embeddings into single vectors
 //! - Searching across chunked embeddings
 
-use crate::errors::{Result, SnapRagError};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::errors::Result;
+use crate::errors::SnapRagError;
 
 /// Strategy for chunking text into multiple pieces
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -98,9 +102,11 @@ impl MultiVectorEmbeddingService {
 
         // Generate chunks based on strategy
         let chunks = self.generate_chunks(text, &strategy)?;
-        
+
         if chunks.is_empty() {
-            return Err(SnapRagError::EmbeddingError("No valid chunks generated".to_string()));
+            return Err(SnapRagError::EmbeddingError(
+                "No valid chunks generated".to_string(),
+            ));
         }
 
         // Generate embeddings for each chunk
@@ -198,7 +204,8 @@ impl MultiVectorEmbeddingService {
                 current_chunk.push_str(trimmed);
             } else {
                 if !current_chunk.is_empty() {
-                    let processed = crate::embeddings::preprocess_text_for_embedding(&current_chunk)?;
+                    let processed =
+                        crate::embeddings::preprocess_text_for_embedding(&current_chunk)?;
                     chunks.push((
                         ChunkMetadata {
                             chunk_index,
@@ -237,7 +244,7 @@ impl MultiVectorEmbeddingService {
     fn chunk_by_importance(&self, text: &str) -> Result<Vec<(ChunkMetadata, String)>> {
         // Use the existing importance-based chunking from text_preprocessing
         let chunks = crate::embeddings::generate_text_chunks(text, self.default_chunk_size)?;
-        
+
         let mut result = Vec::new();
         for (i, chunk_text) in chunks.into_iter().enumerate() {
             let importance_score = self.calculate_importance_score(&chunk_text);
@@ -260,17 +267,17 @@ impl MultiVectorEmbeddingService {
     fn chunk_by_sliding_window(&self, text: &str) -> Result<Vec<(ChunkMetadata, String)>> {
         let processed = crate::embeddings::preprocess_text_for_embedding(text)?;
         let mut chunks = Vec::new();
-        
+
         let window_size = self.default_chunk_size;
         let overlap = window_size / 4; // 25% overlap
-        
+
         let mut start = 0;
         let mut chunk_index = 0;
-        
+
         while start < processed.len() {
             let end = (start + window_size).min(processed.len());
             let chunk_text = processed[start..end].to_string();
-            
+
             chunks.push((
                 ChunkMetadata {
                     chunk_index,
@@ -281,7 +288,7 @@ impl MultiVectorEmbeddingService {
                 },
                 chunk_text,
             ));
-            
+
             start += window_size - overlap;
             chunk_index += 1;
         }
@@ -292,14 +299,42 @@ impl MultiVectorEmbeddingService {
     /// Calculate importance score for a text chunk
     fn calculate_importance_score(&self, text: &str) -> f32 {
         let important_terms = [
-            "TL;DR", "summary", "conclusion", "key", "important", "main", "primary",
-            "first", "second", "third", "finally", "overall", "in summary", "to summarize",
-            "the main", "the key", "the primary", "the most", "the best", "the worst",
-            "however", "but", "although", "despite", "nevertheless", "furthermore",
-            "additionally", "moreover", "therefore", "thus", "consequently", "as a result"
+            "TL;DR",
+            "summary",
+            "conclusion",
+            "key",
+            "important",
+            "main",
+            "primary",
+            "first",
+            "second",
+            "third",
+            "finally",
+            "overall",
+            "in summary",
+            "to summarize",
+            "the main",
+            "the key",
+            "the primary",
+            "the most",
+            "the best",
+            "the worst",
+            "however",
+            "but",
+            "although",
+            "despite",
+            "nevertheless",
+            "furthermore",
+            "additionally",
+            "moreover",
+            "therefore",
+            "thus",
+            "consequently",
+            "as a result",
         ];
 
-        let score = important_terms.iter()
+        let score = important_terms
+            .iter()
             .map(|term| text.to_lowercase().matches(term).count())
             .sum::<usize>() as f32;
 
@@ -314,7 +349,9 @@ impl MultiVectorEmbeddingService {
         strategy: &AggregationStrategy,
     ) -> Result<Vec<f32>> {
         if chunk_embeddings.is_empty() {
-            return Err(SnapRagError::EmbeddingError("No embeddings to aggregate".to_string()));
+            return Err(SnapRagError::EmbeddingError(
+                "No embeddings to aggregate".to_string(),
+            ));
         }
 
         if chunk_embeddings.len() == 1 {
@@ -323,61 +360,61 @@ impl MultiVectorEmbeddingService {
 
         match strategy {
             AggregationStrategy::FirstChunk => Ok(chunk_embeddings[0].1.clone()),
-            
+
             AggregationStrategy::Mean => {
                 let dimension = chunk_embeddings[0].1.len();
                 let mut aggregated = vec![0.0; dimension];
-                
+
                 for (_, embedding) in chunk_embeddings {
                     for (i, &value) in embedding.iter().enumerate() {
                         aggregated[i] += value;
                     }
                 }
-                
+
                 let count = chunk_embeddings.len() as f32;
                 for value in &mut aggregated {
                     *value /= count;
                 }
-                
+
                 Ok(aggregated)
             }
-            
+
             AggregationStrategy::WeightedMean => {
                 let dimension = chunk_embeddings[0].1.len();
                 let mut aggregated = vec![0.0; dimension];
                 let mut total_weight = 0.0;
-                
+
                 for (metadata, embedding) in chunk_embeddings {
                     let weight = metadata.importance_score.unwrap_or(1.0);
                     total_weight += weight;
-                    
+
                     for (i, &value) in embedding.iter().enumerate() {
                         aggregated[i] += value * weight;
                     }
                 }
-                
+
                 if total_weight > 0.0 {
                     for value in &mut aggregated {
                         *value /= total_weight;
                     }
                 }
-                
+
                 Ok(aggregated)
             }
-            
+
             AggregationStrategy::Max => {
                 let dimension = chunk_embeddings[0].1.len();
                 let mut aggregated = vec![f32::NEG_INFINITY; dimension];
-                
+
                 for (_, embedding) in chunk_embeddings {
                     for (i, &value) in embedding.iter().enumerate() {
                         aggregated[i] = aggregated[i].max(value);
                     }
                 }
-                
+
                 Ok(aggregated)
             }
-            
+
             AggregationStrategy::Concatenate => {
                 let mut concatenated = Vec::new();
                 for (_, embedding) in chunk_embeddings {
@@ -399,7 +436,10 @@ mod tests {
         let service = MultiVectorEmbeddingService::new(
             crate::embeddings::EmbeddingService::new(
                 crate::embeddings::EmbeddingClient::Ollama(
-                    crate::embeddings::OllamaEmbeddingClient::new("test".to_string(), "http://localhost".to_string())
+                    crate::embeddings::OllamaEmbeddingClient::new(
+                        "test".to_string(),
+                        "http://localhost".to_string(),
+                    ),
                 ),
                 crate::embeddings::EmbeddingConfig::default(),
             ),
@@ -420,7 +460,10 @@ mod tests {
         let service = MultiVectorEmbeddingService::new(
             crate::embeddings::EmbeddingService::new(
                 crate::embeddings::EmbeddingClient::Ollama(
-                    crate::embeddings::OllamaEmbeddingClient::new("test".to_string(), "http://localhost".to_string())
+                    crate::embeddings::OllamaEmbeddingClient::new(
+                        "test".to_string(),
+                        "http://localhost".to_string(),
+                    ),
                 ),
                 crate::embeddings::EmbeddingConfig::default(),
             ),
@@ -431,8 +474,10 @@ mod tests {
 
         let high_importance = "TL;DR This is the main point and key finding.";
         let low_importance = "Just some random text without important keywords.";
-        
-        assert!(service.calculate_importance_score(high_importance) > 
-                service.calculate_importance_score(low_importance));
+
+        assert!(
+            service.calculate_importance_score(high_importance)
+                > service.calculate_importance_score(low_importance)
+        );
     }
 }

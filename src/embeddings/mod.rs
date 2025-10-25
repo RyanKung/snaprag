@@ -28,11 +28,11 @@ pub mod cast_backfill;
 pub mod client;
 pub mod generator;
 pub mod local_gpu;
+pub mod migration;
+pub mod multi_vector;
 #[cfg(feature = "local-gpu")]
 pub mod multiprocess;
 pub mod text_preprocessing;
-pub mod multi_vector;
-pub mod migration;
 
 pub use backfill::backfill_embeddings;
 pub use cast_backfill::backfill_cast_embeddings;
@@ -43,12 +43,25 @@ pub use cast_backfill::CastBackfillStats;
 pub use client::EmbeddingClient;
 pub use client::EmbeddingProvider;
 pub use generator::EmbeddingService;
-pub use text_preprocessing::{preprocess_text_for_embedding, validate_text_for_embedding, generate_text_chunks};
-pub use multi_vector::{MultiVectorEmbeddingService, ChunkStrategy, AggregationStrategy, ChunkMetadata, ChunkedEmbeddingResult};
-pub use migration::{migrate_existing_embeddings, analyze_existing_embeddings, MigrationOptions, MigrationStats, MigrationAnalysis};
-
+pub use migration::analyze_existing_embeddings;
+pub use migration::migrate_existing_embeddings;
+pub use migration::MigrationAnalysis;
+pub use migration::MigrationOptions;
+pub use migration::MigrationStats;
+pub use multi_vector::AggregationStrategy;
+pub use multi_vector::ChunkMetadata;
+pub use multi_vector::ChunkStrategy;
+pub use multi_vector::ChunkedEmbeddingResult;
+pub use multi_vector::MultiVectorEmbeddingService;
 #[cfg(feature = "local-gpu")]
-pub use multiprocess::{MultiProcessEmbeddingGenerator, MultiProcessConfig, MultiProcessStats};
+pub use multiprocess::MultiProcessConfig;
+#[cfg(feature = "local-gpu")]
+pub use multiprocess::MultiProcessEmbeddingGenerator;
+#[cfg(feature = "local-gpu")]
+pub use multiprocess::MultiProcessStats;
+pub use text_preprocessing::generate_text_chunks;
+pub use text_preprocessing::preprocess_text_for_embedding;
+pub use text_preprocessing::validate_text_for_embedding;
 
 use crate::errors::Result;
 

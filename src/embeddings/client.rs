@@ -91,7 +91,14 @@ impl EmbeddingClient {
 
         // Initialize local GPU client if needed
         let local_gpu_client = if matches!(provider, EmbeddingProvider::LocalGPU) {
-            Some(crate::embeddings::local_gpu::LocalGPUClient::new_with_dimension(&model, 384, gpu_device_id).await?)
+            Some(
+                crate::embeddings::local_gpu::LocalGPUClient::new_with_dimension(
+                    &model,
+                    384,
+                    gpu_device_id,
+                )
+                .await?,
+            )
         } else {
             None
         };

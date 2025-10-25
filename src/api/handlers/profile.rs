@@ -113,3 +113,46 @@ pub async fn list_profiles(
         }
     }
 }
+
+/// Get profile by username
+pub async fn get_profile_by_username(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<Json<ApiResponse<ProfileResponse>>, StatusCode> {
+    info!("GET /api/profiles/username/{}", username);
+
+    // Try database first
+    let profile = match state.database.get_user_profile_by_username(&username).await {
+        Ok(Some(p)) => Some(p),
+        Ok(None) => {
+            // Try lazy loading if available
+            if let Some(loader) = &state.lazy_loader {
+                info!("⚡ Profile {} not found, attempting lazy load", username);
+                // For username-based lazy loading, we need to find the FID first
+                // This is a limitation - we can't lazy load by username directly
+                info!("⚠️ Lazy loading by username not supported, user {} not found", username);
+                None
+            } else {
+                None
+            }
+        }
+        Err(e) => {
+            error!("Error fetching profile by username: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    match profile {
+        Some(profile) => Ok(Json(ApiResponse::success(ProfileResponse {
+            fid: profile.fid,
+            username: profile.username,
+            display_name: profile.display_name,
+            bio: profile.bio,
+            pfp_url: profile.pfp_url,
+            location: profile.location,
+            twitter_username: profile.twitter_username,
+            github_username: profile.github_username,
+        }))),
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}

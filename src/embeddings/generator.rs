@@ -51,7 +51,10 @@ impl EmbeddingService {
 
     /// Create from custom config with async initialization for LocalGPU
     #[cfg(feature = "local-gpu")]
-    pub async fn from_config_async(config: EmbeddingConfig, gpu_device_id: Option<usize>) -> Result<Self> {
+    pub async fn from_config_async(
+        config: EmbeddingConfig,
+        gpu_device_id: Option<usize>,
+    ) -> Result<Self> {
         let client = if matches!(config.provider, EmbeddingProvider::LocalGPU) {
             EmbeddingClient::new_async(
                 config.provider,
@@ -80,7 +83,7 @@ impl EmbeddingService {
     pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         // Preprocess text to handle newlines and invalid characters
         let processed_text = crate::embeddings::preprocess_text_for_embedding(text)?;
-        
+
         self.client.generate(&processed_text).await
     }
 
@@ -108,12 +111,17 @@ impl EmbeddingService {
         let mut embeddings = if processed_texts.is_empty() {
             Vec::new()
         } else if processed_texts.len() <= MAX_BATCH_SIZE {
-            self.client.generate_batch(processed_texts.iter().map(|s| s.as_str()).collect()).await?
+            self.client
+                .generate_batch(processed_texts.iter().map(|s| s.as_str()).collect())
+                .await?
         } else {
             // Split into chunks
             let mut all_embeddings = Vec::new();
             for chunk in processed_texts.chunks(MAX_BATCH_SIZE) {
-                let chunk_embeddings = self.client.generate_batch(chunk.iter().map(|s| s.as_str()).collect()).await?;
+                let chunk_embeddings = self
+                    .client
+                    .generate_batch(chunk.iter().map(|s| s.as_str()).collect())
+                    .await?;
                 all_embeddings.extend(chunk_embeddings);
             }
             all_embeddings

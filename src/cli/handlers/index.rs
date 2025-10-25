@@ -54,9 +54,16 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
         // Casts
         "idx_casts_fid",
         "idx_casts_timestamp",
+        // Casts pg_trgm trigram indexes
+        "idx_casts_text_trgm",
+        "idx_cast_embeddings_text_trgm",
+        "idx_cast_embedding_chunks_text_trgm",
         // User profiles
         "idx_user_profiles_username",
         "idx_user_profiles_display_name",
+        // User profile pg_trgm trigram indexes
+        "idx_user_profile_changes_value_trgm",
+        "idx_username_proofs_username_trgm",
         // Links
         "idx_links_source_fid",
         "idx_links_target_fid",
@@ -150,9 +157,16 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
         // Casts
         ("idx_casts_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_fid ON casts(fid)"),
         ("idx_casts_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_timestamp ON casts(timestamp DESC)"),
+        // Casts pg_trgm trigram indexes for text search
+        ("idx_casts_text_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_trgm ON casts USING gin(text gin_trgm_ops) WHERE text IS NOT NULL AND length(text) > 0"),
+        ("idx_cast_embeddings_text_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embeddings_text_trgm ON cast_embeddings USING gin(text gin_trgm_ops) WHERE text IS NOT NULL AND length(text) > 0"),
+        ("idx_cast_embedding_chunks_text_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_chunks_text_trgm ON cast_embedding_chunks USING gin(chunk_text gin_trgm_ops) WHERE chunk_text IS NOT NULL AND length(chunk_text) > 0"),
         // User profiles
         ("idx_user_profiles_username", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)"),
         ("idx_user_profiles_display_name", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_display_name ON user_profiles(display_name)"),
+        // User profile pg_trgm trigram indexes
+        ("idx_user_profile_changes_value_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profile_changes_value_trgm ON user_profile_changes USING gin(field_value gin_trgm_ops) WHERE field_value IS NOT NULL AND length(field_value) > 0"),
+        ("idx_username_proofs_username_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_username_proofs_username_trgm ON username_proofs USING gin(username gin_trgm_ops) WHERE username IS NOT NULL AND length(username) > 0"),
         // Links
         ("idx_links_source_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_source_fid ON links(fid)"),
         ("idx_links_target_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_target_fid ON links(target_fid)"),
@@ -236,16 +250,50 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
 
     println!("\n📊 Database Index & Autovacuum Status\n");
 
+    // Check pg_trgm extension status
+    println!("🔍 PostgreSQL Extensions:");
+    let extensions = vec![
+        ("vector", "Vector similarity search"),
+        ("pg_trgm", "Trigram text search"),
+    ];
+
+    for (ext_name, description) in &extensions {
+        let result: Option<(bool,)> =
+            sqlx::query_as("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = $1)")
+                .bind(ext_name)
+                .fetch_optional(db)
+                .await?;
+
+        if let Some((exists,)) = result {
+            if exists {
+                println!("  ✅ {ext_name} - {description}");
+            } else {
+                println!("  ❌ {ext_name} - {description} (missing)");
+            }
+        }
+    }
+
     // Check which indexes exist
-    println!("🔍 Non-Essential Indexes:");
+    println!("\n🔍 Non-Essential Indexes:");
     let indexes = vec![
+        // Casts
         "idx_casts_fid",
         "idx_casts_timestamp",
+        // Casts pg_trgm trigram indexes
+        "idx_casts_text_trgm",
+        "idx_cast_embeddings_text_trgm",
+        "idx_cast_embedding_chunks_text_trgm",
+        // User profiles
         "idx_user_profiles_username",
         "idx_user_profiles_display_name",
+        // User profile pg_trgm trigram indexes
+        "idx_user_profile_changes_value_trgm",
+        "idx_username_proofs_username_trgm",
+        // Links
         "idx_links_source_fid",
         "idx_links_target_fid",
         "idx_links_timestamp",
+        // Reactions
         "idx_reactions_fid",
         "idx_reactions_target_cast_hash",
         "idx_reactions_timestamp",
@@ -255,8 +303,10 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         "idx_reactions_target_fid",
         "idx_reactions_type",
         "idx_reactions_user_cast",
+        // Verifications
         "idx_verifications_fid",
         "idx_verifications_timestamp",
+        // User data
         "idx_user_data_fid",
         "idx_user_data_type",
     ];
@@ -283,6 +333,36 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         "\n  Status: {}/{} indexes present",
         existing_count,
         indexes.len()
+    );
+
+    // Show trigram index details
+    let trigram_indexes = vec![
+        "idx_casts_text_trgm",
+        "idx_cast_embeddings_text_trgm",
+        "idx_cast_embedding_chunks_text_trgm",
+        "idx_user_profile_changes_value_trgm",
+        "idx_username_proofs_username_trgm",
+    ];
+
+    let mut trigram_count = 0;
+    for index_name in &trigram_indexes {
+        let result: Option<(bool,)> =
+            sqlx::query_as("SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)")
+                .bind(index_name)
+                .fetch_optional(db)
+                .await?;
+
+        if let Some((exists,)) = result {
+            if exists {
+                trigram_count += 1;
+            }
+        }
+    }
+
+    println!(
+        "\n  Trigram Text Search Indexes: {}/{} present",
+        trigram_count,
+        trigram_indexes.len()
     );
 
     // Check autovacuum status
@@ -330,15 +410,17 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
     println!("\n🎯 Current Mode:");
     if existing_count == indexes.len() && enabled_count == tables.len() {
         println!("  ✅ NORMAL OPERATION MODE");
-        println!("     - All indexes present");
+        println!("     - All indexes present (including trigram text search)");
         println!("     - Autovacuum enabled");
         println!("     - Query performance: FAST");
+        println!("     - Text search performance: OPTIMIZED (pg_trgm)");
         println!("     - Insert performance: NORMAL");
     } else if existing_count == 0 && enabled_count == 0 {
         println!("  🚀 BULK SYNC MODE (Turbo)");
-        println!("     - Indexes dropped");
+        println!("     - Indexes dropped (including trigram indexes)");
         println!("     - Autovacuum disabled");
         println!("     - Query performance: SLOW");
+        println!("     - Text search performance: DISABLED");
         println!("     - Insert performance: FAST (+30-70%)");
         println!("\n  ⚠️  Run 'snaprag index set' after sync completes!");
     } else {
@@ -347,6 +429,11 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
             "     - Some indexes missing: {}/{}",
             indexes.len() - existing_count,
             indexes.len()
+        );
+        println!(
+            "     - Trigram indexes missing: {}/{}",
+            trigram_indexes.len() - trigram_count,
+            trigram_indexes.len()
         );
         println!(
             "     - Autovacuum disabled on: {}/{}",
