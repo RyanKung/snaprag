@@ -34,13 +34,20 @@ pub async fn handle_serve_api(
 
     #[cfg(feature = "payment")]
     // Get payment address: prefer CLI argument, fall back to config
-    let payment_address_final = payment_address.or_else(|| {
-        if !config.x402.payment_address.is_empty() {
-            Some(config.x402.payment_address.clone())
-        } else {
-            None
-        }
-    });
+    // Read from config even if payment is disabled (for potential future use)
+    let payment_address_final = if let Some(addr) = payment_address {
+        println!("🔧 Using CLI payment address: {}", addr);
+        Some(addr)
+    } else if !config.x402.payment_address.is_empty() {
+        println!(
+            "🔧 Using config payment address: {}",
+            config.x402.payment_address
+        );
+        Some(config.x402.payment_address.clone())
+    } else {
+        println!("⚠️ No payment address found in CLI or config");
+        None
+    };
 
     #[cfg(feature = "payment")]
     if payment_final {
