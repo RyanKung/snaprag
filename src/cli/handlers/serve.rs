@@ -33,17 +33,30 @@ pub async fn handle_serve_api(
     let payment_final = payment || config.x402.enabled;
 
     #[cfg(feature = "payment")]
+    // Helper function to normalize Ethereum address
+    fn normalize_address(addr: &str) -> String {
+        let addr = addr.trim();
+        if addr.starts_with("0x") || addr.starts_with("0X") {
+            format!("0x{}", addr[2..].to_lowercase())
+        } else {
+            format!("0x{}", addr.to_lowercase())
+        }
+    }
+
+    #[cfg(feature = "payment")]
     // Get payment address: prefer CLI argument, fall back to config
     // Read from config even if payment is disabled (for potential future use)
     let payment_address_final = if let Some(addr) = payment_address {
-        println!("🔧 Using CLI payment address: {}", addr);
-        Some(addr)
+        let normalized = normalize_address(&addr);
+        println!("🔧 Using CLI payment address (normalized): {}", normalized);
+        Some(normalized)
     } else if !config.x402.payment_address.is_empty() {
+        let normalized = normalize_address(&config.x402.payment_address);
         println!(
-            "🔧 Using config payment address: {}",
-            config.x402.payment_address
+            "🔧 Using config payment address (normalized): {}",
+            normalized
         );
-        Some(config.x402.payment_address.clone())
+        Some(normalized)
     } else {
         println!("⚠️ No payment address found in CLI or config");
         None
