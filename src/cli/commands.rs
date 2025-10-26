@@ -605,11 +605,11 @@ pub enum ServeCommands {
         #[arg(short, long, default_value = "3000")]
         port: u16,
         /// Enable CORS
-        #[arg(long)]
+        #[arg(long, action = clap::ArgAction::SetTrue)]
         cors: bool,
         /// Enable x402 payment
         #[cfg(feature = "payment")]
-        #[arg(long)]
+        #[arg(long, action = clap::ArgAction::SetTrue)]
         payment: bool,
         /// Address to receive payments (defaults to config or 0x0)
         #[cfg(feature = "payment")]
