@@ -5,10 +5,13 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use std::time::Instant;
 
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::debug;
+use tracing::info;
+use tracing::warn;
 
 use crate::api::types::ProfileResponse;
 use crate::social_graph::SocialProfile;
@@ -104,7 +107,7 @@ impl CacheService {
     /// Get cached profile by FID
     pub async fn get_profile(&self, fid: i64) -> Option<ProfileResponse> {
         let mut cache = self.profile_cache.write().await;
-        
+
         if let Some(entry) = cache.get(&fid) {
             if entry.is_expired() {
                 cache.remove(&fid);
@@ -112,12 +115,12 @@ impl CacheService {
                 tracing::debug!("Profile cache miss (expired) for FID {}", fid);
                 return None;
             }
-            
+
             self.increment_hit().await;
             tracing::debug!("Profile cache hit for FID {}", fid);
             return Some(entry.data.clone());
         }
-        
+
         self.increment_miss().await;
         tracing::debug!("Profile cache miss for FID {}", fid);
         None
@@ -126,12 +129,12 @@ impl CacheService {
     /// Cache a profile response
     pub async fn set_profile(&self, fid: i64, profile: ProfileResponse) {
         let mut cache = self.profile_cache.write().await;
-        
+
         // Check if we need to evict entries
         if cache.len() >= self.config.max_entries {
             self.evict_oldest_entries(&mut cache).await;
         }
-        
+
         let entry = CacheEntry::new(profile, self.config.profile_ttl);
         cache.insert(fid, entry);
         tracing::debug!("Cached profile for FID {}", fid);
@@ -140,7 +143,7 @@ impl CacheService {
     /// Get cached social analysis by FID
     pub async fn get_social(&self, fid: i64) -> Option<SocialProfile> {
         let mut cache = self.social_cache.write().await;
-        
+
         if let Some(entry) = cache.get(&fid) {
             if entry.is_expired() {
                 cache.remove(&fid);
@@ -148,12 +151,12 @@ impl CacheService {
                 tracing::debug!("Social cache miss (expired) for FID {}", fid);
                 return None;
             }
-            
+
             self.increment_hit().await;
             tracing::debug!("Social cache hit for FID {}", fid);
             return Some(entry.data.clone());
         }
-        
+
         self.increment_miss().await;
         tracing::debug!("Social cache miss for FID {}", fid);
         None
@@ -162,12 +165,12 @@ impl CacheService {
     /// Cache a social analysis response
     pub async fn set_social(&self, fid: i64, social: SocialProfile) {
         let mut cache = self.social_cache.write().await;
-        
+
         // Check if we need to evict entries
         if cache.len() >= self.config.max_entries {
             self.evict_oldest_entries(&mut cache).await;
         }
-        
+
         let entry = CacheEntry::new(social, self.config.social_ttl);
         cache.insert(fid, entry);
         tracing::debug!("Cached social analysis for FID {}", fid);
@@ -230,7 +233,7 @@ impl CacheService {
     pub async fn get_cache_info(&self) -> CacheInfo {
         let profile_cache = self.profile_cache.read().await;
         let social_cache = self.social_cache.read().await;
-        
+
         CacheInfo {
             profile_entries: profile_cache.len(),
             social_entries: social_cache.len(),
@@ -243,10 +246,10 @@ impl CacheService {
     pub async fn cleanup_expired(&self) {
         let mut profile_cache = self.profile_cache.write().await;
         let mut social_cache = self.social_cache.write().await;
-        
+
         let mut profile_removed = 0;
         let mut social_removed = 0;
-        
+
         // Clean up profile cache
         profile_cache.retain(|_, entry| {
             if entry.is_expired() {
@@ -256,7 +259,7 @@ impl CacheService {
                 true
             }
         });
-        
+
         // Clean up social cache
         social_cache.retain(|_, entry| {
             if entry.is_expired() {
@@ -266,21 +269,24 @@ impl CacheService {
                 true
             }
         });
-        
+
         if profile_removed > 0 || social_removed > 0 {
             let mut stats = self.stats.write().await;
             stats.expired_cleanups += profile_removed + social_removed;
-            debug!("Cleaned up {} expired cache entries", profile_removed + social_removed);
+            debug!(
+                "Cleaned up {} expired cache entries",
+                profile_removed + social_removed
+            );
         }
     }
 
     /// Start background cleanup task
     pub async fn start_cleanup_task(&self) {
         let cache_service = Arc::new(self.clone());
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // Cleanup every 5 minutes
-            
+
             loop {
                 interval.tick().await;
                 cache_service.cleanup_expired().await;
@@ -308,16 +314,16 @@ impl CacheService {
         // Simple eviction: remove 10% of entries
         let evict_count = (cache.len() / 10).max(1);
         let keys_to_remove: Vec<i64> = cache.keys().take(evict_count).copied().collect();
-        
+
         for key in keys_to_remove {
             cache.remove(&key);
         }
-        
+
         if self.config.enable_stats {
             let mut stats = self.stats.write().await;
             stats.evictions += evict_count as u64;
         }
-        
+
         debug!("Evicted {} cache entries", evict_count);
     }
 }

@@ -25,10 +25,17 @@ pub async fn get_profile(
     tracing::debug!("Checking cache for profile FID {}", fid);
     if let Some(cached_profile) = state.cache_service.get_profile(fid).await {
         let duration = start_time.elapsed();
-        info!("📦 Profile cache hit for FID {} - {}ms", fid, duration.as_millis());
+        info!(
+            "📦 Profile cache hit for FID {} - {}ms",
+            fid,
+            duration.as_millis()
+        );
         return Ok(Json(ApiResponse::success(cached_profile)));
     }
-    tracing::debug!("No cache hit for profile FID {}, proceeding to database", fid);
+    tracing::debug!(
+        "No cache hit for profile FID {}, proceeding to database",
+        fid
+    );
 
     // Try database first
     let profile = match state.database.get_user_profile(fid).await {
@@ -54,7 +61,11 @@ pub async fn get_profile(
         Err(e) => {
             error!("Error fetching profile: {}", e);
             let duration = start_time.elapsed();
-            info!("❌ GET /api/profiles/{} - {}ms - 500", fid, duration.as_millis());
+            info!(
+                "❌ GET /api/profiles/{} - {}ms - 500",
+                fid,
+                duration.as_millis()
+            );
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -71,18 +82,26 @@ pub async fn get_profile(
                 twitter_username: profile.twitter_username,
                 github_username: profile.github_username,
             };
-            
+
             // Cache the response
             tracing::debug!("Caching profile response for FID {}", fid);
             state.cache_service.set_profile(fid, response.clone()).await;
-            
+
             let duration = start_time.elapsed();
-            info!("✅ GET /api/profiles/{} - {}ms - 200 (cached)", fid, duration.as_millis());
+            info!(
+                "✅ GET /api/profiles/{} - {}ms - 200 (cached)",
+                fid,
+                duration.as_millis()
+            );
             Ok(Json(ApiResponse::success(response)))
         }
         None => {
             let duration = start_time.elapsed();
-            info!("❌ GET /api/profiles/{} - {}ms - 404", fid, duration.as_millis());
+            info!(
+                "❌ GET /api/profiles/{} - {}ms - 404",
+                fid,
+                duration.as_millis()
+            );
             Err(StatusCode::NOT_FOUND)
         }
     }
@@ -156,7 +175,10 @@ pub async fn get_profile_by_username(
                 info!("⚡ Profile {} not found, attempting lazy load", username);
                 // For username-based lazy loading, we need to find the FID first
                 // This is a limitation - we can't lazy load by username directly
-                info!("⚠️ Lazy loading by username not supported, user {} not found", username);
+                info!(
+                    "⚠️ Lazy loading by username not supported, user {} not found",
+                    username
+                );
                 None
             } else {
                 None
@@ -180,10 +202,13 @@ pub async fn get_profile_by_username(
                 twitter_username: profile.twitter_username,
                 github_username: profile.github_username,
             };
-            
+
             // Cache the response by FID (since username lookups are less common)
-            state.cache_service.set_profile(profile.fid, response.clone()).await;
-            
+            state
+                .cache_service
+                .set_profile(profile.fid, response.clone())
+                .await;
+
             Ok(Json(ApiResponse::success(response)))
         }
         None => Err(StatusCode::NOT_FOUND),

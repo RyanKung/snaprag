@@ -894,25 +894,27 @@ impl LifecycleManager {
         }
 
         info!("🎉 All shards completed successfully!");
-        
+
         // If we're syncing to latest (u64::MAX), start continuous sync
         if to_block == u64::MAX && self.config.enable_continuous_sync {
-            info!("🔄 Starting continuous sync monitoring (polling every {} seconds)...", 
-                  self.config.continuous_sync_interval_secs);
-            
+            info!(
+                "🔄 Starting continuous sync monitoring (polling every {} seconds)...",
+                self.config.continuous_sync_interval_secs
+            );
+
             // Start continuous sync and wait for it to complete (it runs forever)
             let config = self.config.clone();
             let client = self.client.clone();
             let database = self.database.clone();
             let state_manager = self.state_manager.clone();
-            
+
             Self::run_continuous_sync(config, client, database, state_manager).await;
         } else if to_block == u64::MAX {
             info!("⚠️  Continuous sync is disabled. Enable it in config to automatically sync new blocks.");
         } else {
             info!("⚠️  Note: Run 'snaprag sync start' again (without --workers) to fill any gaps from failed batches");
         }
-        
+
         Ok(())
     }
 

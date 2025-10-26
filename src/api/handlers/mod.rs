@@ -214,7 +214,11 @@ pub async fn get_social_analysis(
     tracing::debug!("Checking cache for social analysis FID {}", fid);
     if let Some(cached_social) = state.cache_service.get_social(fid).await {
         let duration = start_time.elapsed();
-        info!("📦 Social cache hit for FID {} - {}ms", fid, duration.as_millis());
+        info!(
+            "📦 Social cache hit for FID {} - {}ms",
+            fid,
+            duration.as_millis()
+        );
         let social_data = serde_json::to_value(&cached_social).unwrap_or_else(|_| {
             serde_json::json!({
                 "error": "Failed to serialize cached social profile"
@@ -222,55 +226,80 @@ pub async fn get_social_analysis(
         });
         return Ok(Json(ApiResponse::success(social_data)));
     }
-    tracing::debug!("No cache hit for social analysis FID {}, proceeding to analysis", fid);
+    tracing::debug!(
+        "No cache hit for social analysis FID {}, proceeding to analysis",
+        fid
+    );
 
     // Get user profile first
     let profile = match state.database.get_user_profile(fid).await {
         Ok(Some(profile)) => profile,
         Ok(None) => {
             let duration = start_time.elapsed();
-            info!("❌ GET /api/social/{} - {}ms - 404 (user not found)", fid, duration.as_millis());
+            info!(
+                "❌ GET /api/social/{} - {}ms - 404 (user not found)",
+                fid,
+                duration.as_millis()
+            );
             return Ok(Json(ApiResponse::error(format!(
-                "User with FID {} not found", fid
+                "User with FID {} not found",
+                fid
             ))));
         }
         Err(e) => {
             error!("Failed to get user profile for FID {}: {}", fid, e);
             let duration = start_time.elapsed();
-            info!("❌ GET /api/social/{} - {}ms - 500 (profile error)", fid, duration.as_millis());
+            info!(
+                "❌ GET /api/social/{} - {}ms - 500 (profile error)",
+                fid,
+                duration.as_millis()
+            );
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to get user profile: {}", e
+                "Failed to get user profile: {}",
+                e
             ))));
         }
     };
 
     // Initialize social graph analyzer
     let analyzer = SocialGraphAnalyzer::new(state.database.clone());
-    
+
     // Analyze user's social graph
     match analyzer.analyze_user(fid).await {
         Ok(social_profile) => {
             // Cache the social analysis
             tracing::debug!("Caching social analysis response for FID {}", fid);
-            state.cache_service.set_social(fid, social_profile.clone()).await;
-            
+            state
+                .cache_service
+                .set_social(fid, social_profile.clone())
+                .await;
+
             // Convert social profile to JSON
             let social_data = serde_json::to_value(&social_profile).unwrap_or_else(|_| {
                 serde_json::json!({
                     "error": "Failed to serialize social profile"
                 })
             });
-            
+
             let duration = start_time.elapsed();
-            info!("✅ GET /api/social/{} - {}ms - 200 (cached)", fid, duration.as_millis());
+            info!(
+                "✅ GET /api/social/{} - {}ms - 200 (cached)",
+                fid,
+                duration.as_millis()
+            );
             Ok(Json(ApiResponse::success(social_data)))
         }
         Err(e) => {
             error!("Failed to analyze social graph for FID {}: {}", fid, e);
             let duration = start_time.elapsed();
-            info!("❌ GET /api/social/{} - {}ms - 500 (analysis error)", fid, duration.as_millis());
+            info!(
+                "❌ GET /api/social/{} - {}ms - 500 (analysis error)",
+                fid,
+                duration.as_millis()
+            );
             Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze social graph: {}", e
+                "Failed to analyze social graph: {}",
+                e
             ))))
         }
     }
@@ -288,20 +317,28 @@ pub async fn get_social_analysis_by_username(
         Ok(Some(profile)) => profile,
         Ok(None) => {
             return Ok(Json(ApiResponse::error(format!(
-                "User with username {} not found", username
+                "User with username {} not found",
+                username
             ))));
         }
         Err(e) => {
-            error!("Failed to get user profile for username {}: {}", username, e);
+            error!(
+                "Failed to get user profile for username {}: {}",
+                username, e
+            );
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to get user profile: {}", e
+                "Failed to get user profile: {}",
+                e
             ))));
         }
     };
 
     // Check cache first for the FID
     if let Some(cached_social) = state.cache_service.get_social(profile.fid).await {
-        info!("📦 Social cache hit for username {} (FID {})", username, profile.fid);
+        info!(
+            "📦 Social cache hit for username {} (FID {})",
+            username, profile.fid
+        );
         let social_data = serde_json::to_value(&cached_social).unwrap_or_else(|_| {
             serde_json::json!({
                 "error": "Failed to serialize cached social profile"
@@ -312,26 +349,33 @@ pub async fn get_social_analysis_by_username(
 
     // Initialize social graph analyzer
     let analyzer = SocialGraphAnalyzer::new(state.database.clone());
-    
+
     // Analyze user's social graph using the FID from the profile
     match analyzer.analyze_user(profile.fid).await {
         Ok(social_profile) => {
             // Cache the social analysis
-            state.cache_service.set_social(profile.fid, social_profile.clone()).await;
-            
+            state
+                .cache_service
+                .set_social(profile.fid, social_profile.clone())
+                .await;
+
             // Convert social profile to JSON
             let social_data = serde_json::to_value(&social_profile).unwrap_or_else(|_| {
                 serde_json::json!({
                     "error": "Failed to serialize social profile"
                 })
             });
-            
+
             Ok(Json(ApiResponse::success(social_data)))
         }
         Err(e) => {
-            error!("Failed to analyze social graph for username {} (FID {}): {}", username, profile.fid, e);
+            error!(
+                "Failed to analyze social graph for username {} (FID {}): {}",
+                username, profile.fid, e
+            );
             Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze social graph: {}", e
+                "Failed to analyze social graph: {}",
+                e
             ))))
         }
     }

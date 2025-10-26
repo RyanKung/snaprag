@@ -38,10 +38,10 @@ pub async fn serve_api(
     // Initialize services
     let database = Arc::new(Database::from_config(config).await?);
     info!("✅ Database service initialized");
-    
+
     let embedding_service = Arc::new(EmbeddingService::new(config)?);
     info!("✅ Embedding service initialized");
-    
+
     let llm_service = Arc::new(LlmService::new(config)?);
     info!("✅ LLM service initialized");
 
@@ -63,20 +63,20 @@ pub async fn serve_api(
     info!("  Social TTL: {} seconds", config.cache.social_ttl_secs);
     info!("  Max entries: {}", config.cache.max_entries);
     info!("  Enable stats: {}", config.cache.enable_stats);
-    
+
     let cache_service = Arc::new(CacheService::with_config(crate::api::cache::CacheConfig {
         profile_ttl: std::time::Duration::from_secs(config.cache.profile_ttl_secs),
         social_ttl: std::time::Duration::from_secs(config.cache.social_ttl_secs),
         max_entries: config.cache.max_entries,
         enable_stats: config.cache.enable_stats,
     }));
-    
+
     if config.cache.enabled {
         info!("✅ Cache service initialized (enabled)");
         info!("  Profile TTL: {} seconds", config.cache.profile_ttl_secs);
         info!("  Social TTL: {} seconds", config.cache.social_ttl_secs);
         info!("  Max entries: {}", config.cache.max_entries);
-        
+
         // Start background cleanup task
         cache_service.clone().start_cleanup_task().await;
         info!("✅ Cache cleanup task started");

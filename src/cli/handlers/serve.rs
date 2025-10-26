@@ -25,12 +25,27 @@ pub async fn handle_serve_api(
     println!("🌐 CORS: {}", if cors { "Enabled" } else { "Disabled" });
 
     #[cfg(feature = "payment")]
+    // CLI arguments take priority over config
     let testnet_final = testnet.unwrap_or(config.x402.use_testnet);
 
     #[cfg(feature = "payment")]
-    if payment {
+    // CLI argument takes priority over config
+    let payment_final = payment || config.x402.enabled;
+
+    #[cfg(feature = "payment")]
+    // Get payment address: prefer CLI argument, fall back to config
+    let payment_address_final = payment_address.or_else(|| {
+        if !config.x402.payment_address.is_empty() {
+            Some(config.x402.payment_address.clone())
+        } else {
+            None
+        }
+    });
+
+    #[cfg(feature = "payment")]
+    if payment_final {
         println!("💰 Payment: ENABLED");
-        if let Some(addr) = &payment_address {
+        if let Some(addr) = &payment_address_final {
             println!("📍 Payment Address: {}", addr);
         }
         println!(
@@ -57,9 +72,9 @@ pub async fn handle_serve_api(
         port,
         cors,
         #[cfg(feature = "payment")]
-        payment,
+        payment_final,
         #[cfg(feature = "payment")]
-        payment_address,
+        payment_address_final,
         #[cfg(feature = "payment")]
         testnet_final,
     )

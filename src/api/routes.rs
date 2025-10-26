@@ -18,7 +18,10 @@ pub fn api_routes(state: AppState) -> Router {
         // Profile endpoints
         .route("/profiles", get(handlers::list_profiles))
         .route("/profiles/:fid", get(handlers::get_profile))
-        .route("/profiles/username/:username", get(handlers::get_profile_by_username))
+        .route(
+            "/profiles/username/:username",
+            get(handlers::get_profile_by_username),
+        )
         // Fetch endpoints (lazy loading)
         .route("/fetch/user/:fid", post(handlers::fetch_user))
         .route("/fetch/users", post(handlers::fetch_users_batch))
@@ -39,6 +42,9 @@ pub fn api_routes(state: AppState) -> Router {
         .route("/stats", get(handlers::get_stats))
         // Social graph endpoints
         .route("/social/:fid", get(handlers::get_social_analysis))
-        .route("/social/username/:username", get(handlers::get_social_analysis_by_username))
+        .route(
+            "/social/username/:username",
+            get(handlers::get_social_analysis_by_username),
+        )
         .with_state(state)
 }
