@@ -4833,6 +4833,7 @@ dependencies = [
 [[package]]
 name = "rust-x402"
 version = "0.1.1"
+source = "git+https://github.com/RyanKung/rust-x402#b4183644ff3bec4688c6d61c3813d16a596cf08b"
 dependencies = [
  "axum 0.7.9",
  "base64 0.22.1",

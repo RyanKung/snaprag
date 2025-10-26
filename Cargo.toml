@@ -68,11 +68,9 @@ candle-transformers = { version = "0.9", optional = true }
 tokenizers = { version = "0.20", optional = true }
 hf-hub = { version = "0.3", features = ["tokio"], optional = true }
 
-# x402 payment protocol (local development)
-# NOTE: Switch to crate or git dependency for production
-# rust-x402 = "0.1"  # Production
-# rust-x402 = { git = "https://github.com/RyanKung/x402_rs" }  # Git
-rust-x402 = { path = "../rust-x402", features = ["axum"], optional = true }
+# x402 payment protocol
+# rust-x402 = "0.1"  # Production from crates.io
+rust-x402 = { git = "https://github.com/RyanKung/rust-x402", features = ["axum"], optional = true }
 
 [features]
 default = []
