@@ -9,6 +9,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
+use crate::api::cache::CacheService;
 use crate::api::handlers::AppState;
 use crate::api::mcp;
 #[cfg(feature = "payment")]
@@ -55,12 +56,41 @@ pub async fn serve_api(
     let session_manager = Arc::new(crate::api::session::SessionManager::new(3600));
     info!("Session manager initialized (timeout: 1 hour)");
 
+    // Initialize cache service
+    info!("🔧 Initializing cache service...");
+    info!("  Cache enabled: {}", config.cache.enabled);
+    info!("  Profile TTL: {} seconds", config.cache.profile_ttl_secs);
+    info!("  Social TTL: {} seconds", config.cache.social_ttl_secs);
+    info!("  Max entries: {}", config.cache.max_entries);
+    info!("  Enable stats: {}", config.cache.enable_stats);
+    
+    let cache_service = Arc::new(CacheService::with_config(crate::api::cache::CacheConfig {
+        profile_ttl: std::time::Duration::from_secs(config.cache.profile_ttl_secs),
+        social_ttl: std::time::Duration::from_secs(config.cache.social_ttl_secs),
+        max_entries: config.cache.max_entries,
+        enable_stats: config.cache.enable_stats,
+    }));
+    
+    if config.cache.enabled {
+        info!("✅ Cache service initialized (enabled)");
+        info!("  Profile TTL: {} seconds", config.cache.profile_ttl_secs);
+        info!("  Social TTL: {} seconds", config.cache.social_ttl_secs);
+        info!("  Max entries: {}", config.cache.max_entries);
+        
+        // Start background cleanup task
+        cache_service.clone().start_cleanup_task().await;
+        info!("✅ Cache cleanup task started");
+    } else {
+        info!("⚠️ Cache service disabled in configuration");
+    }
+
     let state = AppState {
         database,
         embedding_service,
         llm_service,
         lazy_loader,
         session_manager,
+        cache_service,
     };
 
     // Build API routes

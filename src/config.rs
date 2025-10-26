@@ -102,6 +102,45 @@ fn default_llm_model() -> String {
     "gemma3:27b".to_string()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CacheConfig {
+    /// Enable API caching
+    #[serde(default = "default_cache_enabled")]
+    pub enabled: bool,
+    /// Profile cache TTL in seconds (default: 1 hour)
+    #[serde(default = "default_profile_ttl")]
+    pub profile_ttl_secs: u64,
+    /// Social analysis cache TTL in seconds (default: 1 hour)
+    #[serde(default = "default_social_ttl")]
+    pub social_ttl_secs: u64,
+    /// Maximum number of cache entries
+    #[serde(default = "default_max_cache_entries")]
+    pub max_entries: usize,
+    /// Enable cache statistics
+    #[serde(default = "default_cache_stats")]
+    pub enable_stats: bool,
+}
+
+const fn default_cache_enabled() -> bool {
+    true
+}
+
+const fn default_profile_ttl() -> u64 {
+    3600 // 1 hour
+}
+
+const fn default_social_ttl() -> u64 {
+    3600 // 1 hour
+}
+
+const fn default_max_cache_entries() -> usize {
+    10000
+}
+
+const fn default_cache_stats() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct X402Config {
     /// Address to receive payments (defaults to burn address)
@@ -141,6 +180,8 @@ pub struct AppConfig {
     pub performance: PerformanceConfig,
     pub sync: SyncConfig,
     pub llm: LlmConfig,
+    #[serde(default)]
+    pub cache: CacheConfig,
     #[serde(default)]
     pub x402: X402Config,
 }
@@ -378,6 +419,13 @@ impl Default for AppConfig {
                 llm_endpoint: "http://localhost:11434".to_string(),
                 llm_key: "ollama".to_string(),
                 llm_model: "gemma3:27b".to_string(),
+            },
+            cache: CacheConfig {
+                enabled: true,
+                profile_ttl_secs: 3600, // 1 hour
+                social_ttl_secs: 3600,  // 1 hour
+                max_entries: 10000,
+                enable_stats: true,
             },
             x402: X402Config::default(),
         }

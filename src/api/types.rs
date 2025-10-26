@@ -163,7 +163,7 @@ const fn default_max_tokens() -> usize {
 }
 
 /// Profile response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ProfileResponse {
     pub fid: i64,
     pub username: Option<String>,
@@ -185,6 +185,21 @@ pub struct CastResponse {
     pub similarity: Option<f32>,
 }
 
+/// Cache statistics response
+#[derive(Debug, Serialize)]
+pub struct CacheStatsResponse {
+    pub hits: u64,
+    pub misses: u64,
+    pub hit_rate: f64,
+    pub evictions: u64,
+    pub expired_cleanups: u64,
+    pub profile_entries: usize,
+    pub social_entries: usize,
+    pub total_entries: usize,
+    pub max_entries: usize,
+    pub usage_percentage: f64,
+}
+
 /// Statistics response
 #[derive(Debug, Serialize)]
 pub struct StatsResponse {
@@ -192,6 +207,7 @@ pub struct StatsResponse {
     pub total_casts: i64,
     pub profiles_with_embeddings: i64,
     pub casts_with_embeddings: i64,
+    pub cache_stats: Option<CacheStatsResponse>,
 }
 
 /// Fetch user request

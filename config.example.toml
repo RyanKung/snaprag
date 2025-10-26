@@ -88,6 +88,18 @@ llm_endpoint = "http://localhost:11434"
 llm_key = "ollama"
 llm_model = "gemma3:27b"
 
+[cache]
+# API caching configuration
+enabled = true
+# Profile cache TTL in seconds (default: 1 hour)
+profile_ttl_secs = 3600
+# Social analysis cache TTL in seconds (default: 1 hour)  
+social_ttl_secs = 3600
+# Maximum number of cache entries
+max_entries = 10000
+# Enable cache statistics
+enable_stats = true
+
 [x402]
 # x402 payment configuration (optional, for paid API access)
 # Payment address - where USDC payments will be sent
