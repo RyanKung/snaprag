@@ -117,8 +117,12 @@ pub async fn serve_api(
             }
         );
 
+        // Create base URL for payment requirements
+        let base_url = format!("http://{}:{}/api", host, port);
+        info!("🔗 Payment base URL: {}", base_url);
+
         // Create payment middleware state
-        let payment_state = PaymentMiddlewareState::new(payment_addr.clone(), testnet);
+        let payment_state = PaymentMiddlewareState::new(payment_addr.clone(), testnet, base_url);
 
         // Apply payment middleware to API routes
         let protected_api = api_router.layer(axum::middleware::from_fn_with_state(

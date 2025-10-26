@@ -34,11 +34,12 @@ pub struct PaymentMiddlewareState {
     pub payment_address: String,
     pub testnet: bool,
     pub middleware: X402Middleware,
+    pub base_url: String,
 }
 
 #[cfg(feature = "payment")]
 impl PaymentMiddlewareState {
-    pub fn new(payment_address: String, testnet: bool) -> Self {
+    pub fn new(payment_address: String, testnet: bool, base_url: String) -> Self {
         use std::str::FromStr;
 
         use rust_decimal::Decimal;
@@ -53,6 +54,7 @@ impl PaymentMiddlewareState {
             payment_address,
             testnet,
             middleware,
+            base_url,
         }
     }
 }
@@ -96,6 +98,7 @@ pub async fn smart_payment_middleware(
                                 &state.payment_address,
                                 state.testnet,
                                 &state.pricing,
+                                &state.base_url,
                             );
 
                             // Verify payment
@@ -137,6 +140,7 @@ pub async fn smart_payment_middleware(
                                         &state.payment_address,
                                         state.testnet,
                                         &state.pricing,
+                                        &state.base_url,
                                     )
                                 }
                                 Err(e) => {
@@ -148,6 +152,7 @@ pub async fn smart_payment_middleware(
                                         &state.payment_address,
                                         state.testnet,
                                         &state.pricing,
+                                        &state.base_url,
                                     )
                                 }
                             }
@@ -161,6 +166,7 @@ pub async fn smart_payment_middleware(
                                 &state.payment_address,
                                 state.testnet,
                                 &state.pricing,
+                                &state.base_url,
                             )
                         }
                     }
@@ -171,6 +177,7 @@ pub async fn smart_payment_middleware(
                         &state.payment_address,
                         state.testnet,
                         &state.pricing,
+                        &state.base_url,
                     )
                 }
             } else {
@@ -182,6 +189,7 @@ pub async fn smart_payment_middleware(
                     &state.payment_address,
                     state.testnet,
                     &state.pricing,
+                    &state.base_url,
                 )
             }
         }
@@ -196,6 +204,7 @@ fn create_payment_requirements(
     payment_address: &str,
     testnet: bool,
     pricing: &PricingConfig,
+    base_url: &str,
 ) -> PaymentRequirements {
     use rust_x402::types::networks;
     use rust_x402::types::schemes;
@@ -236,13 +245,26 @@ fn create_payment_requirements(
         amount_atomic
     );
 
+    // Convert relative path to absolute URL
+    let resource_url = if path.starts_with("http://") || path.starts_with("https://") {
+        path.to_string()
+    } else {
+        format!(
+            "{}/{}",
+            base_url.trim_end_matches('/'),
+            path.trim_start_matches('/')
+        )
+    };
+
+    tracing::debug!("Payment resource URL: {}", resource_url);
+
     let mut requirements = PaymentRequirements::new(
         schemes::EXACT,
         network,
         amount_atomic,
         asset,
         payment_address,
-        path,
+        &resource_url,
         pricing.get_description(path),
     );
 
@@ -266,8 +288,10 @@ fn return_payment_required(
     payment_address: &str,
     testnet: bool,
     pricing: &PricingConfig,
+    base_url: &str,
 ) -> Response {
-    let requirements = create_payment_requirements(path, amount, payment_address, testnet, pricing);
+    let requirements =
+        create_payment_requirements(path, amount, payment_address, testnet, pricing, base_url);
 
     let response_body = serde_json::json!({
         "x402Version": 1,
