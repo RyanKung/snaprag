@@ -611,9 +611,9 @@ pub enum ServeCommands {
         #[cfg(feature = "payment")]
         #[arg(long)]
         payment: bool,
-        /// Address to receive payments (defaults to 0x0 - burn address)
+        /// Address to receive payments (defaults to config or 0x0)
         #[cfg(feature = "payment")]
-        #[arg(long, default_value = "0x0000000000000000000000000000000000000000")]
+        #[arg(long)]
         payment_address: Option<String>,
         /// Use testnet (base-sepolia) or mainnet (base). If not specified, uses config default.
         #[cfg(feature = "payment")]
