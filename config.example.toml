@@ -109,3 +109,9 @@ payment_address = "0x0000000000000000000000000000000000000000"
 use_testnet = true
 # Enable payment by default
 enabled = false
+# Facilitator URL for payment verification
+# Default: https://x402.org/facilitator (x402.org facilitator service)
+facilitator_url = "https://x402.org/facilitator"
+# RPC endpoint for blockchain verification (optional)
+# If not set, will use default RPC for the selected network
+# rpc_url = "https://sepolia.base.org"

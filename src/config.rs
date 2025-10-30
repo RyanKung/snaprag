@@ -152,6 +152,14 @@ pub struct X402Config {
     /// Enable payment by default
     #[serde(default)]
     pub enabled: bool,
+    /// Facilitator URL for payment verification
+    /// Defaults to x402.org/facilitator for testnet
+    #[serde(default = "default_facilitator_url")]
+    pub facilitator_url: String,
+    /// RPC endpoint for blockchain verification (optional)
+    /// If not set, will use default RPC for the selected network
+    #[serde(default)]
+    pub rpc_url: Option<String>,
 }
 
 const fn default_use_testnet() -> bool {
@@ -162,13 +170,28 @@ fn default_payment_address() -> String {
     "0x0000000000000000000000000000000000000000".to_string()
 }
 
+fn default_facilitator_url() -> String {
+    "https://x402.org/facilitator".to_string()
+}
+
 impl Default for X402Config {
     fn default() -> Self {
         Self {
             payment_address: default_payment_address(),
             use_testnet: true, // x402.org/facilitator only supports testnet
             enabled: false,
+            facilitator_url: default_facilitator_url(),
+            rpc_url: None,
         }
+    }
+}
+
+impl X402Config {
+    /// Load x402 configuration from a TOML file
+    pub fn from_file<P: AsRef<Path>>(path: P) -> crate::Result<Self> {
+        let content = std::fs::read_to_string(path).map_err(crate::SnapRagError::Io)?;
+        let config: Self = toml::from_str(&content).map_err(crate::SnapRagError::TomlParsing)?;
+        Ok(config)
     }
 }
 
@@ -199,19 +222,32 @@ impl AppConfig {
     /// Load configuration from default config file path
     pub fn load() -> crate::Result<Self> {
         // Try to load from config.toml first, then fall back to config.example.toml
-        if Path::new("config.toml").exists() {
-            Self::from_file("config.toml")
+        let mut config = if Path::new("config.toml").exists() {
+            Self::from_file("config.toml")?
         } else if Path::new("config.example.toml").exists() {
             println!(
                 "Warning: Using config.example.toml. Please create config.toml for production use."
             );
-            Self::from_file("config.example.toml")
+            Self::from_file("config.example.toml")?
         } else {
-            Err(crate::SnapRagError::Io(std::io::Error::new(
+            return Err(crate::SnapRagError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "No config file found. Please create config.toml or config.example.toml",
-            )))
+            )));
+        };
+
+        // Try to load x402 configuration from payment.toml if it exists
+        // This overrides the x402 section in the main config file
+        if Path::new("payment.toml").exists() {
+            if let Ok(payment_config) = X402Config::from_file("payment.toml") {
+                config.x402 = payment_config;
+                println!("✅ Loaded x402 configuration from payment.toml");
+            } else {
+                println!("⚠️  Warning: payment.toml exists but could not be parsed. Using x402 config from main config file.");
+            }
         }
+
+        Ok(config)
     }
 
     /// Get database URL

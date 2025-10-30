@@ -35,11 +35,19 @@ pub struct PaymentMiddlewareState {
     pub testnet: bool,
     pub middleware: X402Middleware,
     pub base_url: String,
+    pub facilitator_url: String,
+    pub rpc_url: Option<String>,
 }
 
 #[cfg(feature = "payment")]
 impl PaymentMiddlewareState {
-    pub fn new(payment_address: String, testnet: bool, base_url: String) -> Self {
+    pub fn new(
+        payment_address: String,
+        testnet: bool,
+        base_url: String,
+        facilitator_url: String,
+        rpc_url: Option<String>,
+    ) -> Self {
         use std::str::FromStr;
 
         use rust_decimal::Decimal;
@@ -55,6 +63,8 @@ impl PaymentMiddlewareState {
             testnet,
             middleware,
             base_url,
+            facilitator_url,
+            rpc_url,
         }
     }
 }
@@ -99,6 +109,7 @@ pub async fn smart_payment_middleware(
                                 state.testnet,
                                 &state.pricing,
                                 &state.base_url,
+                                &state.facilitator_url,
                             );
 
                             // Verify payment
@@ -141,6 +152,7 @@ pub async fn smart_payment_middleware(
                                         state.testnet,
                                         &state.pricing,
                                         &state.base_url,
+                                        &state.facilitator_url,
                                     )
                                 }
                                 Err(e) => {
@@ -153,6 +165,7 @@ pub async fn smart_payment_middleware(
                                         state.testnet,
                                         &state.pricing,
                                         &state.base_url,
+                                        &state.facilitator_url,
                                     )
                                 }
                             }
@@ -167,6 +180,7 @@ pub async fn smart_payment_middleware(
                                 state.testnet,
                                 &state.pricing,
                                 &state.base_url,
+                                &state.facilitator_url,
                             )
                         }
                     }
@@ -178,6 +192,7 @@ pub async fn smart_payment_middleware(
                         state.testnet,
                         &state.pricing,
                         &state.base_url,
+                        &state.facilitator_url,
                     )
                 }
             } else {
@@ -190,6 +205,7 @@ pub async fn smart_payment_middleware(
                     state.testnet,
                     &state.pricing,
                     &state.base_url,
+                    &state.facilitator_url,
                 )
             }
         }
@@ -205,6 +221,7 @@ fn create_payment_requirements(
     testnet: bool,
     pricing: &PricingConfig,
     base_url: &str,
+    facilitator_url: &str,
 ) -> PaymentRequirements {
     use rust_x402::types::networks;
     use rust_x402::types::schemes;
@@ -275,6 +292,16 @@ fn create_payment_requirements(
     let mut extra = serde_json::Map::new();
     extra.insert("name".to_string(), serde_json::json!("USDC"));
     extra.insert("version".to_string(), serde_json::json!("2"));
+
+    // Add facilitator URL to extra info if provided
+    if !facilitator_url.is_empty() {
+        extra.insert(
+            "facilitator_url".to_string(),
+            serde_json::json!(facilitator_url),
+        );
+        tracing::debug!("Using facilitator URL: {}", facilitator_url);
+    }
+
     requirements.extra = Some(serde_json::Value::Object(extra));
 
     requirements
@@ -289,9 +316,17 @@ fn return_payment_required(
     testnet: bool,
     pricing: &PricingConfig,
     base_url: &str,
+    facilitator_url: &str,
 ) -> Response {
-    let requirements =
-        create_payment_requirements(path, amount, payment_address, testnet, pricing, base_url);
+    let requirements = create_payment_requirements(
+        path,
+        amount,
+        payment_address,
+        testnet,
+        pricing,
+        base_url,
+        facilitator_url,
+    );
 
     let response_body = serde_json::json!({
         "x402Version": 1,

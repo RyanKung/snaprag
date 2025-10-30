@@ -52,9 +52,15 @@ pub async fn handle_serve_api(
         Some(normalized)
     } else if !config.x402.payment_address.is_empty() {
         let normalized = normalize_address(&config.x402.payment_address);
+        // Check if payment.toml exists to show correct source
+        let config_source = if std::path::Path::new("payment.toml").exists() {
+            "payment.toml"
+        } else {
+            "config.toml"
+        };
         println!(
-            "🔧 Using config payment address (normalized): {}",
-            normalized
+            "🔧 Using payment address from {} (normalized): {}",
+            config_source, normalized
         );
         Some(normalized)
     } else {
@@ -76,6 +82,10 @@ pub async fn handle_serve_api(
                 "base (mainnet)"
             }
         );
+        println!("🔍 Facilitator URL: {}", config.x402.facilitator_url);
+        if let Some(rpc) = &config.x402.rpc_url {
+            println!("⛓️  RPC URL: {}", rpc);
+        }
     } else {
         println!("💰 Payment: DISABLED");
     }

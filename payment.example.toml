@@ -1,0 +1,27 @@
+# x402 payment configuration
+# This file overrides the [x402] section in config.toml when present
+# Copy this file to payment.toml to use it
+
+# Payment address - where USDC payments will be sent
+# Use burn address (0x0) to destroy payments, or your address to receive them
+payment_address = "0x0000000000000000000000000000000000000000"
+
+# Use testnet (base-sepolia) - x402.org/facilitator only supports testnet currently
+# Set to false to use mainnet (base) when support is available
+use_testnet = true
+
+# Enable payment by default
+# When enabled, payment is required for paid endpoints unless disabled via CLI
+enabled = false
+
+# Facilitator URL for payment verification
+# Default: https://x402.org/facilitator (x402.org facilitator service)
+# You can set this to your own facilitator service if running one
+facilitator_url = "https://x402.org/facilitator"
+
+# RPC endpoint for blockchain verification (optional)
+# If not set, will use default RPC for the selected network
+# For Base Sepolia testnet, you can use: https://sepolia.base.org
+# For Base mainnet, you can use: https://mainnet.base.org
+# rpc_url = "https://sepolia.base.org"
+
