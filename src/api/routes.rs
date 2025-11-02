@@ -46,5 +46,11 @@ pub fn api_routes(state: AppState) -> Router {
             "/social/username/:username",
             get(handlers::get_social_analysis_by_username),
         )
+        // MBTI personality analysis endpoints
+        .route("/mbti/:fid", get(handlers::get_mbti_analysis))
+        .route(
+            "/mbti/username/:username",
+            get(handlers::get_mbti_analysis_by_username),
+        )
         .with_state(state)
 }

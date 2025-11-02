@@ -4,13 +4,23 @@
 //! a comprehensive social profile for better AI understanding.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 
+use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::database::Database;
 use crate::Result;
+
+lazy_static! {
+    /// Stop words using the stop-words crate
+    static ref STOP_WORDS_SET: HashSet<String> = {
+        let stop_words = stop_words::get(stop_words::LANGUAGE::English);
+        stop_words.into_iter().map(|s| s.to_string()).collect()
+    };
+}
 
 /// Social graph profile for a user
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -952,8 +962,22 @@ impl SocialGraphAnalyzer {
             });
         }
 
-        // Combine all text
-        let all_text: String = casts
+        // Filter out bot/automated messages before analysis
+        let filtered_casts: Vec<_> = casts
+            .iter()
+            .filter(|cast| !is_bot_message(cast.text.as_deref()))
+            .collect();
+
+        if filtered_casts.is_empty() {
+            return Ok(WordCloud {
+                top_words: Vec::new(),
+                top_phrases: Vec::new(),
+                signature_words: Vec::new(),
+            });
+        }
+
+        // Combine all text from filtered casts
+        let all_text: String = filtered_casts
             .iter()
             .filter_map(|c| c.text.as_ref())
             .cloned()
@@ -1127,7 +1151,6 @@ fn count_keywords(text: &str, keywords: &[&str]) -> usize {
 
 /// Count word frequencies (excluding stop words and common words)
 fn count_word_frequencies(text: &str) -> HashMap<String, usize> {
-    let stop_words = get_stop_words();
     let mut word_counts: HashMap<String, usize> = HashMap::new();
 
     // Tokenize and count
@@ -1136,8 +1159,8 @@ fn count_word_frequencies(text: &str) -> HashMap<String, usize> {
             .trim_matches(|c: char| !c.is_alphanumeric())
             .to_lowercase();
 
-        // Skip if empty, too short, or stop word
-        if cleaned.len() < 3 || stop_words.contains(&cleaned.as_str()) {
+        // Skip if empty, too short, or stop word (using stop-words crate)
+        if cleaned.len() < 3 || STOP_WORDS_SET.contains(&cleaned) {
             continue;
         }
 
@@ -1159,7 +1182,6 @@ fn count_word_frequencies(text: &str) -> HashMap<String, usize> {
 
 /// Extract common 2-word phrases
 fn extract_common_phrases(text: &str, limit: usize) -> Vec<WordFrequency> {
-    let stop_words = get_stop_words();
     let mut phrase_counts: HashMap<String, usize> = HashMap::new();
 
     let words: Vec<String> = text
@@ -1168,7 +1190,7 @@ fn extract_common_phrases(text: &str, limit: usize) -> Vec<WordFrequency> {
             w.trim_matches(|c: char| !c.is_alphanumeric())
                 .to_lowercase()
         })
-        .filter(|w| w.len() >= 3 && !stop_words.contains(&w.as_str()))
+        .filter(|w| w.len() >= 3 && !STOP_WORDS_SET.contains(w))
         .collect();
 
     // Count 2-word phrases
@@ -1216,21 +1238,54 @@ fn identify_signature_words(sorted_words: &[(String, usize)], limit: usize) -> V
         .collect()
 }
 
-/// Get common English stop words
-fn get_stop_words() -> Vec<&'static str> {
-    vec![
-        "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on",
-        "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from", "they", "we",
-        "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their",
-        "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when",
-        "make", "can", "like", "time", "no", "just", "him", "know", "take", "people", "into",
-        "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now",
-        "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two",
-        "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any",
-        "these", "give", "day", "most", "us", // Common casual/filler words
-        "really", "very", "much", "more", "still", "here", "going", "been", "has", "had", "was",
-        "were", "are", "being", "did", "done", "doing", "too", "got", "getting",
-        // Social media specific
-        "lol", "haha", "yes", "yeah", "yep", "nope", "nah", "omg", "tbh", "imo", "idk",
-    ]
+// Note: get_stop_words() function removed - now using stop-words crate via STOP_WORDS_SET
+
+/// Check if a cast is likely a bot/automated message
+fn is_bot_message(text: Option<&str>) -> bool {
+    let Some(text) = text else {
+        return false;
+    };
+
+    let text_lower = text.to_lowercase();
+
+    // Bot message patterns to filter out
+    let bot_patterns = [
+        "ms!t",                                 // microsub bot marker
+        "i'm supporting you through /microsub", // microsub support messages
+        "please mute the keyword \"ms!t\"",     // microsub mute instruction
+        "$degen",                               // degen tip bot (when standalone)
+        "minted",                               // NFT mint notifications (alone)
+        "you've been tipped",                   // tip notifications
+        "airdrop claim",                        // airdrop spam
+        "congratulations! you won",             // spam/scam
+        "click here to claim",                  // spam/scam
+        "limited time offer",                   // spam
+        "visit this link",                      // spam
+    ];
+
+    // Check for exact bot patterns
+    for pattern in &bot_patterns {
+        if text_lower.contains(pattern) {
+            return true;
+        }
+    }
+
+    // Additional heuristic: very short automated messages
+    // Skip if it's just a tip/support notification
+    if text.len() < 50 && text_lower.contains("$degen") && text_lower.contains("supporting") {
+        return true;
+    }
+
+    // Filter out pure emoji posts without meaningful text (likely automated reactions)
+    let has_meaningful_text = text
+        .chars()
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .count()
+        > 10;
+
+    if !has_meaningful_text && text.len() < 20 {
+        return true; // Likely automated emoji spam
+    }
+
+    false
 }

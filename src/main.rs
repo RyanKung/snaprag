@@ -61,6 +61,7 @@ async fn main() -> Result<()> {
             search,
             sort_by,
             sort_order,
+            fid,
             fid_range,
             username,
             display_name,
@@ -79,6 +80,7 @@ async fn main() -> Result<()> {
                 search,
                 sort_by,
                 sort_order,
+                fid,
                 fid_range,
                 username,
                 display_name,
@@ -387,6 +389,14 @@ async fn main() -> Result<()> {
         }
         Commands::Social { user, verbose } => {
             snaprag::cli::handle_social_analysis(&config, user, verbose).await?;
+        }
+        Commands::Mbti {
+            user,
+            llm,
+            verbose,
+            export,
+        } => {
+            snaprag::cli::handle_mbti_analysis(&config, user, llm, verbose, export).await?;
         }
         Commands::Fetch(fetch_command) => match fetch_command {
             FetchCommands::User {

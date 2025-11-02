@@ -59,6 +59,10 @@ tokio-util = "0.7"
 rayon = "1.8"  # Parallel processing for CPU-intensive tasks
 num_cpus = "1.0"  # CPU core detection for multi-process optimization
 home = "0.5.11"  # Compatible version for older Rust
+redis = { version = "0.25", features = ["tokio-comp"] }
+textwrap = "0.16"  # Text wrapping for CLI output
+stop-words = "0.8"  # Stop words for multiple languages
+lazy_static = "1.4"  # For static AFINN lexicon
 
 # Local GPU embedding dependencies (optional)
 # Note: Platform-specific features are defined in target-specific sections below
@@ -70,7 +74,7 @@ hf-hub = { version = "0.3", features = ["tokio"], optional = true }
 
 # x402 payment protocol
 # rust-x402 = "0.1"  # Production from crates.io
-rust-x402 = { git = "https://github.com/RyanKung/rust-x402", features = ["axum"], optional = true }
+rust-x402 = { git = "https://github.com/RyanKung/rust-x402", features =["axum"], optional = true, version='0.2.0' }
 
 [features]
 default = []

@@ -44,6 +44,7 @@ pub mod grpc_client;
 pub mod llm;
 pub mod logging;
 pub mod models;
+pub mod personality;
 pub mod rag;
 pub mod social_graph;
 pub mod sync;

@@ -121,6 +121,53 @@ pub struct CacheConfig {
     pub enable_stats: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RedisConfig {
+    /// Redis connection URL, e.g. redis://127.0.0.1:6379
+    pub url: String,
+    /// Namespace/prefix for keys (e.g. "snaprag:")
+    #[serde(default = "default_redis_namespace")]
+    pub namespace: String,
+    /// Default TTL for cached API payloads (seconds). Target: 30 days
+    #[serde(default = "default_redis_ttl_secs")]
+    pub default_ttl_secs: u64,
+    /// Stale threshold for async refresh trigger (seconds). Target: 5 minutes
+    #[serde(default = "default_stale_threshold_secs")]
+    pub stale_threshold_secs: u64,
+    /// PubSub channel for refresh notifications
+    #[serde(default = "default_refresh_channel")]
+    pub refresh_channel: String,
+}
+
+fn default_redis_namespace() -> String {
+    "snaprag:".to_string()
+}
+const fn default_redis_ttl_secs() -> u64 {
+    30 * 24 * 3600
+}
+const fn default_stale_threshold_secs() -> u64 {
+    5 * 60
+}
+fn default_refresh_channel() -> String {
+    "snaprag.refresh".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CacheServerConfig {
+    /// Run as cache server (fronting the backend with same API)
+    #[serde(default)]
+    pub enabled: bool,
+    /// Upstream backend base URL for pass-through on miss
+    #[serde(default)]
+    pub upstream_base_url: Option<String>,
+    /// API key used when cache server calls backend
+    #[serde(default)]
+    pub upstream_api_key: Option<String>,
+    /// API key required by backend to verify cache server calls
+    #[serde(default)]
+    pub backend_expected_api_key: Option<String>,
+}
+
 const fn default_cache_enabled() -> bool {
     true
 }
@@ -207,6 +254,10 @@ pub struct AppConfig {
     pub cache: CacheConfig,
     #[serde(default)]
     pub x402: X402Config,
+    #[serde(default)]
+    pub redis: Option<RedisConfig>,
+    #[serde(default)]
+    pub cache_server: CacheServerConfig,
 }
 
 impl AppConfig {
@@ -464,6 +515,8 @@ impl Default for AppConfig {
                 enable_stats: true,
             },
             x402: X402Config::default(),
+            redis: None,
+            cache_server: CacheServerConfig::default(),
         }
     }
 }

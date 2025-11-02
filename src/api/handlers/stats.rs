@@ -56,6 +56,7 @@ pub async fn get_stats(
             expired_cleanups: cache_stats.expired_cleanups,
             profile_entries: cache_info.profile_entries,
             social_entries: cache_info.social_entries,
+            mbti_entries: cache_info.mbti_entries,
             total_entries: cache_info.total_entries,
             max_entries: cache_info.max_entries,
             usage_percentage: cache_info.usage_percentage(),

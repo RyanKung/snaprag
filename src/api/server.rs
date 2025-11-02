@@ -9,7 +9,11 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
+use crate::api::backend_api_key::backend_api_key_middleware;
+use crate::api::backend_api_key::ApiKeyState;
 use crate::api::cache::CacheService;
+use crate::api::cache_proxy::cache_proxy_middleware;
+use crate::api::cache_proxy::CacheProxyState;
 use crate::api::handlers::AppState;
 use crate::api::mcp;
 #[cfg(feature = "payment")]
@@ -42,8 +46,17 @@ pub async fn serve_api(
     let embedding_service = Arc::new(EmbeddingService::new(config)?);
     info!("✅ Embedding service initialized");
 
-    let llm_service = Arc::new(LlmService::new(config)?);
-    info!("✅ LLM service initialized");
+    let llm_service = match LlmService::new(config) {
+        Ok(service) => {
+            info!("✅ LLM service initialized");
+            Some(Arc::new(service))
+        }
+        Err(e) => {
+            info!("⚠️  LLM service initialization failed: {}", e);
+            info!("   RAG and MBTI analysis features will be unavailable");
+            None
+        }
+    };
 
     // Initialize lazy loader for on-demand fetching
     let snapchain_client = Arc::new(crate::sync::SnapchainClient::from_config(config).await?);
@@ -67,6 +80,7 @@ pub async fn serve_api(
     let cache_service = Arc::new(CacheService::with_config(crate::api::cache::CacheConfig {
         profile_ttl: std::time::Duration::from_secs(config.cache.profile_ttl_secs),
         social_ttl: std::time::Duration::from_secs(config.cache.social_ttl_secs),
+        mbti_ttl: std::time::Duration::from_secs(7200), // 2 hours for MBTI
         max_entries: config.cache.max_entries,
         enable_stats: config.cache.enable_stats,
     }));
@@ -164,6 +178,40 @@ pub async fn serve_api(
             .nest("/api", api_router)
             .nest("/mcp", mcp_router);
         info!("💡 Payment feature not compiled - all endpoints are free");
+    }
+
+    // Cache-server mode: apply cache proxy middleware to GET requests
+    if config.cache_server.enabled {
+        if let Some(redis_cfg) = &config.redis {
+            let redis = crate::api::redis_client::RedisClient::connect(redis_cfg)?;
+            let upstream = config
+                .cache_server
+                .upstream_base_url
+                .clone()
+                .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
+            let proxy_state = CacheProxyState {
+                redis,
+                upstream_base_url: upstream,
+                upstream_api_key: config.cache_server.upstream_api_key.clone(),
+            };
+            app = app.layer(axum::middleware::from_fn_with_state(
+                proxy_state,
+                cache_proxy_middleware,
+            ));
+            info!("🧱 Cache-server proxy middleware enabled");
+        } else {
+            info!("⚠️ Cache-server enabled but redis config missing; proxy disabled");
+        }
+    } else if let Some(expected) = config.cache_server.backend_expected_api_key.clone() {
+        // Backend mode: protect APIs with API key (from cache server)
+        let state = ApiKeyState {
+            expected_key: expected,
+        };
+        app = app.layer(axum::middleware::from_fn_with_state(
+            state,
+            backend_api_key_middleware,
+        ));
+        info!("🔐 Backend API key middleware enabled");
     }
 
     // Add middleware layers

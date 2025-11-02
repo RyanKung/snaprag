@@ -45,6 +45,9 @@ pub enum Commands {
         /// Sort order (asc/desc)
         #[arg(long, default_value = "desc")]
         sort_order: String,
+        /// Filter by FID (for casts, profiles, etc.)
+        #[arg(long)]
+        fid: Option<i64>,
         /// Filter by FID range (min-max)
         #[arg(long)]
         fid_range: Option<String>,
@@ -175,6 +178,20 @@ pub enum Commands {
         /// Show detailed analysis
         #[arg(short, long)]
         verbose: bool,
+    },
+    /// Analyze user's MBTI personality type
+    Mbti {
+        /// FID or username of the user (e.g., "99" or "@jesse.base.eth")
+        user: String,
+        /// Use LLM for enhanced analysis (requires LLM service configured)
+        #[arg(long)]
+        llm: bool,
+        /// Show detailed dimension scores and analysis
+        #[arg(short, long)]
+        verbose: bool,
+        /// Export result to JSON file
+        #[arg(short, long)]
+        export: Option<String>,
     },
 }
 

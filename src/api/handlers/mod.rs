@@ -29,6 +29,7 @@ use crate::social_graph::SocialGraphAnalyzer;
 
 // Re-export sub-modules
 pub mod chat;
+pub mod mbti;
 pub mod profile;
 pub mod rag;
 pub mod search;
@@ -36,6 +37,7 @@ pub mod stats;
 
 // Re-export handlers
 pub use chat::*;
+pub use mbti::*;
 pub use profile::*;
 pub use rag::*;
 pub use search::*;
@@ -46,7 +48,7 @@ pub use stats::*;
 pub struct AppState {
     pub database: Arc<Database>,
     pub embedding_service: Arc<EmbeddingService>,
-    pub llm_service: Arc<LlmService>,
+    pub llm_service: Option<Arc<LlmService>>,
     pub lazy_loader: Option<Arc<crate::sync::LazyLoader>>,
     pub session_manager: Arc<crate::api::session::SessionManager>,
     pub cache_service: Arc<CacheService>,

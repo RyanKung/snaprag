@@ -21,6 +21,7 @@ pub async fn handle_list_command(
     search: Option<String>,
     sort_by: Option<String>,
     sort_order: String,
+    fid: Option<i64>,
     fid_range: Option<String>,
     username: Option<String>,
     display_name: Option<String>,
@@ -124,11 +125,15 @@ pub async fn handle_list_command(
             print_profile_list(&profiles);
         }
         DataType::Casts => {
-            print_list_header("Casts", limit);
+            if let Some(fid_filter) = fid {
+                print_list_header(&format!("Casts by FID {}", fid_filter), limit);
+            } else {
+                print_list_header("Casts", limit);
+            }
 
             // Build cast query
             let cast_query = crate::models::CastQuery {
-                fid: None,
+                fid,
                 text_search: search,
                 parent_hash: None,
                 root_hash: None,

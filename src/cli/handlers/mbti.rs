@@ -1,0 +1,364 @@
+//! MBTI personality analysis command handler
+
+use std::sync::Arc;
+
+use crate::cli::output::print_info;
+use crate::cli::output::print_success;
+use crate::cli::output::print_warning;
+use crate::database::Database;
+use crate::llm::LlmService;
+use crate::personality::MbtiAnalyzer;
+use crate::social_graph::SocialGraphAnalyzer;
+use crate::sync::client::SnapchainClient;
+use crate::sync::lazy_loader::LazyLoader;
+use crate::AppConfig;
+use crate::Result;
+
+/// Handle MBTI personality analysis command
+pub async fn handle_mbti_analysis(
+    config: &AppConfig,
+    user_identifier: String,
+    use_llm: bool,
+    verbose: bool,
+    export_path: Option<String>,
+) -> Result<()> {
+    // Initialize services
+    let database = Arc::new(Database::from_config(config).await?);
+    let snapchain_client = Arc::new(SnapchainClient::from_config(config).await?);
+    let lazy_loader = LazyLoader::new(database.clone(), snapchain_client.clone());
+
+    // Parse user identifier
+    let fid = parse_user_identifier(&user_identifier, &database).await?;
+
+    // Get user profile
+    let profile = lazy_loader
+        .get_user_profile_smart(fid as i64)
+        .await?
+        .ok_or_else(|| crate::SnapRagError::Custom(format!("User {fid} not found")))?;
+
+    let username = profile
+        .username
+        .as_ref()
+        .map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
+    let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
+
+    print_info(&format!(
+        "🧠 Analyzing MBTI personality for {display_name} ({username})..."
+    ));
+    println!();
+
+    // Initialize MBTI analyzer
+    let analyzer = if use_llm {
+        match LlmService::new(config) {
+            Ok(llm_service) => {
+                print_info("🤖 Using LLM for enhanced analysis...");
+                MbtiAnalyzer::with_llm(database.clone(), Arc::new(llm_service))
+            }
+            Err(e) => {
+                print_warning(&format!(
+                    "⚠️  LLM service not available: {}. Using rule-based analysis.",
+                    e
+                ));
+                MbtiAnalyzer::new(database.clone())
+            }
+        }
+    } else {
+        MbtiAnalyzer::new(database.clone())
+    };
+
+    // Get social profile for context (optional)
+    let social_profile = if verbose {
+        let social_analyzer =
+            SocialGraphAnalyzer::with_snapchain(database.clone(), snapchain_client);
+        match social_analyzer.analyze_user(fid as i64).await {
+            Ok(profile) => Some(profile),
+            Err(e) => {
+                print_warning(&format!("Could not load social profile: {}", e));
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Analyze MBTI
+    let mbti_profile = analyzer
+        .analyze_mbti(fid as i64, social_profile.as_ref())
+        .await?;
+
+    // Display results
+    println!("╔═══════════════════════════════════════════════════════════════╗");
+    println!("║  MBTI PERSONALITY ANALYSIS                                    ║");
+    println!("╚═══════════════════════════════════════════════════════════════╝");
+    println!();
+
+    // Main type and confidence
+    println!("  🎯 Personality Type: {}", mbti_profile.mbti_type);
+    println!(
+        "  📊 Confidence:       {:.1}%",
+        mbti_profile.confidence * 100.0
+    );
+    println!();
+
+    // Confidence indicator
+    let confidence_indicator = if mbti_profile.confidence >= 0.8 {
+        "🟢 Very Confident"
+    } else if mbti_profile.confidence >= 0.6 {
+        "🟡 Confident"
+    } else if mbti_profile.confidence >= 0.4 {
+        "🟠 Moderate"
+    } else {
+        "🔴 Low Confidence"
+    };
+    println!("  {confidence_indicator}");
+    println!();
+
+    // Dimension scores
+    println!("╔═══════════════════════════════════════════════════════════════╗");
+    println!("║  DIMENSION SCORES                                             ║");
+    println!("╚═══════════════════════════════════════════════════════════════╝");
+    println!();
+
+    print_dimension(
+        "E/I",
+        "Extraversion ↔ Introversion",
+        mbti_profile.dimensions.ei_score,
+        mbti_profile.dimensions.ei_confidence,
+    );
+    print_dimension(
+        "S/N",
+        "Sensing ↔ Intuition",
+        mbti_profile.dimensions.sn_score,
+        mbti_profile.dimensions.sn_confidence,
+    );
+    print_dimension(
+        "T/F",
+        "Thinking ↔ Feeling",
+        mbti_profile.dimensions.tf_score,
+        mbti_profile.dimensions.tf_confidence,
+    );
+    print_dimension(
+        "J/P",
+        "Judging ↔ Perceiving",
+        mbti_profile.dimensions.jp_score,
+        mbti_profile.dimensions.jp_confidence,
+    );
+    println!();
+
+    // Personality traits
+    println!("╔═══════════════════════════════════════════════════════════════╗");
+    println!("║  KEY PERSONALITY TRAITS                                       ║");
+    println!("╚═══════════════════════════════════════════════════════════════╝");
+    println!();
+
+    for (idx, trait_name) in mbti_profile.traits.iter().enumerate() {
+        println!("  {}. {}", idx + 1, trait_name);
+    }
+    println!();
+
+    // Analysis
+    println!("╔═══════════════════════════════════════════════════════════════╗");
+    println!("║  BEHAVIORAL ANALYSIS                                          ║");
+    println!("╚═══════════════════════════════════════════════════════════════╝");
+    println!();
+
+    // Format analysis with proper wrapping
+    for line in mbti_profile.analysis.lines() {
+        if line.trim().is_empty() {
+            println!();
+        } else {
+            // Wrap long lines
+            let wrapped = textwrap::wrap(line.trim(), 61);
+            for wrapped_line in wrapped {
+                println!("  {wrapped_line}");
+            }
+        }
+    }
+    println!();
+
+    // Type description
+    println!("╔═══════════════════════════════════════════════════════════════╗");
+    println!("║  TYPE DESCRIPTION                                             ║");
+    println!("╚═══════════════════════════════════════════════════════════════╝");
+    println!();
+
+    let type_desc = get_type_description(&mbti_profile.mbti_type);
+    for line in type_desc.lines() {
+        println!("  {line}");
+    }
+    println!();
+
+    // Verbose mode: show detailed dimension breakdown
+    if verbose {
+        println!("╔═══════════════════════════════════════════════════════════════╗");
+        println!("║  DETAILED SCORES                                              ║");
+        println!("╚═══════════════════════════════════════════════════════════════╝");
+        println!();
+
+        println!("  Dimension Scores (0.0 = left, 1.0 = right):");
+        println!("    E/I: {:.3}", mbti_profile.dimensions.ei_score);
+        println!("    S/N: {:.3}", mbti_profile.dimensions.sn_score);
+        println!("    T/F: {:.3}", mbti_profile.dimensions.tf_score);
+        println!("    J/P: {:.3}", mbti_profile.dimensions.jp_score);
+        println!();
+
+        println!("  Confidence Scores:");
+        println!(
+            "    E/I: {:.1}%",
+            mbti_profile.dimensions.ei_confidence * 100.0
+        );
+        println!(
+            "    S/N: {:.1}%",
+            mbti_profile.dimensions.sn_confidence * 100.0
+        );
+        println!(
+            "    T/F: {:.1}%",
+            mbti_profile.dimensions.tf_confidence * 100.0
+        );
+        println!(
+            "    J/P: {:.1}%",
+            mbti_profile.dimensions.jp_confidence * 100.0
+        );
+        println!();
+    }
+
+    // Export to JSON if requested
+    if let Some(export_path) = export_path {
+        let json = serde_json::to_string_pretty(&mbti_profile)?;
+        std::fs::write(&export_path, json)?;
+        print_success(&format!("✅ Exported analysis to: {export_path}"));
+    }
+
+    Ok(())
+}
+
+/// Parse user identifier (FID or username)
+async fn parse_user_identifier(identifier: &str, database: &Database) -> Result<u64> {
+    let trimmed = identifier.trim();
+
+    if trimmed.starts_with('@') {
+        let username = trimmed.trim_start_matches('@');
+        let profile = database
+            .get_user_profile_by_username(username)
+            .await?
+            .ok_or_else(|| {
+                crate::SnapRagError::Custom(format!("Username @{username} not found"))
+            })?;
+        Ok(profile.fid as u64)
+    } else {
+        trimmed.parse::<u64>().map_err(|_| {
+            crate::SnapRagError::Custom(format!(
+                "Invalid user identifier '{identifier}'. Use FID or @username"
+            ))
+        })
+    }
+}
+
+/// Print dimension score with visual representation
+fn print_dimension(code: &str, description: &str, score: f32, confidence: f32) {
+    let letters: Vec<&str> = code.split('/').collect();
+    let left = letters[0];
+    let right = letters[1];
+
+    // Determine which side is dominant
+    let (dominant, percentage) = if score < 0.5 {
+        (left, (1.0 - score * 2.0) * 100.0)
+    } else {
+        (right, (score * 2.0 - 1.0) * 100.0)
+    };
+
+    // Create visual bar
+    let bar_length = ((score * 40.0) as usize).min(40);
+    let left_bar = "─".repeat(20 - bar_length.min(20));
+    let right_bar = "─".repeat(bar_length.saturating_sub(20));
+    let marker = "●";
+
+    println!("  {code}: {description}");
+    println!(
+        "      {left} {left_bar}{marker}{right_bar} {right}  →  {dominant} ({percentage:.0}%)"
+    );
+    println!(
+        "      Confidence: {:.0}% {}",
+        confidence * 100.0,
+        confidence_bar(confidence)
+    );
+    println!();
+}
+
+/// Generate confidence bar
+fn confidence_bar(confidence: f32) -> String {
+    let filled = ((confidence * 10.0) as usize).min(10);
+    let empty = 10 - filled;
+    format!("[{}{}]", "█".repeat(filled), "░".repeat(empty))
+}
+
+/// Get type description for MBTI types
+fn get_type_description(mbti_type: &str) -> &'static str {
+    match mbti_type {
+        "INTJ" => {
+            "The Architect: Strategic, independent thinkers with a plan.\n\
+             Natural leaders in innovation and problem-solving."
+        }
+        "INTP" => {
+            "The Logician: Innovative inventors with unquenchable thirst.\n\
+             for knowledge. Love theoretical and abstract thinking."
+        }
+        "ENTJ" => {
+            "The Commander: Bold, imaginative, and strong-willed leaders.\n\
+             Always find a way or make one."
+        }
+        "ENTP" => {
+            "The Debater: Smart and curious thinkers who cannot resist\n\
+             an intellectual challenge."
+        }
+        "INFJ" => {
+            "The Advocate: Quiet and mystical, yet very inspiring and\n\
+             idealistic. Deep thinkers with strong principles."
+        }
+        "INFP" => {
+            "The Mediator: Poetic, kind, and altruistic. Always eager\n\
+             to help a good cause and find meaning."
+        }
+        "ENFJ" => {
+            "The Protagonist: Charismatic and inspiring leaders who\n\
+             captivate their audience."
+        }
+        "ENFP" => {
+            "The Campaigner: Enthusiastic, creative, and sociable free\n\
+             spirits who always find a reason to smile."
+        }
+        "ISTJ" => {
+            "The Logistician: Practical and fact-minded individuals.\n\
+             Reliability cannot be doubted."
+        }
+        "ISFJ" => {
+            "The Defender: Very dedicated and warm protectors, always\n\
+             ready to defend loved ones."
+        }
+        "ESTJ" => {
+            "The Executive: Excellent administrators, managing things\n\
+             and people effectively."
+        }
+        "ESFJ" => {
+            "The Consul: Caring, social, and popular. Always eager to\n\
+             help and bring people together."
+        }
+        "ISTP" => {
+            "The Virtuoso: Bold and practical experimenters, masters\n\
+             of all kinds of tools."
+        }
+        "ISFP" => {
+            "The Adventurer: Flexible and charming artists, always\n\
+             ready to explore and experience."
+        }
+        "ESTP" => {
+            "The Entrepreneur: Smart, energetic, and perceptive. Living\n\
+             on the edge and loving it."
+        }
+        "ESFP" => {
+            "The Entertainer: Spontaneous, energetic, and enthusiastic\n\
+             entertainers. Life is never boring around them."
+        }
+        _ => "Unknown type: Analysis based on behavioral patterns.",
+    }
+}

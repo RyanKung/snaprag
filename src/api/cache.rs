@@ -14,6 +14,7 @@ use tracing::info;
 use tracing::warn;
 
 use crate::api::types::ProfileResponse;
+use crate::personality::MbtiProfile;
 use crate::social_graph::SocialProfile;
 
 /// Cache entry with TTL support
@@ -43,6 +44,8 @@ pub struct CacheConfig {
     pub profile_ttl: Duration,
     /// Default TTL for social analysis cache entries  
     pub social_ttl: Duration,
+    /// Default TTL for MBTI analysis cache entries
+    pub mbti_ttl: Duration,
     /// Maximum number of cache entries
     pub max_entries: usize,
     /// Enable cache statistics
@@ -54,6 +57,7 @@ impl Default for CacheConfig {
         Self {
             profile_ttl: Duration::from_secs(3600), // 1 hour default
             social_ttl: Duration::from_secs(3600),  // 1 hour default
+            mbti_ttl: Duration::from_secs(7200),    // 2 hours default (more stable)
             max_entries: 10000,
             enable_stats: true,
         }
@@ -84,6 +88,7 @@ impl CacheStats {
 pub struct CacheService {
     profile_cache: Arc<RwLock<HashMap<i64, CacheEntry<ProfileResponse>>>>,
     social_cache: Arc<RwLock<HashMap<i64, CacheEntry<SocialProfile>>>>,
+    mbti_cache: Arc<RwLock<HashMap<i64, CacheEntry<MbtiProfile>>>>,
     config: CacheConfig,
     stats: Arc<RwLock<CacheStats>>,
 }
@@ -99,6 +104,7 @@ impl CacheService {
         Self {
             profile_cache: Arc::new(RwLock::new(HashMap::new())),
             social_cache: Arc::new(RwLock::new(HashMap::new())),
+            mbti_cache: Arc::new(RwLock::new(HashMap::new())),
             config,
             stats: Arc::new(RwLock::new(CacheStats::default())),
         }
@@ -190,10 +196,18 @@ impl CacheService {
         debug!("Invalidated social cache for FID {}", fid);
     }
 
+    /// Invalidate cached MBTI analysis for a FID
+    pub async fn invalidate_mbti(&self, fid: i64) {
+        let mut cache = self.mbti_cache.write().await;
+        cache.remove(&fid);
+        debug!("Invalidated MBTI cache for FID {}", fid);
+    }
+
     /// Invalidate all caches for a FID
     pub async fn invalidate_user(&self, fid: i64) {
         self.invalidate_profile(fid).await;
         self.invalidate_social(fid).await;
+        self.invalidate_mbti(fid).await;
         debug!("Invalidated all caches for FID {}", fid);
     }
 
@@ -211,10 +225,18 @@ impl CacheService {
         info!("Cleared all social cache entries");
     }
 
+    /// Clear all cached MBTI analyses
+    pub async fn clear_mbti(&self) {
+        let mut cache = self.mbti_cache.write().await;
+        cache.clear();
+        info!("Cleared all MBTI cache entries");
+    }
+
     /// Clear all caches
     pub async fn clear_all(&self) {
         self.clear_profiles().await;
         self.clear_social().await;
+        self.clear_mbti().await;
         info!("Cleared all cache entries");
     }
 
@@ -229,15 +251,53 @@ impl CacheService {
         }
     }
 
+    /// Get cached MBTI analysis by FID
+    pub async fn get_mbti(&self, fid: i64) -> Option<MbtiProfile> {
+        let mut cache = self.mbti_cache.write().await;
+
+        if let Some(entry) = cache.get(&fid) {
+            if entry.is_expired() {
+                cache.remove(&fid);
+                self.increment_miss().await;
+                tracing::debug!("MBTI cache miss (expired) for FID {}", fid);
+                return None;
+            }
+
+            self.increment_hit().await;
+            tracing::debug!("MBTI cache hit for FID {}", fid);
+            return Some(entry.data.clone());
+        }
+
+        self.increment_miss().await;
+        tracing::debug!("MBTI cache miss for FID {}", fid);
+        None
+    }
+
+    /// Cache an MBTI analysis response
+    pub async fn set_mbti(&self, fid: i64, mbti: MbtiProfile) {
+        let mut cache = self.mbti_cache.write().await;
+
+        // Check if we need to evict entries
+        if cache.len() >= self.config.max_entries {
+            self.evict_oldest_entries(&mut cache).await;
+        }
+
+        let entry = CacheEntry::new(mbti, self.config.mbti_ttl);
+        cache.insert(fid, entry);
+        tracing::debug!("Cached MBTI analysis for FID {}", fid);
+    }
+
     /// Get cache size information
     pub async fn get_cache_info(&self) -> CacheInfo {
         let profile_cache = self.profile_cache.read().await;
         let social_cache = self.social_cache.read().await;
+        let mbti_cache = self.mbti_cache.read().await;
 
         CacheInfo {
             profile_entries: profile_cache.len(),
             social_entries: social_cache.len(),
-            total_entries: profile_cache.len() + social_cache.len(),
+            mbti_entries: mbti_cache.len(),
+            total_entries: profile_cache.len() + social_cache.len() + mbti_cache.len(),
             max_entries: self.config.max_entries,
         }
     }
@@ -246,9 +306,11 @@ impl CacheService {
     pub async fn cleanup_expired(&self) {
         let mut profile_cache = self.profile_cache.write().await;
         let mut social_cache = self.social_cache.write().await;
+        let mut mbti_cache = self.mbti_cache.write().await;
 
         let mut profile_removed = 0;
         let mut social_removed = 0;
+        let mut mbti_removed = 0;
 
         // Clean up profile cache
         profile_cache.retain(|_, entry| {
@@ -270,12 +332,22 @@ impl CacheService {
             }
         });
 
-        if profile_removed > 0 || social_removed > 0 {
+        // Clean up MBTI cache
+        mbti_cache.retain(|_, entry| {
+            if entry.is_expired() {
+                mbti_removed += 1;
+                false
+            } else {
+                true
+            }
+        });
+
+        if profile_removed > 0 || social_removed > 0 || mbti_removed > 0 {
             let mut stats = self.stats.write().await;
-            stats.expired_cleanups += profile_removed + social_removed;
+            stats.expired_cleanups += profile_removed + social_removed + mbti_removed;
             debug!(
                 "Cleaned up {} expired cache entries",
-                profile_removed + social_removed
+                profile_removed + social_removed + mbti_removed
             );
         }
     }
@@ -333,6 +405,7 @@ impl Clone for CacheService {
         Self {
             profile_cache: self.profile_cache.clone(),
             social_cache: self.social_cache.clone(),
+            mbti_cache: self.mbti_cache.clone(),
             config: self.config.clone(),
             stats: self.stats.clone(),
         }
@@ -344,6 +417,7 @@ impl Clone for CacheService {
 pub struct CacheInfo {
     pub profile_entries: usize,
     pub social_entries: usize,
+    pub mbti_entries: usize,
     pub total_entries: usize,
     pub max_entries: usize,
 }

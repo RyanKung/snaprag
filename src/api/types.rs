@@ -195,6 +195,7 @@ pub struct CacheStatsResponse {
     pub expired_cleanups: u64,
     pub profile_entries: usize,
     pub social_entries: usize,
+    pub mbti_entries: usize,
     pub total_entries: usize,
     pub max_entries: usize,
     pub usage_percentage: f64,
