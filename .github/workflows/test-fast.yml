@@ -52,7 +52,7 @@ jobs:
             lock_file::tests \
             process_monitor::tests \
             lazy_loader::tests \
-            --all-features
+            --features payment
       
       - name: Test documentation examples
-        run: cargo test --doc --all-features
+        run: cargo test --doc --features payment

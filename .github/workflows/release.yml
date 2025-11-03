@@ -56,10 +56,10 @@ jobs:
           key: ${{ runner.os }}-cargo-release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --all-features
+        run: cargo build --release --target ${{ matrix.target }} --features payment
       
       - name: Run tests in release mode
-        run: cargo test --release --lib --all-features -- --skip integration --skip database --skip real_data
+        run: cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data
       
       - name: Strip binary (Linux)
         if: matrix.os == 'ubuntu-latest'

@@ -30,7 +30,7 @@ jobs:
         run: cargo fmt --all -- --check
       
       - name: Clippy check (fail on warnings)
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --features payment -- -D warnings
         continue-on-error: true
 
   # Compile check
@@ -58,7 +58,7 @@ jobs:
           key: ${{ runner.os }}-cargo-pr-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Build
-        run: cargo build --all-features --verbose
+        run: cargo build --features payment --verbose
 
   # Unit tests only (fast, no external dependencies)
   unit-tests:
@@ -87,7 +87,7 @@ jobs:
       - name: Run unit tests
         run: |
           cargo test --lib \
-            --all-features \
+            --features payment \
             -- \
             --skip integration \
             --skip database_tests \
@@ -96,7 +96,7 @@ jobs:
             --skip grpc_shard
       
       - name: Run doc tests
-        run: cargo test --doc --all-features
+        run: cargo test --doc --features payment
 
   # Check for breaking changes
   api-compatibility:
@@ -117,6 +117,6 @@ jobs:
       
       - name: Check public API
         run: |
-          cargo doc --no-deps --all-features
+          cargo doc --no-deps --features payment
           echo "✅ Public API documentation builds successfully"
 

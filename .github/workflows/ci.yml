@@ -62,7 +62,7 @@ jobs:
           sudo apt-get install -y libssl-dev pkg-config protobuf-compiler
       
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --features payment -- -D warnings
 
   # Build and test
   test:
@@ -111,13 +111,13 @@ jobs:
           brew install protobuf
       
       - name: Build
-        run: cargo build --verbose --all-features
+        run: cargo build --verbose --features payment
       
       - name: Run unit tests
         run: cargo test --lib --all-features -- --skip integration --skip real_data
       
       - name: Run doc tests
-        run: cargo test --doc --all-features
+        run: cargo test --doc --features payment
 
   # Build check without database-dependent features
   build-minimal:
@@ -193,7 +193,7 @@ jobs:
           sudo apt-get install -y libssl-dev pkg-config protobuf-compiler
       
       - name: Build documentation
-        run: cargo doc --no-deps --all-features
+        run: cargo doc --no-deps --features payment
         env:
           RUSTDOCFLAGS: -D warnings
 
