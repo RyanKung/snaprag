@@ -92,9 +92,9 @@ coverage/
 
 # Generated files
 *.generated.*
-**/generated/
-# Exception: allow mod.rs to be committed (it's the module declaration)
-!src/generated/mod.rs
+# Exception: allow all generated protobuf files to be committed for CI
+# build.rs will regenerate them when proto files change
+!src/generated/*.rs
 
 # Local development files
 .local/
