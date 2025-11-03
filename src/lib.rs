@@ -1,12 +1,34 @@
-//! `SnapRAG` - A Farcaster data synchronization and RAG (Retrieval-Augmented Generation) library
+//! SnapRAG - Farcaster data synchronization and RAG library
 //!
-//! `SnapRAG` provides comprehensive tools for:
-//! - Synchronizing Farcaster data from snapchain
-//! - Storing and querying user profiles, casts, and relationships
-//! - Vector embeddings and semantic search capabilities
-//! - RAG functionality for natural language queries
+//! SnapRAG is a comprehensive Rust library for working with Farcaster protocol data.
+//! It provides high-performance data synchronization, vector embeddings, semantic search,
+//! and retrieval-augmented generation (RAG) capabilities.
+//!
+//! # Features
+//!
+//! - **Data Sync**: Real-time and historical synchronization from Snapchain
+//! - **Vector Search**: Semantic search using embeddings (OpenAI, Ollama, local GPU)
+//! - **RAG**: Retrieval-augmented generation for natural language queries
+//! - **Social Graph**: Network analysis and relationship mapping
+//! - **MBTI Analysis**: Personality inference from user behavior
+//! - **Event Sourcing**: Complete change tracking and audit logs
 //!
 //! # Quick Start
+//!
+//! ## 1. Configuration
+//!
+//! Create `config.toml` from `config.example.toml` and set your database URL:
+//!
+//! ```toml
+//! [database]
+//! url = "postgresql://user:pass@localhost/snaprag"
+//!
+//! [sync]
+//! snapchain_http_endpoint = "http://snapchain:8080"
+//! snapchain_grpc_endpoint = "http://snapchain:2283"
+//! ```
+//!
+//! ## 2. Basic Usage
 //!
 //! ```rust,no_run
 //! use snaprag::{SnapRag, AppConfig};
@@ -16,8 +38,8 @@
 //!     // Load configuration
 //!     let config = AppConfig::load()?;
 //!     
-//!     // Create SnapRAG instance
-//!     let snaprag = SnapRag::new(&config).await?;
+//!     // Create SnapRAG instance (mutable for sync operations)
+//!     let mut snaprag = SnapRag::new(&config).await?;
 //!     
 //!     // Initialize database schema
 //!     snaprag.init_database().await?;
@@ -32,6 +54,83 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## 3. Semantic Search
+//!
+//! ```rust,no_run
+//! use snaprag::{SnapRag, AppConfig};
+//!
+//! # async fn example() -> snaprag::Result<()> {
+//! # let config = AppConfig::load()?;
+//! # let snaprag = SnapRag::new(&config).await?;
+//! // Search for casts semantically
+//! let results = snaprag.semantic_search_casts(
+//!     "artificial intelligence and machine learning",
+//!     10,  // limit
+//!     Some(0.7)  // similarity threshold
+//! ).await?;
+//!
+//! for cast in results {
+//!     println!("{}: {} (similarity: {:.2})",
+//!         cast.fid, cast.text, cast.similarity);
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## 4. RAG Queries
+//!
+//! ```rust,no_run
+//! use snaprag::{SnapRag, AppConfig};
+//!
+//! # async fn example() -> snaprag::Result<()> {
+//! # let config = AppConfig::load()?;
+//! # let snaprag = SnapRag::new(&config).await?;
+//! // Create RAG service
+//! let rag = snaprag.create_rag_service().await?;
+//!
+//! // Ask natural language question
+//! let response = rag.query("What are people saying about Ethereum?").await?;
+//! println!("Answer: {}", response.answer);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Architecture
+//!
+//! SnapRAG follows a modular architecture:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────┐
+//! │           CLI / API Layer                   │
+//! ├─────────────────────────────────────────────┤
+//! │  SnapRag (High-level Interface)            │
+//! ├──────────────┬──────────────┬───────────────┤
+//! │   Sync       │     RAG      │  Social Graph │
+//! │   Service    │   Service    │   Analyzer    │
+//! ├──────────────┴──────────────┴───────────────┤
+//! │         Embeddings & LLM Layer             │
+//! ├─────────────────────────────────────────────┤
+//! │           Database Layer                    │
+//! └─────────────────────────────────────────────┘
+//! ```
+//!
+//! # Modules
+//!
+//! - [`api`]: HTTP API server and handlers
+//! - [`cli`]: Command-line interface
+//! - [`config`]: Configuration management
+//! - [`database`]: PostgreSQL operations
+//! - [`embeddings`]: Vector embeddings generation
+//! - [`llm`]: LLM client for text generation
+//! - [`rag`]: Retrieval-augmented generation
+//! - [`sync`]: Data synchronization from Snapchain
+//! - [`social_graph`]: Social network analysis
+//! - [`personality`]: MBTI personality inference
+//!
+//! # Error Handling
+//!
+//! All operations return [`Result<T>`] with [`SnapRagError`] for comprehensive error information.
 
 pub mod api;
 pub mod cli;
@@ -49,16 +148,39 @@ pub mod rag;
 pub mod social_graph;
 pub mod sync;
 
+// Unit test modules integrated into main lib tests
+// See src/tests/unit_tests.rs for comprehensive unit tests
+
 /// Farcaster epoch constant (January 1, 2021 UTC in milliseconds)
 pub const FARCASTER_EPOCH: u64 = 1_609_459_200_000;
 
 /// Convert Farcaster timestamp (seconds since Farcaster epoch) to Unix timestamp (seconds since Unix epoch)
+///
+/// # Examples
+///
+/// ```
+/// use snaprag::farcaster_to_unix_timestamp;
+///
+/// let farcaster_ts = 0; // Farcaster epoch
+/// let unix_ts = farcaster_to_unix_timestamp(farcaster_ts);
+/// assert_eq!(unix_ts, 1609459200); // Jan 1, 2021
+/// ```
 #[must_use]
 pub const fn farcaster_to_unix_timestamp(farcaster_timestamp: u64) -> u64 {
     farcaster_timestamp + (FARCASTER_EPOCH / 1000)
 }
 
 /// Convert Unix timestamp (seconds since Unix epoch) to Farcaster timestamp (seconds since Farcaster epoch)
+///
+/// # Examples
+///
+/// ```
+/// use snaprag::unix_to_farcaster_timestamp;
+///
+/// let unix_ts = 1609459200; // Jan 1, 2021
+/// let farcaster_ts = unix_to_farcaster_timestamp(unix_ts);
+/// assert_eq!(farcaster_ts, 0); // Farcaster epoch
+/// ```
 #[must_use]
 pub const fn unix_to_farcaster_timestamp(unix_timestamp: u64) -> u64 {
     unix_timestamp - (FARCASTER_EPOCH / 1000)
@@ -66,6 +188,76 @@ pub const fn unix_to_farcaster_timestamp(unix_timestamp: u64) -> u64 {
 
 #[cfg(test)]
 pub mod tests;
+
+#[cfg(test)]
+mod lib_tests {
+    use super::*;
+
+    #[test]
+    fn test_farcaster_epoch_constant() {
+        // Verify Farcaster epoch is Jan 1, 2021
+        assert_eq!(FARCASTER_EPOCH, 1_609_459_200_000);
+    }
+
+    #[test]
+    fn test_farcaster_to_unix_timestamp() {
+        // Epoch conversion
+        assert_eq!(farcaster_to_unix_timestamp(0), 1_609_459_200);
+
+        // 1 day after epoch
+        assert_eq!(farcaster_to_unix_timestamp(86400), 1_609_459_200 + 86400);
+
+        // Large timestamp
+        assert_eq!(
+            farcaster_to_unix_timestamp(100_000_000),
+            1_609_459_200 + 100_000_000
+        );
+    }
+
+    #[test]
+    fn test_unix_to_farcaster_timestamp() {
+        // Epoch conversion
+        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200), 0);
+
+        // 1 day after epoch
+        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200 + 86400), 86400);
+
+        // Current time (approximate)
+        let current_unix = 1_700_000_000u64;
+        let farcaster = unix_to_farcaster_timestamp(current_unix);
+        assert!(farcaster > 90_000_000); // Should be > 90M seconds since epoch
+    }
+
+    #[test]
+    fn test_timestamp_roundtrip() {
+        // Test that conversions are reversible
+        let original_farcaster = 50_000_000u64;
+        let unix = farcaster_to_unix_timestamp(original_farcaster);
+        let back_to_farcaster = unix_to_farcaster_timestamp(unix);
+        assert_eq!(original_farcaster, back_to_farcaster);
+
+        // Reverse direction
+        let original_unix = 1_650_000_000u64;
+        let farcaster = unix_to_farcaster_timestamp(original_unix);
+        let back_to_unix = farcaster_to_unix_timestamp(farcaster);
+        assert_eq!(original_unix, back_to_unix);
+    }
+
+    #[test]
+    fn test_timestamp_edge_cases() {
+        // Zero farcaster timestamp
+        assert_eq!(farcaster_to_unix_timestamp(0), 1_609_459_200);
+
+        // Zero would underflow for unix_to_farcaster, so test smallest valid
+        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200), 0);
+
+        // Maximum reasonable timestamp (year 2100)
+        let year_2100 = 4_102_444_800u64;
+        let farcaster = unix_to_farcaster_timestamp(year_2100);
+        let back = farcaster_to_unix_timestamp(farcaster);
+        assert_eq!(back, year_2100);
+    }
+}
 
 // Re-export commonly used types
 use std::sync::Arc;

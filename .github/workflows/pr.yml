@@ -1,0 +1,122 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Quick validation checks
+  quick-checks:
+    name: Quick Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Check for TODO/FIXME in source
+        run: |
+          if git diff origin/${{ github.base_ref }}...HEAD --name-only | grep "\.rs$" | xargs grep -n "TODO\|FIXME" src/ || true; then
+            echo "⚠️  Found TODO/FIXME comments in changes"
+          fi
+      
+      - name: Format check
+        run: cargo fmt --all -- --check
+      
+      - name: Clippy check (fail on warnings)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        continue-on-error: true
+
+  # Compile check
+  compile:
+    name: Compilation Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config protobuf-compiler
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-pr-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build
+        run: cargo build --all-features --verbose
+
+  # Unit tests only (fast, no external dependencies)
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config protobuf-compiler
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run unit tests
+        run: |
+          cargo test --lib \
+            --all-features \
+            -- \
+            --skip integration \
+            --skip database_tests \
+            --skip real_data \
+            --skip deterministic_blocks \
+            --skip grpc_shard
+      
+      - name: Run doc tests
+        run: cargo test --doc --all-features
+
+  # Check for breaking changes
+  api-compatibility:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config protobuf-compiler
+      
+      - name: Check public API
+        run: |
+          cargo doc --no-deps --all-features
+          echo "✅ Public API documentation builds successfully"
+

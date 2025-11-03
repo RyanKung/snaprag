@@ -82,6 +82,7 @@ pub async fn fetch_user(
     // Check if user already exists
     let existing_profile = state.database.get_user_profile(fid).await.ok().flatten();
     if let Some(profile) = existing_profile {
+        let casts_count = state.database.count_casts_by_fid(fid).await.unwrap_or(0) as usize;
         return Ok(Json(ApiResponse::success(FetchResponse {
             profile: ProfileResponse {
                 fid: profile.fid,
@@ -93,7 +94,7 @@ pub async fn fetch_user(
                 twitter_username: profile.twitter_username,
                 github_username: profile.github_username,
             },
-            casts_count: 0, // TODO: get actual count
+            casts_count,
             embeddings_generated: None,
             source: "database".to_string(),
         })));
@@ -103,6 +104,7 @@ pub async fn fetch_user(
     match loader.fetch_user_profile(fid as u64).await {
         Ok(profile) => {
             info!("✅ Successfully fetched user profile for FID {}", fid);
+            let casts_count = state.database.count_casts_by_fid(fid).await.unwrap_or(0) as usize;
             Ok(Json(ApiResponse::success(FetchResponse {
                 profile: ProfileResponse {
                     fid: profile.fid,
@@ -114,7 +116,7 @@ pub async fn fetch_user(
                     twitter_username: profile.twitter_username,
                     github_username: profile.github_username,
                 },
-                casts_count: 0, // TODO: get actual count
+                casts_count,
                 embeddings_generated: None,
                 source: "snapchain".to_string(),
             })))
@@ -156,6 +158,11 @@ pub async fn fetch_users_batch(
             .ok()
             .flatten();
         if let Some(profile) = existing_profile {
+            let casts_count = state
+                .database
+                .count_casts_by_fid(fid as i64)
+                .await
+                .unwrap_or(0) as usize;
             responses.push(FetchResponse {
                 profile: ProfileResponse {
                     fid: profile.fid,
@@ -167,7 +174,7 @@ pub async fn fetch_users_batch(
                     twitter_username: profile.twitter_username,
                     github_username: profile.github_username,
                 },
-                casts_count: 0, // TODO: get actual count
+                casts_count,
                 embeddings_generated: None,
                 source: "database".to_string(),
             });
@@ -178,6 +185,11 @@ pub async fn fetch_users_batch(
         match loader.fetch_user_profile(fid).await {
             Ok(profile) => {
                 info!("✅ Successfully fetched user profile for FID {}", fid);
+                let casts_count = state
+                    .database
+                    .count_casts_by_fid(fid as i64)
+                    .await
+                    .unwrap_or(0) as usize;
                 responses.push(FetchResponse {
                     profile: ProfileResponse {
                         fid: profile.fid,
@@ -189,7 +201,7 @@ pub async fn fetch_users_batch(
                         twitter_username: profile.twitter_username,
                         github_username: profile.github_username,
                     },
-                    casts_count: 0, // TODO: get actual count
+                    casts_count,
                     embeddings_generated: None,
                     source: "snapchain".to_string(),
                 });

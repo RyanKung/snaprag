@@ -407,7 +407,7 @@ pub enum ProfileSortBy {
 }
 
 /// Sort order
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SortOrder {
     Asc,
     Desc,

@@ -7,11 +7,11 @@ pub mod grpc_shard_chunks_test;
 pub mod integration_sync_test;
 pub mod message_types_test;
 pub mod rag_integration_test;
+pub mod real_data_test;
 pub mod strict_test_config;
 pub mod strict_test_runner;
 pub mod strict_test_validation;
-// TODO: Add real_data_test module (requires Snapchain config refactoring)
-// REMOVED: strict_validation_tests (outdated Config structure)
+pub mod unit_tests;
 
 use crate::config::AppConfig;
 use crate::database::Database;

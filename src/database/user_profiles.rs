@@ -375,6 +375,15 @@ impl Database {
         Ok(profiles)
     }
 
+    /// Count casts for a specific FID
+    pub async fn count_casts_by_fid(&self, fid: i64) -> Result<i64> {
+        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE fid = $1")
+            .bind(fid)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(count)
+    }
+
     /// Get statistics
     pub async fn get_statistics(
         &self,

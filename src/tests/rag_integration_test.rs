@@ -155,13 +155,13 @@ async fn test_cast_rag_pipeline() -> Result<()> {
             result.similarity
         );
         assert!(
-            result.reply_count >= 0,
-            "Invalid reply count: {}",
+            result.reply_count.unwrap_or(0) >= 0,
+            "Invalid reply count: {:?}",
             result.reply_count
         );
         assert!(
-            result.reaction_count >= 0,
-            "Invalid reaction count: {}",
+            result.reaction_count.unwrap_or(0) >= 0,
+            "Invalid reaction count: {:?}",
             result.reaction_count
         );
     }
@@ -194,8 +194,14 @@ async fn test_cast_rag_pipeline() -> Result<()> {
     println!("   Results: {} casts", search_results.len());
     println!(
         "   Total engagement: {} replies, {} reactions",
-        search_results.iter().map(|r| r.reply_count).sum::<i64>(),
-        search_results.iter().map(|r| r.reaction_count).sum::<i64>()
+        search_results
+            .iter()
+            .map(|r| r.reply_count.unwrap_or(0))
+            .sum::<i64>(),
+        search_results
+            .iter()
+            .map(|r| r.reaction_count.unwrap_or(0))
+            .sum::<i64>()
     );
     println!("   Context size: {} chars", context.len());
     println!("   Response length: {} chars", response.len());

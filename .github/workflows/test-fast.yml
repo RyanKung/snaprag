@@ -1,0 +1,58 @@
+name: Fast Tests
+
+# 快速测试工作流 - 只运行纯单元测试
+# 用于快速验证PR，不运行需要数据库的集成测试
+
+on:
+  pull_request:
+    paths:
+      - 'src/**/*.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fast-unit-tests:
+    name: Fast Unit Tests (No DB)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config protobuf-compiler
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-fast-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fast-
+            ${{ runner.os }}-cargo-
+      
+      - name: Run fast unit tests
+        run: |
+          cargo test --lib \
+            unit_tests::unit_tests \
+            text_preprocessing::tests \
+            service_factory::tests \
+            migration::tests \
+            session::tests \
+            lock_file::tests \
+            process_monitor::tests \
+            lazy_loader::tests \
+            --all-features
+      
+      - name: Test documentation examples
+        run: cargo test --doc --all-features

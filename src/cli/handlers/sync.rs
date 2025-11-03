@@ -18,9 +18,8 @@ pub async fn handle_sync_command(mut snaprag: SnapRag, sync_command: SyncCommand
             // These commands don't require full schema
         }
         _ => {
-            // TODO: Re-enable after first init
             // All other sync commands require initialized database
-            // snaprag.database().verify_schema_or_error().await?;
+            snaprag.database().verify_schema_or_error().await?;
         }
     }
 

@@ -174,22 +174,34 @@ fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
     let temp_sql_path = "/tmp/snaprag_init.sql";
     std::fs::write(temp_sql_path, init_sql)?;
 
-    // Get database URL from environment or use default parsing
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        // Fallback: read from config.toml
-        std::fs::read_to_string("config.toml")
-            .ok()
-            .and_then(|content| {
-                content
-                    .lines()
-                    .find(|line| line.contains("url =") && line.contains("postgresql"))
-                    .and_then(|line| line.split('"').nth(1))
-                    .map(String::from)
-            })
-            .unwrap_or_else(|| {
-                "postgresql://snaprag:hackinthebox_24601@192.168.1.192/snaprag".to_string()
-            })
-    });
+    // Get database URL from environment or config.toml (required)
+    let db_url = std::env::var("DATABASE_URL")
+        .or_else(|_| {
+            // Try to read from config.toml
+            std::fs::read_to_string("config.toml")
+                .ok()
+                .and_then(|content| {
+                    content
+                        .lines()
+                        .find(|line| line.contains("url =") && line.contains("postgresql"))
+                        .and_then(|line| line.split('"').nth(1))
+                        .map(String::from)
+                })
+                .ok_or_else(|| std::env::VarError::NotPresent)
+        })
+        .map_err(|_| {
+            crate::SnapRagError::Custom(
+                "❌ Database URL not found!\n\n\
+             Please set DATABASE_URL environment variable or configure it in config.toml:\n\n\
+             [database]\n\
+             url = \"postgresql://user:password@host:port/database\"\n\n\
+             Example:\n\
+             DATABASE_URL=\"postgresql://snaprag:password@localhost/snaprag\" snaprag init\n\
+             or\n\
+             Edit config.toml and set the database.url field."
+                    .to_string(),
+            )
+        })?;
 
     //Parse DATABASE_URL to get components
     // Format: postgresql://user:password@host:port/database
@@ -275,21 +287,27 @@ fn run_schema_migrations(_snaprag: &SnapRag) -> Result<()> {
     // No additional migrations - everything is in 000_complete_init.sql
     let migrations: Vec<(&str, &str)> = vec![];
 
-    // Get database connection info
-    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        std::fs::read_to_string("config.toml")
-            .ok()
-            .and_then(|content| {
-                content
-                    .lines()
-                    .find(|line| line.contains("url =") && line.contains("postgresql"))
-                    .and_then(|line| line.split('"').nth(1))
-                    .map(String::from)
-            })
-            .unwrap_or_else(|| {
-                "postgresql://snaprag:hackinthebox_24601@192.168.1.192/snaprag".to_string()
-            })
-    });
+    // Get database connection info from environment or config.toml (required)
+    let db_url = std::env::var("DATABASE_URL")
+        .or_else(|_| {
+            std::fs::read_to_string("config.toml")
+                .ok()
+                .and_then(|content| {
+                    content
+                        .lines()
+                        .find(|line| line.contains("url =") && line.contains("postgresql"))
+                        .and_then(|line| line.split('"').nth(1))
+                        .map(String::from)
+                })
+                .ok_or_else(|| std::env::VarError::NotPresent)
+        })
+        .map_err(|_| {
+            crate::SnapRagError::Custom(
+                "❌ Database URL not found in environment or config.toml!\n\n\
+             Please configure database URL before running migrations."
+                    .to_string(),
+            )
+        })?;
 
     let url_without_scheme = db_url
         .strip_prefix("postgresql://")

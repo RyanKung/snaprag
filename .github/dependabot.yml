@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+  
+  # Cargo dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Ignore certain dependencies that need manual review
+    ignore:
+      - dependency-name: "candle-*"
+        # GPU-specific dependencies need careful version management
+      - dependency-name: "ethers"
+        # Ethereum dependencies tied to protocol versions
+

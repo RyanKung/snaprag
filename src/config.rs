@@ -1,3 +1,7 @@
+//! Configuration management for SnapRAG
+//!
+//! Handles loading and validation of application configuration from TOML files.
+
 use std::path::Path;
 
 use serde::Deserialize;

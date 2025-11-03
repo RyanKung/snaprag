@@ -1,26 +1,118 @@
-//! Embeddings generation module
+//! Vector embeddings generation and management
 //!
-//! This module provides functionality for generating text embeddings using various providers:
-//! - `OpenAI` (text-embedding-ada-002, text-embedding-3-small, etc.)
-//! - Ollama (local models)
-//! - Custom endpoints
+//! This module provides high-performance embedding generation with support for multiple providers
+//! and backends, including OpenAI, Ollama, and local GPU acceleration.
 //!
-//! # Examples
+//! # Providers
+//!
+//! - **OpenAI**: Cloud-based (text-embedding-ada-002, text-embedding-3-small)
+//! - **Ollama**: Local LLM server with various models
+//! - **Local GPU**: Direct GPU acceleration with Candle (optional feature)
+//! - **Custom**: Any OpenAI-compatible API endpoint
+//!
+//! # Features
+//!
+//! - **Multi-vector embeddings**: Chunk long texts for better retrieval
+//! - **Batch processing**: Efficient bulk embedding generation
+//! - **Parallel tasks**: Concurrent requests for high throughput
+//! - **Backfill**: Generate embeddings for existing data
+//! - **Migration**: Safely migrate between embedding models
+//!
+//! # Basic Usage
+//!
+//! ## Single Embedding
 //!
 //! ```rust,no_run
 //! use snaprag::embeddings::EmbeddingService;
 //! use snaprag::config::AppConfig;
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = AppConfig::load()?;
-//!     let service = EmbeddingService::new(&config)?;
+//! # async fn example() -> snaprag::Result<()> {
+//! let config = AppConfig::load()?;
+//! let service = EmbeddingService::new(&config)?;
 //!     
-//!     let embedding = service.generate("Hello, world!").await?;
-//!     println!("Generated embedding with {} dimensions", embedding.len());
-//!     
-//!     Ok(())
-//! }
+//! let embedding = service.generate("Hello, world!").await?;
+//! println!("Generated embedding with {} dimensions", embedding.len());
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Batch Generation
+//!
+//! ```rust,no_run
+//! use snaprag::embeddings::EmbeddingService;
+//!
+//! # async fn example(service: &EmbeddingService) -> snaprag::Result<()> {
+//! let texts = vec!["First text", "Second text", "Third text"];
+//! let embeddings = service.generate_batch(texts).await?;
+//! println!("Generated {} embeddings", embeddings.len());
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Backfill Existing Data
+//!
+//! ```rust,no_run
+//! use snaprag::embeddings::{backfill_embeddings, EmbeddingService};
+//! use snaprag::Database;
+//! use std::sync::Arc;
+//!
+//! # async fn example(database: Arc<Database>, service: Arc<EmbeddingService>) -> snaprag::Result<()> {
+//! // Backfill profile embeddings
+//! let stats = backfill_embeddings(
+//!     database,
+//!     service
+//! ).await?;
+//!
+//! println!("✅ Updated: {}, ⏭️ Skipped: {}", stats.updated, stats.skipped);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Configuration
+//!
+//! Configure multiple endpoints in `config.toml`:
+//!
+//! ```toml
+//! [[embeddings.endpoints]]
+//! name = "ollama"
+//! endpoint = "http://localhost:11434"
+//! model = "bge-small-en-v1.5"
+//! provider = "ollama"
+//!
+//! [[embeddings.endpoints]]
+//! name = "openai"
+//! endpoint = "https://api.openai.com/v1"
+//! api_key = "sk-..."
+//! model = "text-embedding-3-small"
+//! provider = "openai"
+//! ```
+//!
+//! # Performance Tuning
+//!
+//! ```toml
+//! [embeddings]
+//! batch_size = 500          # Items per batch
+//! parallel_tasks = 100      # Concurrent requests
+//! cpu_threads = 0           # Auto-detect CPU cores
+//! ```
+//!
+//! # Text Preprocessing
+//!
+//! For long or complex texts, use preprocessing utilities:
+//!
+//! ```rust,no_run
+//! use snaprag::embeddings::{preprocess_text_for_embedding, EmbeddingService};
+//!
+//! # async fn example(service: &EmbeddingService) -> snaprag::Result<()> {
+//! // Preprocess text before generating embedding
+//! let text = "Very long text with special characters and formatting...";
+//! let processed = preprocess_text_for_embedding(text)?;
+//!
+//! // Generate embedding for processed text
+//! let embedding = service.generate(&processed).await?;
+//! println!("Generated embedding: {} dimensions", embedding.len());
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod backfill;
@@ -32,6 +124,7 @@ pub mod migration;
 pub mod multi_vector;
 #[cfg(feature = "local-gpu")]
 pub mod multiprocess;
+pub mod service_factory;
 pub mod text_preprocessing;
 
 pub use backfill::backfill_embeddings;
@@ -59,6 +152,8 @@ pub use multiprocess::MultiProcessConfig;
 pub use multiprocess::MultiProcessEmbeddingGenerator;
 #[cfg(feature = "local-gpu")]
 pub use multiprocess::MultiProcessStats;
+pub use service_factory::create_embedding_service;
+pub use service_factory::EmbeddingServiceResult;
 pub use text_preprocessing::generate_text_chunks;
 pub use text_preprocessing::preprocess_text_for_embedding;
 pub use text_preprocessing::validate_text_for_embedding;
