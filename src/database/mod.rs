@@ -41,7 +41,7 @@ impl Database {
 
         let pool = pool_options.connect(config.database_url()).await?;
 
-        tracing::info!(
+        tracing::debug!(
             "Database pool configured: max_connections={}, min_connections={}",
             config.max_connections(),
             config.min_connections()

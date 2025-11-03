@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
 
     // Load configuration
     let config = AppConfig::load()?;
-    info!("Configuration loaded successfully");
+    tracing::debug!("Configuration loaded successfully");
 
     // Create SnapRAG instance
     let snaprag = SnapRag::new(&config).await?;
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
 
     if needs_schema_init {
         snaprag.init_database().await?;
-        info!("Database schema initialized");
+        tracing::debug!("Database schema initialized");
     } else {
         tracing::debug!("Skipping schema initialization for this command");
     }

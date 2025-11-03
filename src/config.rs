@@ -292,9 +292,9 @@ impl AppConfig {
         if Path::new("payment.toml").exists() {
             if let Ok(payment_config) = X402Config::from_file("payment.toml") {
                 config.x402 = payment_config;
-                println!("✅ Loaded x402 configuration from payment.toml");
+                tracing::debug!("Loaded x402 configuration from payment.toml");
             } else {
-                println!("⚠️  Warning: payment.toml exists but could not be parsed. Using x402 config from main config file.");
+                tracing::warn!("Warning: payment.toml exists but could not be parsed. Using x402 config from main config file.");
             }
         }
 

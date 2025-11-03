@@ -86,140 +86,106 @@ pub async fn handle_mbti_analysis(
         .analyze_mbti(fid as i64, social_profile.as_ref())
         .await?;
 
-    // Display results
-    println!("╔═══════════════════════════════════════════════════════════════╗");
-    println!("║  MBTI PERSONALITY ANALYSIS                                    ║");
-    println!("╚═══════════════════════════════════════════════════════════════╝");
-    println!();
+    // Display results - compact format
+    let confidence_indicator = if mbti_profile.confidence >= 0.8 {
+        "🟢"
+    } else if mbti_profile.confidence >= 0.6 {
+        "🟡"
+    } else if mbti_profile.confidence >= 0.4 {
+        "🟠"
+    } else {
+        "🔴"
+    };
 
-    // Main type and confidence
-    println!("  🎯 Personality Type: {}", mbti_profile.mbti_type);
+    println!("┌──────────────────────────────────────────────────────────┐");
     println!(
-        "  📊 Confidence:       {:.1}%",
+        "│  MBTI: {}  {}  Confidence: {:.0}%                      │",
+        mbti_profile.mbti_type,
+        confidence_indicator,
         mbti_profile.confidence * 100.0
     );
+    println!("└──────────────────────────────────────────────────────────┘");
     println!();
 
-    // Confidence indicator
-    let confidence_indicator = if mbti_profile.confidence >= 0.8 {
-        "🟢 Very Confident"
-    } else if mbti_profile.confidence >= 0.6 {
-        "🟡 Confident"
-    } else if mbti_profile.confidence >= 0.4 {
-        "🟠 Moderate"
+    // Type description with traits
+    let type_desc = get_type_description(&mbti_profile.mbti_type);
+    println!("  {}", type_desc.lines().next().unwrap_or(""));
+    println!();
+
+    // Compact traits display
+    println!("  💎 Traits: {}", mbti_profile.traits.join(" • "));
+    println!();
+
+    // Compact dimension scores
+    print_compact_dimension("E/I", mbti_profile.dimensions.ei_score);
+    print_compact_dimension("S/N", mbti_profile.dimensions.sn_score);
+    print_compact_dimension("T/F", mbti_profile.dimensions.tf_score);
+    print_compact_dimension("J/P", mbti_profile.dimensions.jp_score);
+    println!();
+
+    // Key insight from analysis (first paragraph only, unless verbose)
+    if verbose {
+        println!("  📊 Analysis:");
+        for line in mbti_profile.analysis.lines() {
+            if line.trim().is_empty() {
+                println!();
+            } else {
+                let wrapped = textwrap::wrap(line.trim(), 58);
+                for wrapped_line in wrapped {
+                    println!("     {wrapped_line}");
+                }
+            }
+        }
     } else {
-        "🔴 Low Confidence"
-    };
-    println!("  {confidence_indicator}");
-    println!();
+        // Show only first paragraph for concise output
+        let first_para: String = mbti_profile
+            .analysis
+            .lines()
+            .take_while(|line| !line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
 
-    // Dimension scores
-    println!("╔═══════════════════════════════════════════════════════════════╗");
-    println!("║  DIMENSION SCORES                                             ║");
-    println!("╚═══════════════════════════════════════════════════════════════╝");
-    println!();
-
-    print_dimension(
-        "E/I",
-        "Extraversion ↔ Introversion",
-        mbti_profile.dimensions.ei_score,
-        mbti_profile.dimensions.ei_confidence,
-    );
-    print_dimension(
-        "S/N",
-        "Sensing ↔ Intuition",
-        mbti_profile.dimensions.sn_score,
-        mbti_profile.dimensions.sn_confidence,
-    );
-    print_dimension(
-        "T/F",
-        "Thinking ↔ Feeling",
-        mbti_profile.dimensions.tf_score,
-        mbti_profile.dimensions.tf_confidence,
-    );
-    print_dimension(
-        "J/P",
-        "Judging ↔ Perceiving",
-        mbti_profile.dimensions.jp_score,
-        mbti_profile.dimensions.jp_confidence,
-    );
-    println!();
-
-    // Personality traits
-    println!("╔═══════════════════════════════════════════════════════════════╗");
-    println!("║  KEY PERSONALITY TRAITS                                       ║");
-    println!("╚═══════════════════════════════════════════════════════════════╝");
-    println!();
-
-    for (idx, trait_name) in mbti_profile.traits.iter().enumerate() {
-        println!("  {}. {}", idx + 1, trait_name);
-    }
-    println!();
-
-    // Analysis
-    println!("╔═══════════════════════════════════════════════════════════════╗");
-    println!("║  BEHAVIORAL ANALYSIS                                          ║");
-    println!("╚═══════════════════════════════════════════════════════════════╝");
-    println!();
-
-    // Format analysis with proper wrapping
-    for line in mbti_profile.analysis.lines() {
-        if line.trim().is_empty() {
-            println!();
-        } else {
-            // Wrap long lines
-            let wrapped = textwrap::wrap(line.trim(), 61);
+        if !first_para.is_empty() {
+            println!("  📊 Key Insight:");
+            let wrapped = textwrap::wrap(first_para.trim(), 58);
             for wrapped_line in wrapped {
-                println!("  {wrapped_line}");
+                println!("     {wrapped_line}");
             }
         }
     }
     println!();
 
-    // Type description
-    println!("╔═══════════════════════════════════════════════════════════════╗");
-    println!("║  TYPE DESCRIPTION                                             ║");
-    println!("╚═══════════════════════════════════════════════════════════════╝");
-    println!();
-
-    let type_desc = get_type_description(&mbti_profile.mbti_type);
-    for line in type_desc.lines() {
-        println!("  {line}");
-    }
-    println!();
-
-    // Verbose mode: show detailed dimension breakdown
+    // Verbose mode: show detailed dimension breakdown with full visualization
     if verbose {
-        println!("╔═══════════════════════════════════════════════════════════════╗");
-        println!("║  DETAILED SCORES                                              ║");
-        println!("╚═══════════════════════════════════════════════════════════════╝");
+        println!("  ┌─────────────────────────────────────────────────────────┐");
+        println!("  │  DETAILED DIMENSION BREAKDOWN                           │");
+        println!("  └─────────────────────────────────────────────────────────┘");
         println!();
 
-        println!("  Dimension Scores (0.0 = left, 1.0 = right):");
-        println!("    E/I: {:.3}", mbti_profile.dimensions.ei_score);
-        println!("    S/N: {:.3}", mbti_profile.dimensions.sn_score);
-        println!("    T/F: {:.3}", mbti_profile.dimensions.tf_score);
-        println!("    J/P: {:.3}", mbti_profile.dimensions.jp_score);
-        println!();
-
-        println!("  Confidence Scores:");
-        println!(
-            "    E/I: {:.1}%",
-            mbti_profile.dimensions.ei_confidence * 100.0
+        print_dimension(
+            "E/I",
+            "Extraversion ↔ Introversion",
+            mbti_profile.dimensions.ei_score,
+            mbti_profile.dimensions.ei_confidence,
         );
-        println!(
-            "    S/N: {:.1}%",
-            mbti_profile.dimensions.sn_confidence * 100.0
+        print_dimension(
+            "S/N",
+            "Sensing ↔ Intuition",
+            mbti_profile.dimensions.sn_score,
+            mbti_profile.dimensions.sn_confidence,
         );
-        println!(
-            "    T/F: {:.1}%",
-            mbti_profile.dimensions.tf_confidence * 100.0
+        print_dimension(
+            "T/F",
+            "Thinking ↔ Feeling",
+            mbti_profile.dimensions.tf_score,
+            mbti_profile.dimensions.tf_confidence,
         );
-        println!(
-            "    J/P: {:.1}%",
-            mbti_profile.dimensions.jp_confidence * 100.0
+        print_dimension(
+            "J/P",
+            "Judging ↔ Perceiving",
+            mbti_profile.dimensions.jp_score,
+            mbti_profile.dimensions.jp_confidence,
         );
-        println!();
     }
 
     // Export to JSON if requested
@@ -254,7 +220,28 @@ async fn parse_user_identifier(identifier: &str, database: &Database) -> Result<
     }
 }
 
-/// Print dimension score with visual representation
+/// Print compact dimension score (for non-verbose mode)
+fn print_compact_dimension(code: &str, score: f32) {
+    let letters: Vec<&str> = code.split('/').collect();
+    let left = letters[0];
+    let right = letters[1];
+
+    // Determine which side is dominant
+    let (dominant, percentage) = if score < 0.5 {
+        (left, (1.0 - score * 2.0) * 100.0)
+    } else {
+        (right, (score * 2.0 - 1.0) * 100.0)
+    };
+
+    // Create compact visual bar (20 chars total)
+    let bar_length = ((score * 20.0) as usize).min(20);
+    let left_bar = "─".repeat(10 - bar_length.min(10));
+    let right_bar = "─".repeat(bar_length.saturating_sub(10));
+
+    println!("  {code}  {left}{left_bar}●{right_bar}{right}  {dominant} {percentage:.0}%");
+}
+
+/// Print dimension score with visual representation (for verbose mode)
 fn print_dimension(code: &str, description: &str, score: f32, confidence: f32) {
     let letters: Vec<&str> = code.split('/').collect();
     let left = letters[0];

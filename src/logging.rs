@@ -35,10 +35,10 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
             "warn,snaprag={level},sqlx=error,h2=warn,tonic=warn,hyper=warn,tower=warn"
         ))
     } else {
-        // Fallback to environment variable or default to info level
-        // Only show warnings from third-party libraries, info from snaprag
+        // Fallback to environment variable or default to warn level for CLI
+        // Only show warnings and errors to keep CLI output clean
         EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("warn,snaprag=info,sqlx=error"))
+            .unwrap_or_else(|_| EnvFilter::new("warn,snaprag=warn,sqlx=error"))
     };
 
     // Set up file appender for all logs
@@ -76,14 +76,15 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
     let level = if let Some(config) = config {
         &config.logging.level
     } else {
-        "info"
+        "warn"
     };
 
-    tracing::info!(
+    // Only log initialization messages to file, not console
+    tracing::debug!(
         "Logging initialized with level: {} - console and file output enabled",
         level
     );
-    tracing::info!("Log files will be saved to: logs/snaprag.log.YYYY-MM-DD");
+    tracing::debug!("Log files will be saved to: logs/snaprag.log.YYYY-MM-DD");
 
     // Store the guard to prevent it from being dropped
     std::mem::forget(_guard);
@@ -145,11 +146,11 @@ pub fn init_logging_with_level(level: &str) -> Result<()> {
         .with(file_layer)
         .init();
 
-    tracing::info!(
+    tracing::debug!(
         "Logging initialized with level: {} - console and file output enabled",
         level
     );
-    tracing::info!("Log files will be saved to: logs/snaprag.log.YYYY-MM-DD");
+    tracing::debug!("Log files will be saved to: logs/snaprag.log.YYYY-MM-DD");
 
     // Store the guard to prevent it from being dropped
     std::mem::forget(_guard);
