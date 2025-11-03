@@ -136,3 +136,6 @@ snaprag_sync_state.json
 demo/
 examples/polyjuice/
 payment.toml
+
+src/generated/proto
+src/generated/snaprag_descriptor.bin
