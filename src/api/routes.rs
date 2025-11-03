@@ -52,5 +52,15 @@ pub fn api_routes(state: AppState) -> Router {
             "/mbti/username/:username",
             get(handlers::get_mbti_analysis_by_username),
         )
+        .route("/mbti/batch", post(handlers::batch_mbti_analysis))
+        .route("/mbti/stats", get(handlers::get_mbti_stats))
+        .route(
+            "/mbti/search/:mbti_type",
+            get(handlers::search_by_mbti_type),
+        )
+        .route(
+            "/mbti/compatibility/:fid1/:fid2",
+            get(handlers::get_mbti_compatibility),
+        )
         .with_state(state)
 }
