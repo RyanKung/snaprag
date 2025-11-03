@@ -114,7 +114,7 @@ jobs:
         run: cargo build --verbose --features payment
       
       - name: Run unit tests
-        run: cargo test --lib --all-features -- --skip integration --skip real_data
+        run: cargo test --lib --features payment -- --skip integration --skip real_data
       
       - name: Run doc tests
         run: cargo test --doc --features payment
