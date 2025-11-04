@@ -1,6 +1,6 @@
 //! Simple example: Query user profiles
 //!
-//! Run with: cargo run --example simple_query
+//! Run with: cargo run --example `simple_query`
 
 use snaprag::AppConfig;
 use snaprag::SnapRag;
@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 bio.clone()
             };
-            println!("     {}", bio_preview);
+            println!("     {bio_preview}");
         }
         println!();
     }

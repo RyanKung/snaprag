@@ -24,7 +24,7 @@ pub struct EmbeddingServiceResult {
 /// * `gpu_device` - Optional GPU device ID (requires `local-gpu` feature)
 ///
 /// # Returns
-/// A tuple of (service, endpoint_info) where endpoint_info is a human-readable description
+/// A tuple of (service, `endpoint_info`) where `endpoint_info` is a human-readable description
 pub async fn create_embedding_service(
     config: &AppConfig,
     endpoint_name: Option<String>,
@@ -128,7 +128,7 @@ mod tests {
         assert!(result.is_err());
 
         if let Err(e) = result {
-            let err_msg = format!("{}", e);
+            let err_msg = format!("{e}");
             assert!(err_msg.contains("not found"));
         }
     }

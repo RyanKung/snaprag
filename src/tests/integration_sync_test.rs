@@ -118,46 +118,43 @@ where
         result
     };
 
-    match timeout(timeout_duration, test_future).await {
-        Ok(result) => {
-            let elapsed = start_time.elapsed();
-            info!("Test '{}' completed in {:?}", test_name, elapsed);
-            match result {
-                Ok(()) => Ok(()), // Success
-                Err(e) => {
-                    error!("Integration test '{}' failed: {:?}", test_name, e);
-                    // Check if any snaprag processes are still running
-                    let monitor = crate::sync::process_monitor::ProcessMonitor::new();
-                    if !monitor.get_snaprag_processes()?.is_empty() {
-                        return Err(crate::SnapRagError::Custom(
-                            "Snaprag processes are still running after cleanup".to_string(),
-                        ));
-                    }
-                    Err(e)
+    if let Ok(result) = timeout(timeout_duration, test_future).await {
+        let elapsed = start_time.elapsed();
+        info!("Test '{}' completed in {:?}", test_name, elapsed);
+        match result {
+            Ok(()) => Ok(()), // Success
+            Err(e) => {
+                error!("Integration test '{}' failed: {:?}", test_name, e);
+                // Check if any snaprag processes are still running
+                let monitor = crate::sync::process_monitor::ProcessMonitor::new();
+                if !monitor.get_snaprag_processes()?.is_empty() {
+                    return Err(crate::SnapRagError::Custom(
+                        "Snaprag processes are still running after cleanup".to_string(),
+                    ));
                 }
+                Err(e)
             }
         }
-        Err(_) => {
-            let elapsed = start_time.elapsed();
-            error!("Test '{}' timed out after {:?}", test_name, elapsed);
+    } else {
+        let elapsed = start_time.elapsed();
+        error!("Test '{}' timed out after {:?}", test_name, elapsed);
 
-            // Force cleanup on timeout
-            let _ = cleanup_all_snaprag_processes();
-            let _ = cleanup_before_test();
+        // Force cleanup on timeout
+        let _ = cleanup_all_snaprag_processes();
+        let _ = cleanup_before_test();
 
-            panic!(
-                "Integration test '{}' timed out after {} seconds",
-                test_name,
-                timeout_duration.as_secs()
-            );
-        }
+        panic!(
+            "Integration test '{}' timed out after {} seconds",
+            test_name,
+            timeout_duration.as_secs()
+        );
     }
 }
 
 /// Helper function to run snaprag CLI commands
 fn run_snaprag_command(args: &[&str]) -> Result<String> {
     let output = Command::new("cargo")
-        .args(&["run", "--"])
+        .args(["run", "--"])
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -203,10 +200,10 @@ fn force_kill_snaprag_processes() -> Result<()> {
 
     // Find all snaprag processes
     let output = Command::new("pgrep")
-        .args(&["-f", "snaprag"])
+        .args(["-f", "snaprag"])
         .output()
         .map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {e}"))
         })?;
 
     if !output.stdout.is_empty() {
@@ -214,7 +211,7 @@ fn force_kill_snaprag_processes() -> Result<()> {
         let pids: Vec<&str> = output_str.lines().filter(|line| !line.is_empty()).collect();
 
         for pid in pids {
-            let _ = Command::new("kill").args(&["-9", pid]).output();
+            let _ = Command::new("kill").args(["-9", pid]).output();
         }
 
         // Wait for processes to terminate
@@ -232,11 +229,11 @@ fn run_snaprag_command_with_timeout(args: &[&str], timeout_secs: u64) -> Result<
 
     let start = Instant::now();
     let mut child = Command::new("cargo")
-        .args(&["run", "--"])
+        .args(["run", "--"])
         .args(args)
         .spawn()
         .map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to start snaprag command: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to start snaprag command: {e}"))
         })?;
 
     // Wait for completion or timeout
@@ -245,9 +242,8 @@ fn run_snaprag_command_with_timeout(args: &[&str], timeout_secs: u64) -> Result<
             Ok(Some(status)) => {
                 if status.success() {
                     return Ok("Command completed successfully".to_string());
-                } else {
-                    return Ok("Command failed but completed".to_string());
                 }
+                return Ok("Command failed but completed".to_string());
             }
             Ok(None) => {
                 // Process still running, continue waiting
@@ -255,8 +251,7 @@ fn run_snaprag_command_with_timeout(args: &[&str], timeout_secs: u64) -> Result<
             }
             Err(e) => {
                 return Err(crate::SnapRagError::Custom(format!(
-                    "Error waiting for process: {}",
-                    e
+                    "Error waiting for process: {e}"
                 )));
             }
         }
@@ -276,7 +271,7 @@ fn remove_lock_file_directly() -> Result<()> {
     for lock_file in &lock_files {
         if std::path::Path::new(lock_file).exists() {
             fs::remove_file(lock_file).map_err(|e| {
-                crate::SnapRagError::Custom(format!("Failed to remove {}: {}", lock_file, e))
+                crate::SnapRagError::Custom(format!("Failed to remove {lock_file}: {e}"))
             })?;
         }
     }
@@ -289,10 +284,10 @@ fn assert_no_snaprag_processes_running() -> Result<()> {
     use std::process::Command;
 
     let output = Command::new("pgrep")
-        .args(&["-f", "snaprag"])
+        .args(["-f", "snaprag"])
         .output()
         .map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to check for snaprag processes: {}", e))
+            crate::SnapRagError::Custom(format!("Failed to check for snaprag processes: {e}"))
         })?;
 
     if !output.stdout.is_empty() {
@@ -678,8 +673,7 @@ async fn test_cli_functionality() -> Result<()> {
         let status_output = run_snaprag_command(&["sync", "status"])?;
         assert!(
             status_output.contains("No active sync process") || status_output.contains("Status:"),
-            "Sync status must contain expected output: {}",
-            status_output
+            "Sync status must contain expected output: {status_output}"
         );
 
         // Test 2: Test sync start with range
@@ -688,16 +682,14 @@ async fn test_cli_functionality() -> Result<()> {
         assert!(
             sync_output.contains("Starting synchronization")
                 || sync_output.contains("sync service"),
-            "Sync start must contain expected output: {}",
-            sync_output
+            "Sync start must contain expected output: {sync_output}"
         );
 
         // Test 3: Check sync status again (should show completed sync)
         let status_output2 = run_snaprag_command(&["sync", "status"])?;
         assert!(
             status_output2.contains("No active sync process") || status_output2.contains("Status:"),
-            "Sync status after sync must contain expected output: {}",
-            status_output2
+            "Sync status after sync must contain expected output: {status_output2}"
         );
 
         // Test 4: Test sync stop command
@@ -705,8 +697,7 @@ async fn test_cli_functionality() -> Result<()> {
         assert!(
             stop_output.contains("Stopping sync processes")
                 || stop_output.contains("No active sync process"),
-            "Sync stop must contain expected output: {}",
-            stop_output
+            "Sync stop must contain expected output: {stop_output}"
         );
 
         // Test 5: Test list commands
@@ -727,8 +718,7 @@ async fn test_cli_functionality() -> Result<()> {
         assert!(
             reset_output.contains("Resetting all synchronized data")
                 || reset_output.contains("Clearing all synchronized data"),
-            "Reset command must contain expected output: {}",
-            reset_output
+            "Reset command must contain expected output: {reset_output}"
         );
 
         Ok(())
@@ -768,9 +758,7 @@ async fn test_cli_sync_ranges() -> Result<()> {
             // Check that the command executed without major errors
             assert!(
                 !sync_output.contains("FATAL") && !sync_output.contains("panic"),
-                "Sync command for {} must not contain FATAL or panic: {}",
-                range_name,
-                sync_output
+                "Sync command for {range_name} must not contain FATAL or panic: {sync_output}"
             );
 
             // Small delay between tests
@@ -809,8 +797,7 @@ async fn test_cli_error_handling() -> Result<()> {
         if let Ok(output) = invalid_range_output {
             assert!(
                 !output.contains("FATAL") && !output.contains("panic"),
-                "Invalid range command must not panic: {}",
-                output
+                "Invalid range command must not panic: {output}"
             );
         }
 
@@ -820,8 +807,7 @@ async fn test_cli_error_handling() -> Result<()> {
         if let Ok(output) = missing_args_output {
             assert!(
                 !output.contains("FATAL") && !output.contains("panic"),
-                "Missing args command must not panic: {}",
-                output
+                "Missing args command must not panic: {output}"
             );
         }
 
@@ -830,7 +816,7 @@ async fn test_cli_error_handling() -> Result<()> {
     .await
 }
 
-/// Test to scan blocks and find which ones contain UserDataAdd messages
+/// Test to scan blocks and find which ones contain `UserDataAdd` messages
 /// This helps identify good block ranges for syncing profile data
 #[tokio::test]
 #[ignore] // Run manually with: cargo test scan_for_user_data_blocks -- --ignored --nocapture
@@ -870,7 +856,7 @@ async fn test_scan_for_user_data_blocks() -> Result<()> {
     let mut error_count = 0;
 
     for (start, end, step) in scan_ranges {
-        println!("\nScanning range {}-{} (step {})...", start, end, step);
+        println!("\nScanning range {start}-{end} (step {step})...");
 
         for block in (start..end).step_by(step) {
             let request = crate::sync::client::proto::ShardChunksRequest {
@@ -921,13 +907,12 @@ async fn test_scan_for_user_data_blocks() -> Result<()> {
                             } else {
                                 message_types
                                     .iter()
-                                    .map(|(t, c)| format!("{}:{}", t, c))
+                                    .map(|(t, c)| format!("{t}:{c}"))
                                     .collect::<Vec<_>>()
                                     .join(",")
                             };
                             println!(
-                                "{:<12} {:<15} {:<15} {:<15} types:[{}]",
-                                block, tx_count, total_messages, user_data_add_count, types_str
+                                "{block:<12} {tx_count:<15} {total_messages:<15} {user_data_add_count:<15} types:[{types_str}]"
                             );
                         }
 
@@ -943,7 +928,7 @@ async fn test_scan_for_user_data_blocks() -> Result<()> {
                 Err(e) => {
                     error_count += 1;
                     if error_count < 5 {
-                        eprintln!("Error scanning block {}: {}", block, e);
+                        eprintln!("Error scanning block {block}: {e}");
                     }
                     continue;
                 }
@@ -956,8 +941,8 @@ async fn test_scan_for_user_data_blocks() -> Result<()> {
 
     println!("\n{}", "=".repeat(75));
     println!("\n📊 Summary:");
-    println!("Scanned: {} blocks", scanned_count);
-    println!("Errors: {} blocks", error_count);
+    println!("Scanned: {scanned_count} blocks");
+    println!("Errors: {error_count} blocks");
     println!(
         "Found {} blocks with UserDataAdd messages",
         blocks_with_user_data.len()

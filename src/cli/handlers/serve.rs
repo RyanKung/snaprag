@@ -48,7 +48,7 @@ pub async fn handle_serve_api(
     // Read from config even if payment is disabled (for potential future use)
     let payment_address_final = if let Some(addr) = payment_address {
         let normalized = normalize_address(&addr);
-        println!("🔧 Using CLI payment address (normalized): {}", normalized);
+        println!("🔧 Using CLI payment address (normalized): {normalized}");
         Some(normalized)
     } else if !config.x402.payment_address.is_empty() {
         let normalized = normalize_address(&config.x402.payment_address);
@@ -58,10 +58,7 @@ pub async fn handle_serve_api(
         } else {
             "config.toml"
         };
-        println!(
-            "🔧 Using payment address from {} (normalized): {}",
-            config_source, normalized
-        );
+        println!("🔧 Using payment address from {config_source} (normalized): {normalized}");
         Some(normalized)
     } else {
         println!("⚠️ No payment address found in CLI or config");
@@ -72,7 +69,7 @@ pub async fn handle_serve_api(
     if payment_final {
         println!("💰 Payment: ENABLED");
         if let Some(addr) = &payment_address_final {
-            println!("📍 Payment Address: {}", addr);
+            println!("📍 Payment Address: {addr}");
         }
         println!(
             "🌐 Network: {}",
@@ -84,7 +81,7 @@ pub async fn handle_serve_api(
         );
         println!("🔍 Facilitator URL: {}", config.x402.facilitator_url);
         if let Some(rpc) = &config.x402.rpc_url {
-            println!("⛓️  RPC URL: {}", rpc);
+            println!("⛓️  RPC URL: {rpc}");
         }
     } else {
         println!("💰 Payment: DISABLED");

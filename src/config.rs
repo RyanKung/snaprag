@@ -1,4 +1,4 @@
-//! Configuration management for SnapRAG
+//! Configuration management for `SnapRAG`
 //!
 //! Handles loading and validation of application configuration from TOML files.
 
@@ -127,7 +127,7 @@ pub struct CacheConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisConfig {
-    /// Redis connection URL, e.g. redis://127.0.0.1:6379
+    /// Redis connection URL, e.g. <redis://127.0.0.1:6379>
     pub url: String,
     /// Namespace/prefix for keys (e.g. "snaprag:")
     #[serde(default = "default_redis_namespace")]
@@ -138,7 +138,7 @@ pub struct RedisConfig {
     /// Stale threshold for async refresh trigger (seconds). Target: 5 minutes
     #[serde(default = "default_stale_threshold_secs")]
     pub stale_threshold_secs: u64,
-    /// PubSub channel for refresh notifications
+    /// `PubSub` channel for refresh notifications
     #[serde(default = "default_refresh_channel")]
     pub refresh_channel: String,
 }

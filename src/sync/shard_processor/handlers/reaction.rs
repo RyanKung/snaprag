@@ -78,7 +78,7 @@ pub(super) fn handle_reaction_add(
     }
 }
 
-/// Handle `ReactionRemove` message (type 4) - Pure INSERT mode with event_type
+/// Handle `ReactionRemove` message (type 4) - Pure INSERT mode with `event_type`
 pub(super) fn handle_reaction_remove(
     body: &serde_json::Value,
     fid: i64,

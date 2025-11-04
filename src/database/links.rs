@@ -4,7 +4,7 @@ use crate::models::LinkQuery;
 use crate::Result;
 
 impl Database {
-    /// List links with filters - using window function to get latest event per (fid, target_fid)
+    /// List links with filters - using window function to get latest event per (fid, `target_fid`)
     pub async fn list_links(&self, query: LinkQuery) -> Result<Vec<Link>> {
         let limit = query.limit.unwrap_or(100);
         let offset = query.offset.unwrap_or(0);

@@ -1,6 +1,6 @@
 //! MBTI personality analysis API handlers
 //!
-//! Provides RESTful API endpoints for MBTI personality analysis and compatibility.
+//! Provides `RESTful` API endpoints for MBTI personality analysis and compatibility.
 
 use axum::extract::Path;
 use axum::extract::State;
@@ -50,8 +50,7 @@ pub async fn get_mbti_analysis(
                 duration.as_millis()
             );
             return Ok(Json(ApiResponse::error(format!(
-                "User with FID {} not found",
-                fid
+                "User with FID {fid} not found"
             ))));
         }
         Err(e) => {
@@ -63,8 +62,7 @@ pub async fn get_mbti_analysis(
                 duration.as_millis()
             );
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to get user profile: {}",
-                e
+                "Failed to get user profile: {e}"
             ))));
         }
     };
@@ -114,8 +112,7 @@ pub async fn get_mbti_analysis(
                 duration.as_millis()
             );
             Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze MBTI: {}",
-                e
+                "Failed to analyze MBTI: {e}"
             ))))
         }
     }
@@ -133,8 +130,7 @@ pub async fn get_mbti_analysis_by_username(
         Ok(Some(profile)) => profile,
         Ok(None) => {
             return Ok(Json(ApiResponse::error(format!(
-                "User with username {} not found",
-                username
+                "User with username {username} not found"
             ))));
         }
         Err(e) => {
@@ -143,8 +139,7 @@ pub async fn get_mbti_analysis_by_username(
                 username, e
             );
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to get user profile: {}",
-                e
+                "Failed to get user profile: {e}"
             ))));
         }
     };
@@ -203,8 +198,7 @@ pub async fn get_mbti_analysis_by_username(
                 username, profile.fid, e
             );
             Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze MBTI: {}",
-                e
+                "Failed to analyze MBTI: {e}"
             ))))
         }
     }
@@ -257,7 +251,7 @@ pub async fn batch_mbti_analysis(
                 results.push(MbtiResult {
                     fid,
                     mbti_profile: None,
-                    error: Some(format!("{}", e)),
+                    error: Some(format!("{e}")),
                 });
             }
         }
@@ -290,7 +284,7 @@ pub async fn get_mbti_stats(
     Ok(Json(ApiResponse::success(stats)))
 }
 
-/// Search users by MBTI type (GET /api/mbti/search/:mbti_type)
+/// Search users by MBTI type (GET /`api/mbti/search/:mbti_type`)
 pub async fn search_by_mbti_type(
     State(_state): State<AppState>,
     Path(mbti_type): Path<String>,
@@ -352,8 +346,7 @@ pub async fn get_mbti_compatibility(
         Ok(profile) => profile,
         Err(e) => {
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze FID {}: {}",
-                fid1, e
+                "Failed to analyze FID {fid1}: {e}"
             ))));
         }
     };
@@ -362,8 +355,7 @@ pub async fn get_mbti_compatibility(
         Ok(profile) => profile,
         Err(e) => {
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze FID {}: {}",
-                fid2, e
+                "Failed to analyze FID {fid2}: {e}"
             ))));
         }
     };

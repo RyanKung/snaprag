@@ -22,7 +22,7 @@ fn cache_key_from_request(req: &Request<Body>) -> String {
     // Key format: GET:/api/.. ?query
     let path = req.uri().path();
     let query = req.uri().query().unwrap_or("");
-    format!("GET:{}?{}", path, query)
+    format!("GET:{path}?{query}")
 }
 
 pub async fn cache_proxy_middleware(
@@ -77,7 +77,7 @@ pub async fn cache_proxy_middleware(
         .map_err(|e| {
             Response::builder()
                 .status(500)
-                .body(Body::from(format!("Upstream client build error: {}", e)))
+                .body(Body::from(format!("Upstream client build error: {e}")))
                 .unwrap()
         })?;
 
@@ -94,7 +94,7 @@ pub async fn cache_proxy_middleware(
         Err(e) => {
             return Ok(Response::builder()
                 .status(axum::http::StatusCode::GATEWAY_TIMEOUT)
-                .body(Body::from(format!("Upstream error: {}", e)))
+                .body(Body::from(format!("Upstream error: {e}")))
                 .unwrap());
         }
     };
@@ -106,7 +106,7 @@ pub async fn cache_proxy_middleware(
         Err(e) => {
             return Ok(Response::builder()
                 .status(axum::http::StatusCode::GATEWAY_TIMEOUT)
-                .body(Body::from(format!("Upstream read error: {}", e)))
+                .body(Body::from(format!("Upstream read error: {e}")))
                 .unwrap());
         }
     };
@@ -115,8 +115,7 @@ pub async fn cache_proxy_middleware(
     let is_json = headers
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .map(|v| v.starts_with("application/json"))
-        .unwrap_or(true);
+        .is_none_or(|v| v.starts_with("application/json"));
 
     if status.is_success() && is_json {
         if let Err(e) = state

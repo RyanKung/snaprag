@@ -744,7 +744,7 @@ impl LifecycleManager {
                             total_messages += messages;
                             completed_tasks += 1;
 
-                            if completed_tasks % 100 == 0 {
+                            if completed_tasks.is_multiple_of(100) {
                                 let progress_pct = (completed_tasks as f64 / total_tasks as f64
                                     * 100.0)
                                     .min(100.0);
@@ -976,7 +976,7 @@ impl LifecycleManager {
             .shard_infos
             .iter()
             .find(|s| s.shard_id == shard_id)
-            .ok_or_else(|| crate::SnapRagError::Custom(format!("Shard {} not found", shard_id)))?;
+            .ok_or_else(|| crate::SnapRagError::Custom(format!("Shard {shard_id} not found")))?;
 
         let latest_height = shard_info.max_height;
 

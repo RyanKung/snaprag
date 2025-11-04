@@ -60,7 +60,7 @@ pub async fn handle_dashboard_command(snaprag: &SnapRag) -> Result<()> {
 
     for (table, count) in large_table_stats {
         if table.as_str() == "casts" {
-            total_casts = count
+            total_casts = count;
         }
     }
 

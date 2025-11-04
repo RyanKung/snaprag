@@ -61,7 +61,7 @@ mod unit_tests {
         use crate::errors::SnapRagError;
 
         let error = SnapRagError::Custom("Test error".to_string());
-        let display = format!("{}", error);
+        let display = format!("{error}");
         // Custom errors include "Custom error: " prefix
         assert!(display.contains("Test error"));
     }

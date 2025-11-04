@@ -277,14 +277,13 @@ pub async fn send_chat_message(
     let context = build_chat_context(&profile, &user_casts, &session, &req.message);
 
     // Generate response
-    let llm_service = match &state.llm_service {
-        Some(llm) => llm,
-        None => {
-            error!("LLM service not configured");
-            return Ok(Json(ApiResponse::error(
-                "LLM service not configured".to_string(),
-            )));
-        }
+    let llm_service = if let Some(llm) = &state.llm_service {
+        llm
+    } else {
+        error!("LLM service not configured");
+        return Ok(Json(ApiResponse::error(
+            "LLM service not configured".to_string(),
+        )));
     };
 
     let response_text = match llm_service

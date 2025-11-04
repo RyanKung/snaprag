@@ -1,6 +1,6 @@
 //! x402 Payment Test Client
 //!
-//! Test client for making payments to SnapRAG API endpoints.
+//! Test client for making payments to `SnapRAG` API endpoints.
 //!
 //! Usage:
 //! ```bash
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let private_key = std::env::var("X402_PRIVATE_KEY").expect("X402_PRIVATE_KEY not set");
     let payer_address = std::env::var("X402_PAYER_ADDRESS").expect("X402_PAYER_ADDRESS not set");
 
-    println!("👤 Payer Address: {}\n", payer_address);
+    println!("👤 Payer Address: {payer_address}\n");
 
     // Test 1: Free endpoints
     println!("═══════════════════════════════════════════════");
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn test_free_endpoints() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
 
-    let response = client.get(format!("{}/api/health", API_URL)).send().await?;
+    let response = client.get(format!("{API_URL}/api/health")).send().await?;
 
     println!("GET /api/health");
     println!("Status: {}", response.status());
@@ -107,7 +107,7 @@ async fn test_payment_required() -> Result<PaymentRequirements, Box<dyn std::err
     let client = Client::new();
 
     let response = client
-        .post(format!("{}/api/rag/query", API_URL))
+        .post(format!("{API_URL}/api/rag/query"))
         .json(&serde_json::json!({"question": "Who are AI developers?"}))
         .send()
         .await?;
@@ -156,7 +156,7 @@ fn create_signed_payment(
     let payment_payload = wallet.create_signed_payment_payload(requirements, payer_address)?;
 
     println!("✅ Payment payload created with EIP-712 signature");
-    println!("  Payer: {}", payer_address);
+    println!("  Payer: {payer_address}");
     println!("  Payee: {}", requirements.pay_to);
 
     Ok(payment_payload)
@@ -174,7 +174,7 @@ async fn test_with_payment(
 
     // Send request with payment
     let response = client
-        .post(format!("{}/api/rag/query", API_URL))
+        .post(format!("{API_URL}/api/rag/query"))
         .header("X-PAYMENT", payment_header)
         .json(&serde_json::json!({"question": "Who are AI developers?"}))
         .send()
@@ -198,7 +198,7 @@ async fn test_with_payment(
             println!("  Network: {}", settlement["network"]);
 
             if let Some(tx_hash) = settlement["transaction"].as_str() {
-                println!("  View: https://sepolia.basescan.org/tx/{}", tx_hash);
+                println!("  View: https://sepolia.basescan.org/tx/{tx_hash}");
             }
         } else {
             println!("⚠️  No X-PAYMENT-RESPONSE header (settlement may be pending)");
@@ -218,7 +218,7 @@ async fn test_with_payment(
     } else {
         println!("❌ Payment failed: {}", response.status());
         let body = response.text().await?;
-        println!("Response: {}", body);
+        println!("Response: {body}");
         Err("Payment verification failed".into())
     }
 }

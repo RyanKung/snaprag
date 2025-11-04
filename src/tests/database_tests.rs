@@ -285,12 +285,12 @@ async fn test_user_activity_via_casts_and_links() -> Result<()> {
 
     // Insert a test cast (user activity)
     sqlx::query(
-        r#"
+        r"
         INSERT INTO casts 
         (fid, text, timestamp, message_hash, shard_id, block_height, transaction_fid)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (message_hash) DO NOTHING
-        "#,
+        ",
     )
     .bind(test_fid)
     .bind("Test cast activity")
@@ -304,12 +304,12 @@ async fn test_user_activity_via_casts_and_links() -> Result<()> {
 
     // Insert a test link (user activity)
     sqlx::query(
-        r#"
+        r"
         INSERT INTO links 
         (fid, target_fid, link_type, timestamp, message_hash, event_type, shard_id, block_height, transaction_fid)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (message_hash) DO NOTHING
-        "#,
+        ",
     )
     .bind(test_fid)
     .bind(test_fid + 1)
@@ -434,9 +434,9 @@ async fn test_database_concurrent_operations() -> Result<()> {
             let request = CreateUserProfileRequest {
                 id: Uuid::new_v4(),
                 fid,
-                username: Some(format!("concurrent_user_{}", i)),
-                display_name: Some(format!("Concurrent User {}", i)),
-                bio: Some(format!("Concurrent bio {}", i)),
+                username: Some(format!("concurrent_user_{i}")),
+                display_name: Some(format!("Concurrent User {i}")),
+                bio: Some(format!("Concurrent bio {i}")),
                 pfp_url: None,
                 banner_url: None,
                 location: None,
@@ -477,9 +477,9 @@ async fn test_database_concurrent_operations() -> Result<()> {
         let profile_data = get_user_profile_data(&database, fid).await?;
         assert!(profile_data.is_some());
         let (username, display_name, bio) = profile_data.unwrap();
-        assert_eq!(username, format!("concurrent_user_{}", i));
-        assert_eq!(display_name, format!("Concurrent User {}", i));
-        assert_eq!(bio, format!("Concurrent bio {}", i));
+        assert_eq!(username, format!("concurrent_user_{i}"));
+        assert_eq!(display_name, format!("Concurrent User {i}"));
+        assert_eq!(bio, format!("Concurrent bio {i}"));
     }
 
     // Clean up all test data

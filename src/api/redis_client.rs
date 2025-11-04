@@ -86,7 +86,8 @@ impl RedisClient {
         }
     }
 
-    pub fn stale_threshold(&self) -> Duration {
+    #[must_use]
+    pub const fn stale_threshold(&self) -> Duration {
         self.stale_threshold
     }
 
@@ -96,7 +97,7 @@ impl RedisClient {
             .get_multiplexed_tokio_connection()
             .await
             .map_err(|e| crate::SnapRagError::Custom(format!("Redis connect error: {e}")))?;
-        let payload = format!("{}|{}", subject, key);
+        let payload = format!("{subject}|{key}");
         conn.publish::<_, _, ()>(&self.refresh_channel, payload)
             .await
             .map_err(|e| crate::SnapRagError::Custom(format!("Redis PUBLISH error: {e}")))?;

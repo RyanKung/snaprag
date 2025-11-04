@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for (shard_id, start, end) in test_ranges {
-        println!("🔍 Testing shard {} blocks {}-{}", shard_id, start, end);
+        println!("🔍 Testing shard {shard_id} blocks {start}-{end}");
 
         let request = snaprag::sync::client::proto::ShardChunksRequest {
             shard_id,
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     "  ✅ Found LinkAdd with link_body: FID {}",
                                                     data.fid
                                                 );
-                                                println!("     link_body: {:?}", link_body);
+                                                println!("     link_body: {link_body:?}");
                                             } else {
                                                 println!(
                                                     "  ❌ Found LinkAdd but NO link_body! FID {}",
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                     body.as_object()
                                                         .map(|o| o.keys().collect::<Vec<_>>())
                                                 );
-                                                println!("     body value: {:?}", body);
+                                                println!("     body value: {body:?}");
                                             }
                                         } else {
                                             println!(
@@ -100,24 +100,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
-                println!("  📊 Results: {} total messages", total_messages);
-                println!("     Casts: {}", cast_count);
-                println!("     Links: {}", link_count);
-                println!("     Reactions: {}", reaction_count);
-                println!("     Verifications: {}", verification_count);
+                println!("  📊 Results: {total_messages} total messages");
+                println!("     Casts: {cast_count}");
+                println!("     Links: {link_count}");
+                println!("     Reactions: {reaction_count}");
+                println!("     Verifications: {verification_count}");
 
                 if link_count > 0 {
-                    println!(
-                        "\n  🎯 Found {} LinkAdd messages in this range!",
-                        link_count
-                    );
+                    println!("\n  🎯 Found {link_count} LinkAdd messages in this range!");
                     println!("     This range is good for testing!\n");
                     break;
                 }
                 println!();
             }
             Err(e) => {
-                println!("  ❌ Error: {}\n", e);
+                println!("  ❌ Error: {e}\n");
             }
         }
     }

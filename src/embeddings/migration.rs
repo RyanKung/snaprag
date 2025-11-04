@@ -26,6 +26,7 @@ pub struct MigrationStats {
 }
 
 impl MigrationStats {
+    #[must_use]
     pub fn success_rate(&self) -> f32 {
         if self.total_embeddings == 0 {
             0.0
@@ -44,7 +45,7 @@ pub struct MigrationOptions {
     pub chunk_strategy: ChunkStrategy,
     /// Aggregation strategy for multi-vector embeddings
     pub aggregation_strategy: AggregationStrategy,
-    /// Whether to keep original embeddings in cast_embeddings table
+    /// Whether to keep original embeddings in `cast_embeddings` table
     pub keep_original: bool,
     /// Batch size for processing
     pub batch_size: usize,
@@ -297,7 +298,7 @@ mod tests {
     fn test_migration_options_default() {
         let options = MigrationOptions::default();
         assert_eq!(options.min_text_length, 1000);
-        assert_eq!(options.keep_original, true);
+        assert!(options.keep_original);
         assert_eq!(options.batch_size, 100);
     }
 }

@@ -1,11 +1,11 @@
 //! Vector embeddings generation and management
 //!
 //! This module provides high-performance embedding generation with support for multiple providers
-//! and backends, including OpenAI, Ollama, and local GPU acceleration.
+//! and backends, including `OpenAI`, Ollama, and local GPU acceleration.
 //!
 //! # Providers
 //!
-//! - **OpenAI**: Cloud-based (text-embedding-ada-002, text-embedding-3-small)
+//! - **`OpenAI`**: Cloud-based (text-embedding-ada-002, text-embedding-3-small)
 //! - **Ollama**: Local LLM server with various models
 //! - **Local GPU**: Direct GPU acceleration with Candle (optional feature)
 //! - **Custom**: Any OpenAI-compatible API endpoint

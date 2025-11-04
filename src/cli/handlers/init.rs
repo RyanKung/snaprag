@@ -156,7 +156,7 @@ pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> 
             .execute(snaprag.database().pool())
             .await
     {
-        print_success("Dropped trigger function")
+        print_success("Dropped trigger function");
     }
 
     println!();
@@ -187,7 +187,7 @@ fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
                         .and_then(|line| line.split('"').nth(1))
                         .map(String::from)
                 })
-                .ok_or_else(|| std::env::VarError::NotPresent)
+                .ok_or(std::env::VarError::NotPresent)
         })
         .map_err(|_| {
             crate::SnapRagError::Custom(
@@ -282,7 +282,7 @@ fn run_complete_init(snaprag: &SnapRag) -> Result<()> {
 }
 
 /// Run schema migrations
-/// NOTE: All schema is now in 000_complete_init.sql, no additional migrations needed
+/// NOTE: All schema is now in `000_complete_init.sql`, no additional migrations needed
 fn run_schema_migrations(_snaprag: &SnapRag) -> Result<()> {
     // No additional migrations - everything is in 000_complete_init.sql
     let migrations: Vec<(&str, &str)> = vec![];
@@ -299,7 +299,7 @@ fn run_schema_migrations(_snaprag: &SnapRag) -> Result<()> {
                         .and_then(|line| line.split('"').nth(1))
                         .map(String::from)
                 })
-                .ok_or_else(|| std::env::VarError::NotPresent)
+                .ok_or(std::env::VarError::NotPresent)
         })
         .map_err(|_| {
             crate::SnapRagError::Custom(

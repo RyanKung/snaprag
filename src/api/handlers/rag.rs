@@ -19,14 +19,13 @@ pub async fn rag_query(
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     info!("POST /api/rag/query: {}", req.question);
 
-    let llm_service = match &state.llm_service {
-        Some(llm) => llm.clone(),
-        None => {
-            error!("LLM service not configured");
-            return Ok(Json(ApiResponse::error(
-                "LLM service not configured. Please check your configuration.".to_string(),
-            )));
-        }
+    let llm_service = if let Some(llm) = &state.llm_service {
+        llm.clone()
+    } else {
+        error!("LLM service not configured");
+        return Ok(Json(ApiResponse::error(
+            "LLM service not configured. Please check your configuration.".to_string(),
+        )));
     };
 
     let rag_service = RagService::from_services(

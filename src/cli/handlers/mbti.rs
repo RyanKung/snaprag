@@ -56,8 +56,7 @@ pub async fn handle_mbti_analysis(
             }
             Err(e) => {
                 print_warning(&format!(
-                    "⚠️  LLM service not available: {}. Using rule-based analysis.",
-                    e
+                    "⚠️  LLM service not available: {e}. Using rule-based analysis."
                 ));
                 MbtiAnalyzer::new(database.clone())
             }
@@ -73,7 +72,7 @@ pub async fn handle_mbti_analysis(
         match social_analyzer.analyze_user(fid as i64).await {
             Ok(profile) => Some(profile),
             Err(e) => {
-                print_warning(&format!("Could not load social profile: {}", e));
+                print_warning(&format!("Could not load social profile: {e}"));
                 None
             }
         }
@@ -228,9 +227,9 @@ fn print_compact_dimension(code: &str, score: f32) {
 
     // Determine which side is dominant
     let (dominant, percentage) = if score < 0.5 {
-        (left, (1.0 - score * 2.0) * 100.0)
+        (left, score.mul_add(-2.0, 1.0) * 100.0)
     } else {
-        (right, (score * 2.0 - 1.0) * 100.0)
+        (right, score.mul_add(2.0, -1.0) * 100.0)
     };
 
     // Create compact visual bar (20 chars total)
@@ -249,9 +248,9 @@ fn print_dimension(code: &str, description: &str, score: f32, confidence: f32) {
 
     // Determine which side is dominant
     let (dominant, percentage) = if score < 0.5 {
-        (left, (1.0 - score * 2.0) * 100.0)
+        (left, score.mul_add(-2.0, 1.0) * 100.0)
     } else {
-        (right, (score * 2.0 - 1.0) * 100.0)
+        (right, score.mul_add(2.0, -1.0) * 100.0)
     };
 
     // Create visual bar

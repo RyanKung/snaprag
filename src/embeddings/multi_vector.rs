@@ -15,7 +15,7 @@ use crate::errors::Result;
 use crate::errors::SnapRagError;
 
 /// Strategy for chunking text into multiple pieces
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ChunkStrategy {
     /// Single chunk (original behavior)
     Single,
@@ -30,7 +30,7 @@ pub enum ChunkStrategy {
 }
 
 /// Strategy for aggregating multiple embeddings
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AggregationStrategy {
     /// Use only the first chunk
     FirstChunk,
@@ -74,7 +74,8 @@ pub struct MultiVectorEmbeddingService {
 }
 
 impl MultiVectorEmbeddingService {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         embedding_service: crate::embeddings::EmbeddingService,
         default_chunk_size: usize,
         default_strategy: ChunkStrategy,
@@ -187,7 +188,7 @@ impl MultiVectorEmbeddingService {
     /// Chunk text by sentences
     fn chunk_by_sentences(&self, text: &str) -> Result<Vec<(ChunkMetadata, String)>> {
         let sentences: Vec<&str> = text
-            .split(|c| c == '.' || c == '!' || c == '?')
+            .split(['.', '!', '?'])
             .filter(|s| !s.trim().is_empty())
             .collect();
 

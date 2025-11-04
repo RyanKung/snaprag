@@ -70,40 +70,37 @@ pub async fn get_profile(
         }
     };
 
-    match profile {
-        Some(profile) => {
-            let response = ProfileResponse {
-                fid: profile.fid,
-                username: profile.username,
-                display_name: profile.display_name,
-                bio: profile.bio,
-                pfp_url: profile.pfp_url,
-                location: profile.location,
-                twitter_username: profile.twitter_username,
-                github_username: profile.github_username,
-            };
+    if let Some(profile) = profile {
+        let response = ProfileResponse {
+            fid: profile.fid,
+            username: profile.username,
+            display_name: profile.display_name,
+            bio: profile.bio,
+            pfp_url: profile.pfp_url,
+            location: profile.location,
+            twitter_username: profile.twitter_username,
+            github_username: profile.github_username,
+        };
 
-            // Cache the response
-            tracing::debug!("Caching profile response for FID {}", fid);
-            state.cache_service.set_profile(fid, response.clone()).await;
+        // Cache the response
+        tracing::debug!("Caching profile response for FID {}", fid);
+        state.cache_service.set_profile(fid, response.clone()).await;
 
-            let duration = start_time.elapsed();
-            info!(
-                "✅ GET /api/profiles/{} - {}ms - 200 (cached)",
-                fid,
-                duration.as_millis()
-            );
-            Ok(Json(ApiResponse::success(response)))
-        }
-        None => {
-            let duration = start_time.elapsed();
-            info!(
-                "❌ GET /api/profiles/{} - {}ms - 404",
-                fid,
-                duration.as_millis()
-            );
-            Err(StatusCode::NOT_FOUND)
-        }
+        let duration = start_time.elapsed();
+        info!(
+            "✅ GET /api/profiles/{} - {}ms - 200 (cached)",
+            fid,
+            duration.as_millis()
+        );
+        Ok(Json(ApiResponse::success(response)))
+    } else {
+        let duration = start_time.elapsed();
+        info!(
+            "❌ GET /api/profiles/{} - {}ms - 404",
+            fid,
+            duration.as_millis()
+        );
+        Err(StatusCode::NOT_FOUND)
     }
 }
 

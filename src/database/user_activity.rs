@@ -4,7 +4,7 @@ use crate::Result;
 
 impl Database {
     /// Get user activity timeline - aggregated from original tables (casts, links, reactions, etc.)
-    /// No longer uses user_activity_timeline table (removed for performance)
+    /// No longer uses `user_activity_timeline` table (removed for performance)
     pub async fn get_user_activity_timeline(
         &self,
         fid: i64,
@@ -198,7 +198,7 @@ impl Database {
     }
 
     /// Record user activity - DEPRECATED
-    /// This function is no longer used as user_activity_timeline table was removed
+    /// This function is no longer used as `user_activity_timeline` table was removed
     #[deprecated(note = "user_activity_timeline table removed for performance")]
     pub async fn record_user_activity(
         &self,

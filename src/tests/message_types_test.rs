@@ -23,7 +23,7 @@ mod message_types_tests {
             .expect("Failed to create database")
     }
 
-    /// Helper to cleanup test data by message_hash (SAFE - only deletes specific test records)
+    /// Helper to cleanup test data by `message_hash` (SAFE - only deletes specific test records)
     /// This approach ensures we only delete data we created in tests, not real user data
     async fn cleanup_by_message_hash(db: &Database, message_hash: &[u8]) {
         let cleanup_queries = vec![
@@ -46,7 +46,7 @@ mod message_types_tests {
     }
 
     /// Generate unique test message hash with prefix to avoid conflicts
-    /// Format: [0xFE, 0xFE, test_id byte 1, test_id byte 2, ...]
+    /// Format: [0xFE, 0xFE, `test_id` byte 1, `test_id` byte 2, ...]
     fn test_message_hash(test_id: u32) -> Vec<u8> {
         let mut hash = vec![0xFE, 0xFE]; // Test marker prefix
         hash.extend_from_slice(&test_id.to_be_bytes());
@@ -93,7 +93,7 @@ mod message_types_tests {
 
         for (msg_type, table, implemented, name) in message_types {
             let status = if implemented { "✅" } else { "❌" };
-            println!("{:<6} {:<25} {:<10} {:<30}", msg_type, table, status, name);
+            println!("{msg_type:<6} {table:<25} {status:<10} {name:<30}");
         }
 
         println!("\n📊 Summary:");
@@ -888,7 +888,7 @@ mod message_types_tests {
         let mut batched = BatchedData::new();
         batched.casts.push((
             99,
-            Some("".to_string()), // ⭐ Empty string
+            Some(String::new()), // ⭐ Empty string
             1698765432,
             hash2.clone(),
             None,
@@ -910,7 +910,7 @@ mod message_types_tests {
 
         assert_eq!(
             result.0,
-            Some("".to_string()),
+            Some(String::new()),
             "Empty string should be preserved"
         );
         cleanup_by_message_hash(&db, &hash2).await;
@@ -946,7 +946,7 @@ mod message_types_tests {
                 .expect("Failed to query");
 
         assert_eq!(
-            result.0.as_ref().map(|s| s.len()),
+            result.0.as_ref().map(std::string::String::len),
             Some(10_000),
             "Long text should be preserved"
         );
@@ -1548,8 +1548,8 @@ mod message_types_tests {
                 let mut batched = BatchedData::new();
                 batched.casts.push((
                     99,
-                    Some(format!("Concurrent insert {}", i)),
-                    1698765432 + i as i64,
+                    Some(format!("Concurrent insert {i}")),
+                    1698765432 + i64::from(i),
                     hash_clone,
                     None,
                     None,
@@ -1572,7 +1572,7 @@ mod message_types_tests {
             }
         }
 
-        println!("  {}/5 concurrent inserts succeeded", success_count);
+        println!("  {success_count}/5 concurrent inserts succeeded");
 
         // Verify only ONE record exists (ON CONFLICT DO NOTHING works under concurrency)
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM casts WHERE message_hash = $1")

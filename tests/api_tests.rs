@@ -10,7 +10,7 @@ const API_URL: &str = "http://127.0.0.1:3000";
 async fn test_health_endpoint() {
     let client = Client::new();
     let response = client
-        .get(format!("{}/api/health", API_URL))
+        .get(format!("{API_URL}/api/health"))
         .send()
         .await
         .expect("Failed to send request");
@@ -27,7 +27,7 @@ async fn test_health_endpoint() {
 async fn test_stats_endpoint() {
     let client = Client::new();
     let response = client
-        .get(format!("{}/api/stats", API_URL))
+        .get(format!("{API_URL}/api/stats"))
         .send()
         .await
         .expect("Failed to send request");
@@ -48,7 +48,7 @@ async fn test_stats_endpoint() {
 async fn test_mcp_tools() {
     let client = Client::new();
     let response = client
-        .get(format!("{}/mcp/tools", API_URL))
+        .get(format!("{API_URL}/mcp/tools"))
         .send()
         .await
         .expect("Failed to send request");
@@ -66,7 +66,7 @@ async fn test_mcp_tools() {
 async fn test_mcp_resources() {
     let client = Client::new();
     let response = client
-        .get(format!("{}/mcp/resources", API_URL))
+        .get(format!("{API_URL}/mcp/resources"))
         .send()
         .await
         .expect("Failed to send request");
@@ -88,7 +88,7 @@ async fn test_all_free_endpoints() {
 
     // Test health
     let response = client
-        .get(format!("{}/api/health", API_URL))
+        .get(format!("{API_URL}/api/health"))
         .send()
         .await
         .expect("Failed");
@@ -97,7 +97,7 @@ async fn test_all_free_endpoints() {
 
     // Test stats
     let response = client
-        .get(format!("{}/api/stats", API_URL))
+        .get(format!("{API_URL}/api/stats"))
         .send()
         .await
         .expect("Failed");
@@ -106,7 +106,7 @@ async fn test_all_free_endpoints() {
 
     // Test MCP tools
     let response = client
-        .get(format!("{}/mcp/tools", API_URL))
+        .get(format!("{API_URL}/mcp/tools"))
         .send()
         .await
         .expect("Failed");
@@ -115,7 +115,7 @@ async fn test_all_free_endpoints() {
 
     // Test MCP resources
     let response = client
-        .get(format!("{}/mcp/resources", API_URL))
+        .get(format!("{API_URL}/mcp/resources"))
         .send()
         .await
         .expect("Failed");

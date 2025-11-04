@@ -38,7 +38,7 @@ mod real_data_tests {
         let test_from_block = 0;
         let test_to_block = 10; // Just 10 blocks for quick test
 
-        println!("📡 Syncing blocks {} to {}", test_from_block, test_to_block);
+        println!("📡 Syncing blocks {test_from_block} to {test_to_block}");
         sync_service
             .start_with_range(test_from_block, test_to_block)
             .await?;
@@ -51,7 +51,7 @@ mod real_data_tests {
             .fetch_one(database.pool())
             .await?;
 
-        println!("📊 Synced {} casts", cast_count);
+        println!("📊 Synced {cast_count} casts");
 
         assert!(cast_count > 0, "Should have synced some casts");
 
@@ -73,10 +73,10 @@ mod real_data_tests {
         // Fetch a known FID (e.g., FID 3 is dwr.eth)
         let test_fid = 3;
 
-        println!("👤 Fetching profile for FID {}", test_fid);
+        println!("👤 Fetching profile for FID {test_fid}");
         let profile = lazy_loader.fetch_user_profile(test_fid).await?;
 
-        println!("✅ Got profile: {:?}", profile);
+        println!("✅ Got profile: {profile:?}");
 
         assert_eq!(profile.fid, test_fid as i64);
         assert!(profile.username.is_some(), "Should have username");
@@ -99,7 +99,7 @@ mod real_data_tests {
         // Fetch casts for a known active user (e.g., FID 3 is dwr.eth)
         let test_fid = 3;
 
-        println!("📝 Fetching casts for FID {}", test_fid);
+        println!("📝 Fetching casts for FID {test_fid}");
         let casts = lazy_loader.fetch_user_casts(test_fid).await?;
 
         println!("✅ Got {} casts", casts.len());

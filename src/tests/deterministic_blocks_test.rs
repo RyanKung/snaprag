@@ -44,24 +44,28 @@ impl DeterministicBlock {
     }
 
     /// Add expected message type count
+    #[must_use]
     pub fn with_message_type(mut self, message_type: i32, count: usize) -> Self {
         self.expected_message_types.insert(message_type, count);
         self
     }
 
     /// Set expected transaction count
+    #[must_use]
     pub fn with_transactions(mut self, count: usize) -> Self {
         self.expected_transactions = count;
         self
     }
 
     /// Mark as having system messages (generic, count > 0)
+    #[must_use]
     pub fn with_system_messages(mut self) -> Self {
         self.has_system_messages = true;
         self
     }
 
     /// Add expected system event type count (stricter validation)
+    #[must_use]
     pub fn with_system_event_type(mut self, event_type: i32, count: usize) -> Self {
         self.expected_system_event_types.insert(event_type, count);
         self.has_system_messages = true;
@@ -69,6 +73,7 @@ impl DeterministicBlock {
     }
 
     /// Set expected block timestamp (for timestamp validation)
+    #[must_use]
     pub fn with_block_timestamp(mut self, timestamp: u64) -> Self {
         self.block_timestamp = Some(timestamp);
         self
@@ -80,9 +85,16 @@ pub struct DeterministicBlockRegistry {
     blocks: Vec<DeterministicBlock>,
 }
 
+impl Default for DeterministicBlockRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DeterministicBlockRegistry {
     /// Create registry with known blocks
-    /// Based on scan results from scan_message_types test
+    /// Based on scan results from `scan_message_types` test
+    #[must_use]
     pub fn new() -> Self {
         let mut blocks = vec![];
 
@@ -233,11 +245,13 @@ impl DeterministicBlockRegistry {
     }
 
     /// Get all blocks
+    #[must_use]
     pub fn blocks(&self) -> &[DeterministicBlock] {
         &self.blocks
     }
 
     /// Find blocks with specific message type
+    #[must_use]
     pub fn find_by_message_type(&self, message_type: i32) -> Vec<&DeterministicBlock> {
         self.blocks
             .iter()
@@ -246,6 +260,7 @@ impl DeterministicBlockRegistry {
     }
 
     /// Find blocks with system messages
+    #[must_use]
     pub fn find_with_system_messages(&self) -> Vec<&DeterministicBlock> {
         self.blocks
             .iter()
@@ -305,7 +320,7 @@ async fn scan_message_types() -> Result<()> {
     let mut found_blocks: HashMap<i32, Vec<u64>> = HashMap::new();
 
     for (range_name, start, end, step) in scan_ranges {
-        println!("📊 Scanning {}...", range_name);
+        println!("📊 Scanning {range_name}...");
         println!(
             "{:<12} {:<8} {:<8} {:<40}",
             "Block", "Txns", "Msgs", "Message Types"
@@ -335,10 +350,7 @@ async fn scan_message_types() -> Result<()> {
                             for msg in &tx.user_messages {
                                 if let Some(data) = &msg.data {
                                     *user_msg_types.entry(data.r#type).or_insert(0) += 1;
-                                    found_blocks
-                                        .entry(data.r#type)
-                                        .or_insert_with(Vec::new)
-                                        .push(block);
+                                    found_blocks.entry(data.r#type).or_default().push(block);
                                 }
                             }
 
@@ -347,7 +359,7 @@ async fn scan_message_types() -> Result<()> {
                                     *system_event_types.entry(event.r#type).or_insert(0) += 1;
                                     found_blocks
                                         .entry(1000 + event.r#type)
-                                        .or_insert_with(Vec::new)
+                                        .or_default()
                                         .push(block);
                                 }
                             }
@@ -359,7 +371,7 @@ async fn scan_message_types() -> Result<()> {
                             } else {
                                 user_msg_types
                                     .iter()
-                                    .map(|(t, c)| format!("U{}:{}", t, c))
+                                    .map(|(t, c)| format!("U{t}:{c}"))
                                     .collect::<Vec<_>>()
                                     .join(",")
                             };
@@ -371,7 +383,7 @@ async fn scan_message_types() -> Result<()> {
                                     " SYS:[{}]",
                                     system_event_types
                                         .iter()
-                                        .map(|(t, c)| format!("{}:{}", t, c))
+                                        .map(|(t, c)| format!("{t}:{c}"))
                                         .collect::<Vec<_>>()
                                         .join(",")
                                 )
@@ -389,7 +401,7 @@ async fn scan_message_types() -> Result<()> {
                     }
                 }
                 Err(e) => {
-                    println!("Error at block {}: {}", block, e);
+                    println!("Error at block {block}: {e}");
                 }
             }
         }
@@ -447,7 +459,7 @@ async fn scan_message_types() -> Result<()> {
     Ok(())
 }
 
-/// Scan for system messages (OnChainEvents) in early blocks
+/// Scan for system messages (`OnChainEvents`) in early blocks
 /// This helps discover FID registrations, storage events, and signer events
 #[tokio::test]
 #[ignore] // Run with: cargo test scan_for_system_messages -- --ignored --nocapture
@@ -477,7 +489,7 @@ async fn scan_for_system_messages() -> Result<()> {
     let mut blocks_scanned = 0;
 
     for (range_name, start, end, step) in scan_ranges {
-        println!("📊 Scanning {}...\n", range_name);
+        println!("📊 Scanning {range_name}...\n");
 
         for block in (start..=end).step_by(step) {
             blocks_scanned += 1;
@@ -502,16 +514,13 @@ async fn scan_for_system_messages() -> Result<()> {
                                     *event_types.entry(event.r#type).or_insert(0) += 1;
                                     system_event_blocks
                                         .entry(event.r#type)
-                                        .or_insert_with(Vec::new)
+                                        .or_default()
                                         .push(block);
                                 }
 
                                 if sys_msg.fname_transfer.is_some() {
                                     *event_types.entry(9999).or_insert(0) += 1;
-                                    system_event_blocks
-                                        .entry(9999)
-                                        .or_insert_with(Vec::new)
-                                        .push(block);
+                                    system_event_blocks.entry(9999).or_default().push(block);
                                 }
                             }
                         }
@@ -529,25 +538,24 @@ async fn scan_for_system_messages() -> Result<()> {
                                         9999 => "FnameTransfer",
                                         _ => "Unknown",
                                     };
-                                    format!("{}:{}({})", t, c, name)
+                                    format!("{t}:{c}({name})")
                                 })
                                 .collect::<Vec<_>>()
                                 .join(", ");
 
                             println!(
-                                "Block {:<10} - {} system messages: [{}]",
-                                block, system_msg_count, events_str
+                                "Block {block:<10} - {system_msg_count} system messages: [{events_str}]"
                             );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error at block {}: {}", block, e);
+                    eprintln!("Error at block {block}: {e}");
                 }
             }
 
             if blocks_scanned % 100 == 0 {
-                println!("  ... scanned {} blocks so far", blocks_scanned);
+                println!("  ... scanned {blocks_scanned} blocks so far");
             }
         }
         println!();
@@ -560,7 +568,7 @@ async fn scan_for_system_messages() -> Result<()> {
     if system_event_blocks.is_empty() {
         println!("⚠️  No system messages found in scanned ranges!");
     } else {
-        for (event_type, blocks) in system_event_blocks.iter() {
+        for (event_type, blocks) in &system_event_blocks {
             let event_name = match event_type {
                 1 => "Signer Event",
                 2 => "Signer Migrated",
@@ -578,7 +586,7 @@ async fn scan_for_system_messages() -> Result<()> {
                 event_name,
                 blocks.len()
             );
-            println!("    First occurrence: block {}", first_block);
+            println!("    First occurrence: block {first_block}");
             if blocks.len() > 1 {
                 println!("    Sample blocks: {:?}", &blocks[..blocks.len().min(5)]);
             }
@@ -586,15 +594,12 @@ async fn scan_for_system_messages() -> Result<()> {
         }
     }
 
-    println!(
-        "\n✅ Scan complete! Scanned {} blocks total.",
-        blocks_scanned
-    );
+    println!("\n✅ Scan complete! Scanned {blocks_scanned} blocks total.");
 
     Ok(())
 }
 
-/// Scan latest blocks for new message types (UsernameProof, FrameAction, etc.)
+/// Scan latest blocks for new message types (`UsernameProof`, `FrameAction`, etc.)
 #[tokio::test]
 #[ignore] // Run with: cargo test scan_latest_blocks -- --ignored --nocapture
 async fn scan_latest_blocks() -> Result<()> {
@@ -625,7 +630,7 @@ async fn scan_latest_blocks() -> Result<()> {
     let mut blocks_scanned = 0;
 
     for (range_name, start, end, step) in scan_ranges {
-        println!("📊 Scanning {}...", range_name);
+        println!("📊 Scanning {range_name}...");
 
         for block in (start..=end).step_by(step) {
             blocks_scanned += 1;
@@ -643,10 +648,7 @@ async fn scan_latest_blocks() -> Result<()> {
                             for msg in &tx.user_messages {
                                 if let Some(data) = &msg.data {
                                     if data.r#type >= 12 && data.r#type <= 15 {
-                                        found_types
-                                            .entry(data.r#type)
-                                            .or_insert_with(Vec::new)
-                                            .push(block);
+                                        found_types.entry(data.r#type).or_default().push(block);
                                     }
                                 }
                             }
@@ -657,7 +659,7 @@ async fn scan_latest_blocks() -> Result<()> {
             }
 
             if blocks_scanned % 100 == 0 {
-                println!("  ... scanned {} blocks", blocks_scanned);
+                println!("  ... scanned {blocks_scanned} blocks");
             }
         }
     }
@@ -681,7 +683,7 @@ async fn scan_latest_blocks() -> Result<()> {
         }
     }
 
-    println!("\n✅ Scanned {} blocks", blocks_scanned);
+    println!("\n✅ Scanned {blocks_scanned} blocks");
     Ok(())
 }
 
@@ -776,10 +778,7 @@ async fn test_deterministic_block_contents() -> Result<()> {
                 det_block.block_number, expected_count, expected_type, actual_count
             );
             let type_name = get_message_type_name(*expected_type);
-            println!(
-                "  ✓ {}: {} (expected: {})",
-                type_name, actual_count, expected_count
-            );
+            println!("  ✓ {type_name}: {actual_count} (expected: {expected_count})");
         }
 
         // Verify system messages if expected (STRICT)
@@ -801,7 +800,7 @@ async fn test_deterministic_block_contents() -> Result<()> {
                 );
             }
 
-            println!("  ✓ System messages: {} total", actual_system_msg_count);
+            println!("  ✓ System messages: {actual_system_msg_count} total");
         }
 
         // Verify specific system event types if specified (STRICT: exact count)
@@ -816,10 +815,7 @@ async fn test_deterministic_block_contents() -> Result<()> {
                 det_block.block_number, expected_count, expected_event_type, actual_count
             );
             let event_name = get_system_event_name(*expected_event_type);
-            println!(
-                "  ✓ System Event {}: {} (expected: {})",
-                event_name, actual_count, expected_count
-            );
+            println!("  ✓ System Event {event_name}: {actual_count} (expected: {expected_count})");
         }
 
         println!("  ✅ Block {} validated\n", det_block.block_number);
@@ -967,8 +963,7 @@ async fn process_and_verify_internal() -> Result<()> {
             .shard_chunks
             .first()
             .and_then(|c| c.header.as_ref())
-            .map(|h| h.timestamp)
-            .unwrap_or(0);
+            .map_or(0, |h| h.timestamp);
 
         // Process single block
         sync_service
@@ -1066,10 +1061,7 @@ async fn process_and_verify_internal() -> Result<()> {
             "Block {} should have {} casts (got {})",
             det_block.block_number, expected_cast_count, cast_count
         );
-        println!(
-            "    ✓ Casts: {} (expected: {})",
-            cast_count, expected_cast_count
-        );
+        println!("    ✓ Casts: {cast_count} (expected: {expected_cast_count})");
 
         if cast_count > 0 {
             // Cross-validate: All casts should have corresponding user_profiles
@@ -1091,8 +1083,7 @@ async fn process_and_verify_internal() -> Result<()> {
                 det_block.block_number, unique_cast_authors, profiles_for_casts
             );
             println!(
-                "    ✓ Cast authors have profiles: {} (expected: {})",
-                profiles_for_casts, unique_cast_authors
+                "    ✓ Cast authors have profiles: {profiles_for_casts} (expected: {unique_cast_authors})"
             );
 
             // Cross-validate: Casts in activity timeline
@@ -1107,8 +1098,7 @@ async fn process_and_verify_internal() -> Result<()> {
                 det_block.block_number
             );
             println!(
-                "    ✓ Casts in activity timeline: {} (expected: {})",
-                cast_activities, expected_cast_count
+                "    ✓ Casts in activity timeline: {cast_activities} (expected: {expected_cast_count})"
             );
         }
 
@@ -1144,10 +1134,7 @@ async fn process_and_verify_internal() -> Result<()> {
             profile_count,
             total_unique_fids
         );
-        println!(
-            "    ✓ User profiles: {} (covering {} unique FIDs)",
-            profile_count, total_unique_fids
-        );
+        println!("    ✓ User profiles: {profile_count} (covering {total_unique_fids} unique FIDs)");
 
         // Verify each expected message type created corresponding activities
         for (msg_type, expected_count) in &det_block.expected_message_types {
@@ -1226,8 +1213,7 @@ async fn process_and_verify_internal() -> Result<()> {
             }
 
             println!(
-                "    ✓ {}: {} (expected: {}, valid timestamps: ✓, range: ✓)",
-                activity_type_name, actual_count, expected_count
+                "    ✓ {activity_type_name}: {actual_count} (expected: {expected_count}, valid timestamps: ✓, range: ✓)"
             );
         }
 
@@ -1250,10 +1236,7 @@ async fn process_and_verify_internal() -> Result<()> {
 
             // Note: We can't verify the cast was deleted without knowing the original cast hash
             // This is a limitation - ideally we'd process block N-1, then block N, and verify deletion
-            println!(
-                "    ✓ cast_remove operations: {} (deletion logged)",
-                cast_remove_activities
-            );
+            println!("    ✓ cast_remove operations: {cast_remove_activities} (deletion logged)");
         }
 
         // === STRICT VALIDATION: Data Sampling (random field completeness checks) ===

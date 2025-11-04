@@ -1,7 +1,7 @@
-//! Test to verify if cross-batch duplicate message_hash actually exists
+//! Test to verify if cross-batch duplicate `message_hash` actually exists
 //!
 //! This test fetches real data from Snapchain to check if:
-//! 1. Different batches contain the same message_hash
+//! 1. Different batches contain the same `message_hash`
 //! 2. Same FID appears in multiple batches with different messages
 
 use std::collections::HashMap;
@@ -29,8 +29,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 
     println!("\n🔍 Testing for cross-batch duplicate message_hash");
     println!(
-        "Shard: {}, Starting block: {}, Batch size: {}, Batches: {}",
-        shard_id, test_start_block, batch_size, num_batches
+        "Shard: {shard_id}, Starting block: {test_start_block}, Batch size: {batch_size}, Batches: {num_batches}"
     );
     println!("{}", "=".repeat(80));
 
@@ -40,7 +39,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
     let mut cross_batch_duplicates = 0;
 
     for batch_num in 0..num_batches {
-        let start = test_start_block + (batch_num as u64 * batch_size as u64);
+        let start = test_start_block + (u64::from(batch_num) * batch_size as u64);
         let end = start + batch_size as u64 - 1;
 
         println!("\n📦 Batch {}: blocks {}-{}", batch_num + 1, start, end);
@@ -69,8 +68,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
                         .header
                         .as_ref()
                         .and_then(|h| h.height.as_ref())
-                        .map(|h| h.block_number)
-                        .unwrap_or(0);
+                        .map_or(0, |h| h.block_number);
 
                     // Extract FID from message data
                     if let Some(msg_data) = &msg.data {
@@ -78,7 +76,9 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
                             if let Ok(body) =
                                 serde_json::from_value::<serde_json::Value>(body_value.clone())
                             {
-                                if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
+                                if let Some(fid) =
+                                    body.get("fid").and_then(serde_json::Value::as_i64)
+                                {
                                     all_fids
                                         .entry(fid)
                                         .or_default()
@@ -112,7 +112,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
             }
         }
 
-        println!("   Messages in batch: {}", batch_messages);
+        println!("   Messages in batch: {batch_messages}");
         println!(
             "   Unique message_hash in batch: {}",
             batch_message_hashes.len()
@@ -125,15 +125,15 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 
     println!("\n{}", "=".repeat(80));
     println!("📊 RESULTS:");
-    println!("   Total messages processed: {}", total_messages);
+    println!("   Total messages processed: {total_messages}");
     println!(
         "   Unique message_hash across all batches: {}",
         all_message_hashes.len()
     );
-    println!("   Cross-batch duplicates: {}", cross_batch_duplicates);
+    println!("   Cross-batch duplicates: {cross_batch_duplicates}");
     println!(
         "   Duplicate rate: {:.2}%",
-        (cross_batch_duplicates as f64 / total_messages as f64) * 100.0
+        (f64::from(cross_batch_duplicates) / f64::from(total_messages)) * 100.0
     );
 
     // Analyze FID distribution
@@ -159,11 +159,8 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 
     println!("\n📈 FID Analysis:");
     println!("   Total unique FIDs: {}", all_fids.len());
-    println!(
-        "   FIDs appearing in multiple batches: {}",
-        fids_in_multiple_batches
-    );
-    println!("   Max batches for single FID: {}", max_batches_per_fid);
+    println!("   FIDs appearing in multiple batches: {fids_in_multiple_batches}");
+    println!("   Max batches for single FID: {max_batches_per_fid}");
 
     // Assertions
     println!("\n✅ Test Assertions:");
@@ -180,8 +177,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 
     assert!(
         cross_batch_duplicates == 0,
-        "Found {} cross-batch duplicate message_hash! This is the root cause of lock contention.",
-        cross_batch_duplicates
+        "Found {cross_batch_duplicates} cross-batch duplicate message_hash! This is the root cause of lock contention."
     );
 
     Ok(())
@@ -229,7 +225,7 @@ async fn test_same_fid_across_batches() -> Result<()> {
                         if let Ok(body) =
                             serde_json::from_value::<serde_json::Value>(body_value.clone())
                         {
-                            if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
+                            if let Some(fid) = body.get("fid").and_then(serde_json::Value::as_i64) {
                                 fids_batch1.insert(fid);
                             }
                         }
@@ -247,7 +243,7 @@ async fn test_same_fid_across_batches() -> Result<()> {
                         if let Ok(body) =
                             serde_json::from_value::<serde_json::Value>(body_value.clone())
                         {
-                            if let Some(fid) = body.get("fid").and_then(|v| v.as_i64()) {
+                            if let Some(fid) = body.get("fid").and_then(serde_json::Value::as_i64) {
                                 fids_batch2.insert(fid);
                             }
                         }

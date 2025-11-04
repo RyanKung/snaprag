@@ -594,9 +594,9 @@ pub async fn handle_embeddings_test_cast(
 
     // Parse message hash
     let message_hash_bytes = hex::decode(&message_hash)
-        .map_err(|e| crate::SnapRagError::Custom(format!("Invalid message hash: {}", e)))?;
+        .map_err(|e| crate::SnapRagError::Custom(format!("Invalid message hash: {e}")))?;
 
-    println!("📋 Message Hash: {}", message_hash);
+    println!("📋 Message Hash: {message_hash}");
     println!("⏳ Initializing services...");
 
     // Initialize database
@@ -611,8 +611,7 @@ pub async fn handle_embeddings_test_cast(
             .find(|ep| ep.name == endpoint_name)
             .ok_or_else(|| {
                 crate::SnapRagError::Custom(format!(
-                    "Embedding endpoint '{}' not found in config",
-                    endpoint_name
+                    "Embedding endpoint '{endpoint_name}' not found in config"
                 ))
             })?;
         crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config)
@@ -638,8 +637,7 @@ pub async fn handle_embeddings_test_cast(
         .await?
         .ok_or_else(|| {
             crate::SnapRagError::Custom(format!(
-                "Cast with hash {} not found in database",
-                message_hash
+                "Cast with hash {message_hash} not found in database"
             ))
         })?;
 
@@ -667,12 +665,12 @@ pub async fn handle_embeddings_test_cast(
             println!("   Original length: {} chars", text.len());
             println!("   Processed length: {} chars", processed_text.len());
             if text.as_str() != processed_text {
-                println!("   Original: {:?}", text);
-                println!("   Processed: {:?}", processed_text);
+                println!("   Original: {text:?}");
+                println!("   Processed: {processed_text:?}");
             }
         }
         Err(e) => {
-            println!("❌ Text preprocessing failed: {}", e);
+            println!("❌ Text preprocessing failed: {e}");
             return Ok(());
         }
     }
@@ -698,15 +696,15 @@ pub async fn handle_embeddings_test_cast(
             let mean_val = embedding.iter().sum::<f32>() / embedding.len() as f32;
 
             println!("   Stats:");
-            println!("     Min: {:.6}", min_val);
-            println!("     Max: {:.6}", max_val);
-            println!("     Mean: {:.6}", mean_val);
+            println!("     Min: {min_val:.6}");
+            println!("     Max: {max_val:.6}");
+            println!("     Mean: {mean_val:.6}");
 
             println!("\n🎉 Test completed successfully!");
             println!("   Note: Embedding was NOT stored in database (test mode)");
         }
         Err(e) => {
-            println!("❌ Embedding generation failed: {}", e);
+            println!("❌ Embedding generation failed: {e}");
             println!("   This is the error you're seeing in the logs");
         }
     }
@@ -745,9 +743,9 @@ pub async fn handle_cast_embeddings_backfill_multivector(
         if enable_multi_vector {
             println!("⚠️  This will generate embeddings for casts using multi-vector approach:");
             println!("   - Multi-vector enabled: YES");
-            println!("   - Chunking strategy: {}", strategy);
-            println!("   - Aggregation strategy: {}", aggregation);
-            println!("   - Multi-vector threshold: {} characters", min_length);
+            println!("   - Chunking strategy: {strategy}");
+            println!("   - Aggregation strategy: {aggregation}");
+            println!("   - Multi-vector threshold: {min_length} characters");
         } else {
             println!("⚠️  This will generate embeddings for casts using single-vector approach:");
             println!("   - Multi-vector enabled: NO (use --enable-multi-vector to enable)");
@@ -778,9 +776,9 @@ pub async fn handle_cast_embeddings_backfill_multivector(
 
     if enable_multi_vector {
         println!("📊 Starting multi-vector backfill...");
-        println!("   Strategy: {}", strategy);
-        println!("   Aggregation: {}", aggregation);
-        println!("   Min length for multi-vector: {} chars", min_length);
+        println!("   Strategy: {strategy}");
+        println!("   Aggregation: {aggregation}");
+        println!("   Min length for multi-vector: {min_length} chars");
     } else {
         println!("📊 Starting single-vector backfill...");
         println!("   All texts will be processed as single vectors");
@@ -826,21 +824,18 @@ pub async fn handle_cast_embeddings_backfill_multivector(
                         .await
                     {
                         Ok(()) => {
-                            println!("   ✅ Single vector: {}", hash_str);
+                            println!("   ✅ Single vector: {hash_str}");
                             success += 1;
                             single_vector += 1;
                         }
                         Err(e) => {
-                            println!("   ❌ Failed to store single vector: {} - {}", hash_str, e);
+                            println!("   ❌ Failed to store single vector: {hash_str} - {e}");
                             failed += 1;
                         }
                     }
                 }
                 Err(e) => {
-                    println!(
-                        "   ❌ Failed to generate single vector: {} - {}",
-                        hash_str, e
-                    );
+                    println!("   ❌ Failed to generate single vector: {hash_str} - {e}");
                     failed += 1;
                 }
             }
@@ -901,34 +896,31 @@ pub async fn handle_cast_embeddings_backfill_multivector(
                                             multi_vector += 1;
                                         }
                                         Err(e) => {
-                                            println!("   ⚠️  Chunks stored but aggregation failed: {} - {}", hash_str, e);
+                                            println!("   ⚠️  Chunks stored but aggregation failed: {hash_str} - {e}");
                                             success += 1;
                                             multi_vector += 1;
                                         }
                                     }
                                 } else {
-                                    println!("   ✅ Multi-vector chunks only: {}", hash_str);
+                                    println!("   ✅ Multi-vector chunks only: {hash_str}");
                                     success += 1;
                                     multi_vector += 1;
                                 }
                             }
                             Err(e) => {
-                                println!("   ❌ Failed to store chunks: {} - {}", hash_str, e);
+                                println!("   ❌ Failed to store chunks: {hash_str} - {e}");
                                 failed += 1;
                             }
                         }
                     }
                     Err(e) => {
-                        println!(
-                            "   ❌ Failed to generate multi-vector: {} - {}",
-                            hash_str, e
-                        );
+                        println!("   ❌ Failed to generate multi-vector: {hash_str} - {e}");
                         failed += 1;
                     }
                 }
             } else {
                 // This should never happen since we check enable_multi_vector above
-                println!("   ❌ Multi-vector service not available: {}", hash_str);
+                println!("   ❌ Multi-vector service not available: {hash_str}");
                 failed += 1;
             }
         }
@@ -937,10 +929,10 @@ pub async fn handle_cast_embeddings_backfill_multivector(
     println!("\n✅ Multi-Vector Backfill Complete!");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("Total processed: {}", casts.len());
-    println!("Success: {}", success);
-    println!("Failed: {}", failed);
-    println!("Single vector: {}", single_vector);
-    println!("Multi-vector: {}", multi_vector);
+    println!("Success: {success}");
+    println!("Failed: {failed}");
+    println!("Single vector: {single_vector}");
+    println!("Multi-vector: {multi_vector}");
     println!(
         "Success rate: {:.1}%",
         (success as f32 / casts.len() as f32) * 100.0
@@ -971,12 +963,9 @@ pub async fn handle_cast_embeddings_migrate(
 
     if !force {
         println!("⚠️  This will migrate existing embeddings to multi-vector format:");
-        println!(
-            "   - Only texts longer than {} characters will be migrated",
-            min_length
-        );
-        println!("   - Chunking strategy: {}", strategy);
-        println!("   - Keep original embeddings: {}", keep_original);
+        println!("   - Only texts longer than {min_length} characters will be migrated");
+        println!("   - Chunking strategy: {strategy}");
+        println!("   - Keep original embeddings: {keep_original}");
         println!("   - This process may take a while for large datasets!");
         println!("\nUse --force to confirm and proceed.");
         return Ok(());
@@ -1099,8 +1088,7 @@ fn parse_chunk_strategy(strategy: &str) -> Result<crate::embeddings::ChunkStrate
         "importance" => Ok(crate::embeddings::ChunkStrategy::Importance),
         "sliding_window" => Ok(crate::embeddings::ChunkStrategy::SlidingWindow),
         _ => Err(crate::SnapRagError::Custom(format!(
-            "Invalid chunking strategy: {}",
-            strategy
+            "Invalid chunking strategy: {strategy}"
         ))),
     }
 }
@@ -1114,8 +1102,7 @@ fn parse_aggregation_strategy(strategy: &str) -> Result<crate::embeddings::Aggre
         "max" => Ok(crate::embeddings::AggregationStrategy::Max),
         "concatenate" => Ok(crate::embeddings::AggregationStrategy::Concatenate),
         _ => Err(crate::SnapRagError::Custom(format!(
-            "Invalid aggregation strategy: {}",
-            strategy
+            "Invalid aggregation strategy: {strategy}"
         ))),
     }
 }

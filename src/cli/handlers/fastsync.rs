@@ -2,7 +2,7 @@
 //!
 //! This module provides handlers for managing fast sync mode, which combines:
 //! - ULTRA TURBO MODE (dropping non-essential indexes)
-//! - PostgreSQL memory optimization
+//! - `PostgreSQL` memory optimization
 //! - Hardware-specific tuning
 
 use std::io::Write;
@@ -23,7 +23,7 @@ pub async fn handle_fastsync_command(snaprag: &SnapRag, command: &FastsyncComman
     }
 }
 
-/// Enable fast sync mode (ULTRA TURBO + PostgreSQL optimization)
+/// Enable fast sync mode (ULTRA TURBO + `PostgreSQL` optimization)
 async fn handle_fastsync_enable(snaprag: &SnapRag, force: bool) -> Result<()> {
     tracing::info!("Enabling fast sync mode");
 
@@ -399,7 +399,7 @@ async fn check_index_status(db: &sqlx::PgPool) -> Result<IndexStatus> {
 
         if let Some((exists,)) = result {
             if !exists {
-                missing_indexes.push(index_name.to_string());
+                missing_indexes.push((*index_name).to_string());
             }
         }
     }
@@ -436,7 +436,7 @@ async fn check_autovacuum_status(db: &sqlx::PgPool) -> Result<AutovacuumStatus> 
         };
 
         if is_disabled {
-            disabled_tables.push(table.to_string());
+            disabled_tables.push((*table).to_string());
         }
     }
 

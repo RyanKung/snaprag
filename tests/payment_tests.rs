@@ -23,24 +23,24 @@ async fn test_payment_required_response() {
     ];
 
     for (endpoint, tier, expected_amount) in test_cases {
-        println!("Testing {} tier: {}", tier, endpoint);
+        println!("Testing {tier} tier: {endpoint}");
 
         let response = if endpoint.contains("search") || endpoint.contains("rag") {
             client
-                .post(format!("{}{}", API_URL, endpoint))
+                .post(format!("{API_URL}{endpoint}"))
                 .json(&json!({"query": "test", "question": "test"}))
                 .send()
                 .await
                 .expect("Failed to send request")
         } else {
             client
-                .get(format!("{}{}?q=&limit=1", API_URL, endpoint))
+                .get(format!("{API_URL}{endpoint}?q=&limit=1"))
                 .send()
                 .await
                 .expect("Failed to send request")
         };
 
-        assert_eq!(response.status(), 402, "{} should return 402", endpoint);
+        assert_eq!(response.status(), 402, "{endpoint} should return 402");
 
         let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
@@ -61,12 +61,10 @@ async fn test_payment_required_response() {
         assert_eq!(
             amount.parse::<u64>().unwrap(),
             expected_amount,
-            "{} should require {} atomic units",
-            endpoint,
-            expected_amount
+            "{endpoint} should require {expected_amount} atomic units"
         );
 
-        println!("✅ {} tier: {} (amount: {})", tier, endpoint, amount);
+        println!("✅ {tier} tier: {endpoint} (amount: {amount})");
     }
 
     println!("\n✅ All payment required tests passed!\n");
@@ -85,7 +83,7 @@ async fn test_free_endpoints_with_payment_enabled() {
 
     for endpoint in free_endpoints {
         let response = client
-            .get(format!("{}{}", API_URL, endpoint))
+            .get(format!("{API_URL}{endpoint}"))
             .send()
             .await
             .expect("Failed to send request");
@@ -93,14 +91,13 @@ async fn test_free_endpoints_with_payment_enabled() {
         assert_eq!(
             response.status(),
             200,
-            "{} should return 200 (free)",
-            endpoint
+            "{endpoint} should return 200 (free)"
         );
 
         let body: serde_json::Value = response.json().await.expect("Failed to parse JSON");
         assert_eq!(body["success"], true);
 
-        println!("✅ {} is free (200 OK)", endpoint);
+        println!("✅ {endpoint} is free (200 OK)");
     }
 
     println!("\n✅ All free endpoints work correctly!\n");
@@ -114,7 +111,7 @@ async fn test_payment_requirements_format() {
 
     let client = Client::new();
     let response = client
-        .post(format!("{}/api/rag/query", API_URL))
+        .post(format!("{API_URL}/api/rag/query"))
         .json(&json!({"question": "test"}))
         .send()
         .await
@@ -138,11 +135,7 @@ async fn test_payment_requirements_format() {
     ];
 
     for field in required_fields {
-        assert!(
-            req.get(field).is_some(),
-            "Missing required field: {}",
-            field
-        );
+        assert!(req.get(field).is_some(), "Missing required field: {field}");
     }
 
     // Verify extra field structure (USDC info)

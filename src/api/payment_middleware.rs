@@ -1,4 +1,4 @@
-//! x402 payment middleware for SnapRAG API
+//! x402 payment middleware for `SnapRAG` API
 
 #[cfg(feature = "payment")]
 use axum::body::Body;
@@ -41,6 +41,7 @@ pub struct PaymentMiddlewareState {
 
 #[cfg(feature = "payment")]
 impl PaymentMiddlewareState {
+    #[must_use]
     pub fn new(
         payment_address: String,
         testnet: bool,

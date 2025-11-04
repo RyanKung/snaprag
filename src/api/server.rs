@@ -136,12 +136,12 @@ pub async fn serve_api(
         }
 
         // Create base URL for payment requirements
-        let base_url = format!("http://{}:{}/api", host, port);
+        let base_url = format!("http://{host}:{port}/api");
         info!("🔗 Payment base URL: {}", base_url);
 
         // Create payment middleware state
         let payment_state = PaymentMiddlewareState::new(
-            payment_addr.clone(),
+            payment_addr,
             testnet,
             base_url,
             config.x402.facilitator_url.clone(),

@@ -112,7 +112,12 @@ impl EmbeddingService {
             Vec::new()
         } else if processed_texts.len() <= MAX_BATCH_SIZE {
             self.client
-                .generate_batch(processed_texts.iter().map(|s| s.as_str()).collect())
+                .generate_batch(
+                    processed_texts
+                        .iter()
+                        .map(std::string::String::as_str)
+                        .collect(),
+                )
                 .await?
         } else {
             // Split into chunks
@@ -120,7 +125,7 @@ impl EmbeddingService {
             for chunk in processed_texts.chunks(MAX_BATCH_SIZE) {
                 let chunk_embeddings = self
                     .client
-                    .generate_batch(chunk.iter().map(|s| s.as_str()).collect())
+                    .generate_batch(chunk.iter().map(std::string::String::as_str).collect())
                     .await?;
                 all_embeddings.extend(chunk_embeddings);
             }
@@ -242,7 +247,7 @@ mod tests {
     #[test]
     fn test_empty_text_handling() {
         // This test verifies the logic without making API calls
-        let texts = vec!["", "hello", "", "world"];
+        let texts = ["", "hello", "", "world"];
         let mut filtered = Vec::new();
         let mut empty_pos = Vec::new();
 

@@ -88,7 +88,7 @@ pub enum Commands {
     /// Manage database indexes and autovacuum for bulk operations
     #[command(subcommand)]
     Index(IndexCommands),
-    /// Fast sync mode management (indexes + PostgreSQL optimization)
+    /// Fast sync mode management (indexes + `PostgreSQL` optimization)
     #[command(subcommand)]
     Fastsync(FastsyncCommands),
     /// Synchronization commands
@@ -312,7 +312,7 @@ pub enum IndexCommands {
 
 #[derive(Subcommand)]
 pub enum FastsyncCommands {
-    /// Enable fast sync mode (ULTRA TURBO + PostgreSQL optimization)
+    /// Enable fast sync mode (ULTRA TURBO + `PostgreSQL` optimization)
     Enable {
         /// Skip confirmation prompt
         #[arg(short, long)]
@@ -579,10 +579,10 @@ pub enum CastEmbeddingAction {
         /// Enable multi-vector processing for long texts
         #[arg(long)]
         enable_multi_vector: bool,
-        /// Chunking strategy: single, paragraph, sentence, importance, sliding_window
+        /// Chunking strategy: single, paragraph, sentence, importance, `sliding_window`
         #[arg(long, default_value = "importance")]
         strategy: String,
-        /// Aggregation strategy: first_chunk, mean, weighted_mean, max
+        /// Aggregation strategy: `first_chunk`, mean, `weighted_mean`, max
         #[arg(long, default_value = "weighted_mean")]
         aggregation: String,
         /// Minimum text length to use multi-vector (default: 500 chars)
@@ -597,10 +597,10 @@ pub enum CastEmbeddingAction {
         /// Minimum text length to migrate (default: 1000)
         #[arg(long, default_value = "1000")]
         min_length: usize,
-        /// Chunking strategy: single, paragraph, sentence, importance, sliding_window
+        /// Chunking strategy: single, paragraph, sentence, importance, `sliding_window`
         #[arg(long, default_value = "importance")]
         strategy: String,
-        /// Keep original embeddings in cast_embeddings table
+        /// Keep original embeddings in `cast_embeddings` table
         #[arg(long, default_value = "true")]
         keep_original: bool,
         /// Batch size for processing

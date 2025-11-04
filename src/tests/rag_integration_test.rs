@@ -82,8 +82,7 @@ async fn test_profile_rag_pipeline() -> Result<()> {
 
     // Step 5: Build RAG prompt
     let prompt = format!(
-        "Based on the following user profiles:\n\n{}\n\nAnswer this question: {}\n\nProvide a concise answer based only on the information above.",
-        context, query
+        "Based on the following user profiles:\n\n{context}\n\nAnswer this question: {query}\n\nProvide a concise answer based only on the information above."
     );
 
     // Step 6: Query LLM
@@ -98,7 +97,7 @@ async fn test_profile_rag_pipeline() -> Result<()> {
     );
 
     println!("\n✅ Profile RAG Pipeline Test:");
-    println!("   Query: {}", query);
+    println!("   Query: {query}");
     println!("   Results: {} profiles", search_results.len());
     println!("   Context size: {} chars", context.len());
     println!("   Response length: {} chars", response.len());
@@ -168,14 +167,13 @@ async fn test_cast_rag_pipeline() -> Result<()> {
 
     // Step 4: Assemble context with author information
     let context = context_assembler
-        .assemble_with_authors(&search_results, &*db)
+        .assemble_with_authors(&search_results, &db)
         .await?;
     assert!(!context.is_empty(), "Context assembly failed");
 
     // Step 5: Build RAG prompt
     let prompt = format!(
-        "Based on the following casts:\n\n{}\n\nAnswer this question: {}\n\nProvide a concise summary based only on the information above.",
-        context, query
+        "Based on the following casts:\n\n{context}\n\nAnswer this question: {query}\n\nProvide a concise summary based only on the information above."
     );
 
     // Step 6: Query LLM
@@ -190,7 +188,7 @@ async fn test_cast_rag_pipeline() -> Result<()> {
     );
 
     println!("\n✅ Cast RAG Pipeline Test:");
-    println!("   Query: {}", query);
+    println!("   Query: {query}");
     println!("   Results: {} casts", search_results.len());
     println!(
         "   Total engagement: {} replies, {} reactions",
@@ -254,16 +252,16 @@ async fn test_hybrid_search_quality() -> Result<()> {
     );
 
     println!("\n✅ Hybrid Search Quality Test:");
-    println!("   Query: {}", query);
+    println!("   Query: {query}");
     println!("   Semantic results: {}", semantic_results.len());
     println!("   Keyword results: {}", keyword_results.len());
     println!("   Hybrid results: {}", hybrid_results.len());
     println!(
         "   Similarity range: {:.2} - {:.2}",
-        similarities.iter().cloned().fold(f32::INFINITY, f32::min),
+        similarities.iter().copied().fold(f32::INFINITY, f32::min),
         similarities
             .iter()
-            .cloned()
+            .copied()
             .fold(f32::NEG_INFINITY, f32::max)
     );
 
@@ -294,7 +292,7 @@ async fn test_retrieval_consistency() -> Result<()> {
     }
 
     println!("\n✅ Retrieval Consistency Test:");
-    println!("   Query: {}", query);
+    println!("   Query: {query}");
     println!(
         "   Results: {} profiles (consistent across runs)",
         results1.len()
@@ -312,13 +310,13 @@ async fn test_cast_thread_retrieval() -> Result<()> {
 
     // Find a cast with replies
     let cast_with_replies: Option<(Vec<u8>, i64)> = sqlx::query_as(
-        r#"
+        r"
         SELECT message_hash, 
                (SELECT COUNT(*) FROM casts WHERE parent_hash = c.message_hash) as reply_count
         FROM casts c
         WHERE (SELECT COUNT(*) FROM casts WHERE parent_hash = c.message_hash) > 0
         LIMIT 1
-        "#,
+        ",
     )
     .fetch_optional(db.pool())
     .await?;

@@ -256,8 +256,7 @@ pub async fn get_social_analysis(
                 duration.as_millis()
             );
             return Ok(Json(ApiResponse::error(format!(
-                "User with FID {} not found",
-                fid
+                "User with FID {fid} not found"
             ))));
         }
         Err(e) => {
@@ -269,8 +268,7 @@ pub async fn get_social_analysis(
                 duration.as_millis()
             );
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to get user profile: {}",
-                e
+                "Failed to get user profile: {e}"
             ))));
         }
     };
@@ -312,8 +310,7 @@ pub async fn get_social_analysis(
                 duration.as_millis()
             );
             Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze social graph: {}",
-                e
+                "Failed to analyze social graph: {e}"
             ))))
         }
     }
@@ -331,8 +328,7 @@ pub async fn get_social_analysis_by_username(
         Ok(Some(profile)) => profile,
         Ok(None) => {
             return Ok(Json(ApiResponse::error(format!(
-                "User with username {} not found",
-                username
+                "User with username {username} not found"
             ))));
         }
         Err(e) => {
@@ -341,8 +337,7 @@ pub async fn get_social_analysis_by_username(
                 username, e
             );
             return Ok(Json(ApiResponse::error(format!(
-                "Failed to get user profile: {}",
-                e
+                "Failed to get user profile: {e}"
             ))));
         }
     };
@@ -388,8 +383,7 @@ pub async fn get_social_analysis_by_username(
                 username, profile.fid, e
             );
             Ok(Json(ApiResponse::error(format!(
-                "Failed to analyze social graph: {}",
-                e
+                "Failed to analyze social graph: {e}"
             ))))
         }
     }

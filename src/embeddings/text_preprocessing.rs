@@ -56,10 +56,7 @@ fn normalize_whitespace(text: &str) -> String {
     text
         // Replace various newline types with spaces
         .replace("\r\n", " ") // Windows CRLF
-        .replace('\n', " ") // Unix LF
-        .replace('\r', " ") // Mac CR
-        // Replace tabs with spaces
-        .replace('\t', " ")
+        .replace(['\n', '\r', '\t'], " ")
         // Replace multiple spaces with single space
         .split_whitespace()
         .collect::<Vec<&str>>()
@@ -149,7 +146,7 @@ fn chunk_by_paragraphs(text: &str, max_length: usize) -> Option<String> {
 /// Chunk by sentences (period, exclamation, question marks)
 fn chunk_by_sentences(text: &str, max_length: usize) -> Option<String> {
     let sentences: Vec<&str> = text
-        .split(|c| c == '.' || c == '!' || c == '?')
+        .split(['.', '!', '?'])
         .filter(|s| !s.trim().is_empty())
         .collect();
 
@@ -216,7 +213,7 @@ fn chunk_by_importance(text: &str, max_length: usize) -> Option<String> {
     ];
 
     let sentences: Vec<&str> = text
-        .split(|c| c == '.' || c == '!' || c == '?')
+        .split(['.', '!', '?'])
         .filter(|s| !s.trim().is_empty())
         .collect();
 

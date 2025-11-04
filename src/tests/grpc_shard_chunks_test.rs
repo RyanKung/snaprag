@@ -1,6 +1,6 @@
-//! Test for parsing gRPC GetShardChunks response data
+//! Test for parsing gRPC `GetShardChunks` response data
 //!
-//! This test demonstrates how to parse ShardChunksResponse data
+//! This test demonstrates how to parse `ShardChunksResponse` data
 //! from shard 1, requesting blocks from 0 to 42.
 
 use std::collections::HashMap;
@@ -40,7 +40,7 @@ async fn setup_grpc_client() -> (AppConfig, HubServiceClient) {
     (config, client)
 }
 
-/// Create a ShardChunksRequest with specified parameters
+/// Create a `ShardChunksRequest` with specified parameters
 fn create_shard_chunks_request(
     shard_id: u32,
     start_block: u64,
@@ -147,8 +147,7 @@ fn verify_transactions(chunk: &ShardChunk, allow_fid_zero: bool) {
         } else {
             assert!(
                 transaction.fid > 0,
-                "Transaction FID should be > 0, but found FID=0 at transaction index {}",
-                tx_idx
+                "Transaction FID should be > 0, but found FID=0 at transaction index {tx_idx}"
             );
         }
 
@@ -203,11 +202,14 @@ fn validate_detailed_block_analysis(chunk: &ShardChunk) {
     assert!(height.shard_index < 1000, "Shard index must be reasonable");
     assert!(header.timestamp > 0, "Timestamp must be positive");
     assert!(
-        header.parent_hash.len() > 0,
+        !header.parent_hash.is_empty(),
         "Parent hash must not be empty"
     );
-    assert!(header.shard_root.len() > 0, "Shard root must not be empty");
-    assert!(chunk.hash.len() > 0, "Chunk hash must not be empty");
+    assert!(
+        !header.shard_root.is_empty(),
+        "Shard root must not be empty"
+    );
+    assert!(!chunk.hash.is_empty(), "Chunk hash must not be empty");
     assert!(
         chunk.transactions.len() < 10000,
         "Transaction count must be reasonable"
@@ -236,7 +238,7 @@ fn validate_detailed_block_analysis(chunk: &ShardChunk) {
         // Account root may be empty in some blocks - this is acceptable
         if !transaction.account_root.is_empty() {
             assert!(
-                transaction.account_root.len() > 0,
+                !transaction.account_root.is_empty(),
                 "Account root must not be empty if present"
             );
         }
@@ -324,10 +326,13 @@ fn validate_detailed_block_data(chunk: &ShardChunk, target_block: u64) {
         assert!(height.shard_index < 1000, "Shard index must be reasonable");
         assert!(header.timestamp > 0, "Timestamp must be positive");
         assert!(
-            header.parent_hash.len() > 0,
+            !header.parent_hash.is_empty(),
             "Parent hash must not be empty"
         );
-        assert!(header.shard_root.len() > 0, "Shard root must not be empty");
+        assert!(
+            !header.shard_root.is_empty(),
+            "Shard root must not be empty"
+        );
         assert_eq!(chunk.hash.len(), 32, "Chunk hash must be 32 bytes");
         assert!(
             chunk.transactions.len() < 10000,
@@ -347,7 +352,7 @@ fn validate_detailed_block_data(chunk: &ShardChunk, target_block: u64) {
             // Account root may be empty in some blocks - this is acceptable
             if !transaction.account_root.is_empty() {
                 assert!(
-                    transaction.account_root.len() > 0,
+                    !transaction.account_root.is_empty(),
                     "Account root must not be empty if present"
                 );
             }
@@ -607,7 +612,7 @@ fn test_parse_shard_chunks_response_mock() {
             data.network = FarcasterNetwork::Mainnet as i32;
 
             let mut cast_add_body = CastAddBody::default();
-            cast_add_body.text = format!("Test cast from FID {} in block {}", fid, block_num);
+            cast_add_body.text = format!("Test cast from FID {fid} in block {block_num}");
             data.body =
                 Some(crate::generated::grpc_client::message_data::Body::CastAddBody(cast_add_body));
 
@@ -721,10 +726,10 @@ fn test_parse_shard_chunks_response_mock() {
             if let Some(crate::generated::grpc_client::message_data::Body::CastAddBody(cast_body)) =
                 &message.data.as_ref().unwrap().body
             {
-                assert!(cast_body.text.contains(&format!("FID {}", expected_fid)));
+                assert!(cast_body.text.contains(&format!("FID {expected_fid}")));
                 assert!(cast_body
                     .text
-                    .contains(&format!("block {}", expected_block_num)));
+                    .contains(&format!("block {expected_block_num}")));
             }
         }
 
@@ -831,7 +836,7 @@ async fn test_parse_block_1_detailed_analysis() {
     );
 
     // Analyze each block in detail with strict validation
-    for chunk in response.shard_chunks.iter() {
+    for chunk in &response.shard_chunks {
         validate_detailed_block_analysis(chunk);
     }
 }

@@ -1,4 +1,4 @@
-//! Event-sourcing architecture tests for user_profile_changes
+//! Event-sourcing architecture tests for `user_profile_changes`
 
 #[cfg(test)]
 mod tests {
@@ -17,7 +17,7 @@ mod tests {
         timestamp.hash(&mut hasher);
         value.hash(&mut hasher);
         let hash_value = hasher.finish();
-        format!("test_{}_{}", field_name, hash_value)
+        format!("test_{field_name}_{hash_value}")
             .as_bytes()
             .to_vec()
     }
@@ -156,7 +156,7 @@ mod tests {
             let test_fid = test_fid_base + i;
 
             let handle = tokio::spawn(async move {
-                let hash = generate_message_hash("username", test_fid, 1000, &format!("user{}", i));
+                let hash = generate_message_hash("username", test_fid, 1000, &format!("user{i}"));
 
                 sqlx::query(
                     "INSERT INTO user_profile_changes (fid, field_name, field_value, timestamp, message_hash) 
@@ -165,7 +165,7 @@ mod tests {
                 )
                 .bind(test_fid)
                 .bind("username")
-                .bind(format!("user{}", i))
+                .bind(format!("user{i}"))
                 .bind(1000i64)
                 .bind(&hash)
                 .execute(db_clone.pool())

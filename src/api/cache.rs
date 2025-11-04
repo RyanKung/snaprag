@@ -74,6 +74,7 @@ pub struct CacheStats {
 }
 
 impl CacheStats {
+    #[must_use]
     pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses;
         if total == 0 {
@@ -93,13 +94,21 @@ pub struct CacheService {
     stats: Arc<RwLock<CacheStats>>,
 }
 
+impl Default for CacheService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CacheService {
     /// Create a new cache service with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(CacheConfig::default())
     }
 
     /// Create a new cache service with custom configuration
+    #[must_use]
     pub fn with_config(config: CacheConfig) -> Self {
         Self {
             profile_cache: Arc::new(RwLock::new(HashMap::new())),
@@ -423,6 +432,7 @@ pub struct CacheInfo {
 }
 
 impl CacheInfo {
+    #[must_use]
     pub fn usage_percentage(&self) -> f64 {
         if self.max_entries == 0 {
             0.0

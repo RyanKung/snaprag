@@ -40,6 +40,7 @@ pub struct StrictTestRunner {
 
 impl StrictTestRunner {
     /// Create a new strict test runner
+    #[must_use]
     pub fn new(config: StrictTestConfig) -> Self {
         Self { config }
     }
@@ -65,12 +66,12 @@ impl StrictTestRunner {
     /// Check code formatting
     fn check_formatting(&self) -> Result<()> {
         let output = Command::new("cargo")
-            .args(&["fmt", "--all", "--", "--check"])
+            .args(["fmt", "--all", "--", "--check"])
             .output()?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            panic!("Code formatting check failed: {}", stderr);
+            panic!("Code formatting check failed: {stderr}");
         }
 
         Ok(())
@@ -107,7 +108,7 @@ impl StrictTestRunner {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            panic!("Clippy check failed: {}", stderr);
+            panic!("Clippy check failed: {stderr}");
         }
 
         Ok(())
@@ -146,7 +147,7 @@ impl StrictTestRunner {
                 }
             }
 
-            panic!("Tests failed - STDOUT: {} STDERR: {}", stdout, stderr);
+            panic!("Tests failed - STDOUT: {stdout} STDERR: {stderr}");
         }
 
         Ok(())
@@ -167,7 +168,7 @@ impl StrictTestRunner {
     /// Run a specific test with strict settings
     pub async fn run_test(&self, test_name: &str) -> Result<()> {
         let mut cmd = Command::new("cargo");
-        cmd.args(&["test", "--lib", test_name, "--", "--test-threads", "1"])
+        cmd.args(["test", "--lib", test_name, "--", "--test-threads", "1"])
             .env("RUST_BACKTRACE", "1")
             .env("RUST_LOG", "warn");
 
@@ -180,10 +181,7 @@ impl StrictTestRunner {
         if !output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
-            panic!(
-                "Test {} failed - STDOUT: {} STDERR: {}",
-                test_name, stdout, stderr
-            );
+            panic!("Test {test_name} failed - STDOUT: {stdout} STDERR: {stderr}");
         }
 
         Ok(())

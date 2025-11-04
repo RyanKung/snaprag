@@ -101,7 +101,7 @@ pub(super) fn handle_verification_add(
 }
 
 /// Handle `VerificationRemove` message (type 8)
-/// Pure INSERT mode: Creates a new record with event_type='remove'
+/// Pure INSERT mode: Creates a new record with `event_type`='remove'
 pub(super) fn handle_verification_remove(
     body: &serde_json::Value,
     fid: i64,

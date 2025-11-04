@@ -32,8 +32,7 @@ mod tests {
                     || warning.contains("protobuf")
                     || warning.contains("prost")
                     || warning.contains("tonic"),
-                "Should detect generated code warning: {}",
-                warning
+                "Should detect generated code warning: {warning}"
             );
         }
     }
@@ -53,8 +52,7 @@ mod tests {
                     && !warning.contains("protobuf")
                     && !warning.contains("prost")
                     && !warning.contains("tonic"),
-                "Should NOT detect as generated code warning: {}",
-                warning
+                "Should NOT detect as generated code warning: {warning}"
             );
         }
     }

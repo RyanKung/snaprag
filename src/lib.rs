@@ -1,13 +1,13 @@
-//! SnapRAG - Farcaster data synchronization and RAG library
+//! `SnapRAG` - Farcaster data synchronization and RAG library
 //!
-//! SnapRAG is a comprehensive Rust library for working with Farcaster protocol data.
+//! `SnapRAG` is a comprehensive Rust library for working with Farcaster protocol data.
 //! It provides high-performance data synchronization, vector embeddings, semantic search,
 //! and retrieval-augmented generation (RAG) capabilities.
 //!
 //! # Features
 //!
 //! - **Data Sync**: Real-time and historical synchronization from Snapchain
-//! - **Vector Search**: Semantic search using embeddings (OpenAI, Ollama, local GPU)
+//! - **Vector Search**: Semantic search using embeddings (`OpenAI`, Ollama, local GPU)
 //! - **RAG**: Retrieval-augmented generation for natural language queries
 //! - **Social Graph**: Network analysis and relationship mapping
 //! - **MBTI Analysis**: Personality inference from user behavior
@@ -98,7 +98,7 @@
 //!
 //! # Architecture
 //!
-//! SnapRAG follows a modular architecture:
+//! `SnapRAG` follows a modular architecture:
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────┐
@@ -120,7 +120,7 @@
 //! - [`api`]: HTTP API server and handlers
 //! - [`cli`]: Command-line interface
 //! - [`config`]: Configuration management
-//! - [`database`]: PostgreSQL operations
+//! - [`database`]: `PostgreSQL` operations
 //! - [`embeddings`]: Vector embeddings generation
 //! - [`llm`]: LLM client for text generation
 //! - [`rag`]: Retrieval-augmented generation
@@ -188,76 +188,6 @@ pub const fn unix_to_farcaster_timestamp(unix_timestamp: u64) -> u64 {
 
 #[cfg(test)]
 pub mod tests;
-
-#[cfg(test)]
-mod lib_tests {
-    use super::*;
-
-    #[test]
-    fn test_farcaster_epoch_constant() {
-        // Verify Farcaster epoch is Jan 1, 2021
-        assert_eq!(FARCASTER_EPOCH, 1_609_459_200_000);
-    }
-
-    #[test]
-    fn test_farcaster_to_unix_timestamp() {
-        // Epoch conversion
-        assert_eq!(farcaster_to_unix_timestamp(0), 1_609_459_200);
-
-        // 1 day after epoch
-        assert_eq!(farcaster_to_unix_timestamp(86400), 1_609_459_200 + 86400);
-
-        // Large timestamp
-        assert_eq!(
-            farcaster_to_unix_timestamp(100_000_000),
-            1_609_459_200 + 100_000_000
-        );
-    }
-
-    #[test]
-    fn test_unix_to_farcaster_timestamp() {
-        // Epoch conversion
-        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200), 0);
-
-        // 1 day after epoch
-        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200 + 86400), 86400);
-
-        // Current time (approximate)
-        let current_unix = 1_700_000_000u64;
-        let farcaster = unix_to_farcaster_timestamp(current_unix);
-        assert!(farcaster > 90_000_000); // Should be > 90M seconds since epoch
-    }
-
-    #[test]
-    fn test_timestamp_roundtrip() {
-        // Test that conversions are reversible
-        let original_farcaster = 50_000_000u64;
-        let unix = farcaster_to_unix_timestamp(original_farcaster);
-        let back_to_farcaster = unix_to_farcaster_timestamp(unix);
-        assert_eq!(original_farcaster, back_to_farcaster);
-
-        // Reverse direction
-        let original_unix = 1_650_000_000u64;
-        let farcaster = unix_to_farcaster_timestamp(original_unix);
-        let back_to_unix = farcaster_to_unix_timestamp(farcaster);
-        assert_eq!(original_unix, back_to_unix);
-    }
-
-    #[test]
-    fn test_timestamp_edge_cases() {
-        // Zero farcaster timestamp
-        assert_eq!(farcaster_to_unix_timestamp(0), 1_609_459_200);
-
-        // Zero would underflow for unix_to_farcaster, so test smallest valid
-        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200), 0);
-
-        // Maximum reasonable timestamp (year 2100)
-        let year_2100 = 4_102_444_800u64;
-        let farcaster = unix_to_farcaster_timestamp(year_2100);
-        let back = farcaster_to_unix_timestamp(farcaster);
-        assert_eq!(back, year_2100);
-    }
-}
 
 // Re-export commonly used types
 use std::sync::Arc;
@@ -787,5 +717,75 @@ impl SnapRag {
     ) -> Result<CastBackfillStats> {
         let embedding_service = self.create_embedding_service()?;
         embeddings::backfill_cast_embeddings(self.database.clone(), embedding_service, limit).await
+    }
+}
+
+#[cfg(test)]
+mod lib_tests {
+    use super::*;
+
+    #[test]
+    fn test_farcaster_epoch_constant() {
+        // Verify Farcaster epoch is Jan 1, 2021
+        assert_eq!(FARCASTER_EPOCH, 1_609_459_200_000);
+    }
+
+    #[test]
+    fn test_farcaster_to_unix_timestamp() {
+        // Epoch conversion
+        assert_eq!(farcaster_to_unix_timestamp(0), 1_609_459_200);
+
+        // 1 day after epoch
+        assert_eq!(farcaster_to_unix_timestamp(86400), 1_609_459_200 + 86400);
+
+        // Large timestamp
+        assert_eq!(
+            farcaster_to_unix_timestamp(100_000_000),
+            1_609_459_200 + 100_000_000
+        );
+    }
+
+    #[test]
+    fn test_unix_to_farcaster_timestamp() {
+        // Epoch conversion
+        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200), 0);
+
+        // 1 day after epoch
+        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200 + 86400), 86400);
+
+        // Current time (approximate)
+        let current_unix = 1_700_000_000u64;
+        let farcaster = unix_to_farcaster_timestamp(current_unix);
+        assert!(farcaster > 90_000_000); // Should be > 90M seconds since epoch
+    }
+
+    #[test]
+    fn test_timestamp_roundtrip() {
+        // Test that conversions are reversible
+        let original_farcaster = 50_000_000u64;
+        let unix = farcaster_to_unix_timestamp(original_farcaster);
+        let back_to_farcaster = unix_to_farcaster_timestamp(unix);
+        assert_eq!(original_farcaster, back_to_farcaster);
+
+        // Reverse direction
+        let original_unix = 1_650_000_000u64;
+        let farcaster = unix_to_farcaster_timestamp(original_unix);
+        let back_to_unix = farcaster_to_unix_timestamp(farcaster);
+        assert_eq!(original_unix, back_to_unix);
+    }
+
+    #[test]
+    fn test_timestamp_edge_cases() {
+        // Zero farcaster timestamp
+        assert_eq!(farcaster_to_unix_timestamp(0), 1_609_459_200);
+
+        // Zero would underflow for unix_to_farcaster, so test smallest valid
+        assert_eq!(unix_to_farcaster_timestamp(1_609_459_200), 0);
+
+        // Maximum reasonable timestamp (year 2100)
+        let year_2100 = 4_102_444_800u64;
+        let farcaster = unix_to_farcaster_timestamp(year_2100);
+        let back = farcaster_to_unix_timestamp(farcaster);
+        assert_eq!(back, year_2100);
     }
 }

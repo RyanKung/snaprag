@@ -519,12 +519,11 @@ async fn process_casts_with_separated_concurrency(
         .into_par_iter() // Parallel iteration using rayon
         .map(|cast| {
             // Simplified preprocessing with debugging
-            let text_len = cast.text.as_ref().map(|t| t.len()).unwrap_or(0);
-            let text_preview = cast
-                .text
-                .as_ref()
-                .map(|t| t.chars().take(50).collect::<String>())
-                .unwrap_or_else(|| "None".to_string());
+            let text_len = cast.text.as_ref().map_or(0, std::string::String::len);
+            let text_preview = cast.text.as_ref().map_or_else(
+                || "None".to_string(),
+                |t| t.chars().take(50).collect::<String>(),
+            );
 
             debug!(
                 "Cast {}: text_len={}, preview='{}'",

@@ -106,6 +106,7 @@ impl MbtiAnalyzer {
     }
 
     /// Create with LLM service for enhanced analysis
+    #[must_use]
     pub const fn with_llm(database: Arc<Database>, llm_service: Arc<LlmService>) -> Self {
         Self {
             database,
@@ -228,9 +229,10 @@ impl MbtiAnalyzer {
 
         // Weighted interaction frequency (降低提及率权重)
         // Reply is more genuine social behavior than mentions (which might be for exposure)
-        let interaction_frequency = (social_profile.interaction_style.reply_frequency * 0.8
-            + social_profile.interaction_style.mention_frequency * 0.2)
-            / 1.0;
+        let interaction_frequency = social_profile.interaction_style.reply_frequency.mul_add(
+            0.8,
+            social_profile.interaction_style.mention_frequency * 0.2,
+        ) / 1.0;
 
         let response_to_others = social_profile.interaction_style.reply_frequency;
 
@@ -645,8 +647,7 @@ Be specific, insightful, and connect observations to MBTI theory.",
         let mut analysis = String::new();
 
         analysis.push_str(&format!(
-            "Based on behavioral analysis, this user exhibits characteristics of an {} personality type.\n\n",
-            mbti_type
+            "Based on behavioral analysis, this user exhibits characteristics of an {mbti_type} personality type.\n\n"
         ));
 
         // E/I analysis

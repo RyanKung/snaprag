@@ -18,7 +18,7 @@ lazy_static! {
     /// Stop words using the stop-words crate
     static ref STOP_WORDS_SET: HashSet<String> = {
         let stop_words = stop_words::get(stop_words::LANGUAGE::English);
-        stop_words.into_iter().map(|s| s.to_string()).collect()
+        stop_words.into_iter().collect()
     };
 }
 

@@ -186,7 +186,7 @@ mod tests {
 
         assert_eq!(session.fid, 99);
         assert_eq!(session.conversation_history.len(), 0);
-        assert!(session.session_id.len() > 0);
+        assert!(!session.session_id.is_empty());
     }
 
     #[test]
@@ -207,7 +207,7 @@ mod tests {
 
         // Add 25 messages
         for i in 0..25 {
-            session.add_message("user", format!("Message {}", i));
+            session.add_message("user", format!("Message {i}"));
         }
 
         // Should only keep last 20

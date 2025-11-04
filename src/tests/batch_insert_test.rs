@@ -43,14 +43,14 @@ async fn test_batch_insert_reactions_parameter_binding() {
     for i in 0..5 {
         let hash = test_message_hash(9000 + i);
         batched.reactions.push((
-            99 + i as i64,            // fid
-            vec![0xAA + i as u8; 32], // target_cast_hash (BYTEA)
-            Some(100 + i as i64),     // target_fid (Option<i64>)
-            1,                        // reaction_type (i16)
-            "add".to_string(),        // event_type (String)
-            1_698_765_432 + i as i64, // timestamp (i64)
-            hash.clone(),             // message_hash (Vec<u8>)
-            shard_info.clone(),       // shard_block_info
+            99 + i64::from(i),            // fid
+            vec![0xAA + i as u8; 32],     // target_cast_hash (BYTEA)
+            Some(100 + i64::from(i)),     // target_fid (Option<i64>)
+            1,                            // reaction_type (i16)
+            "add".to_string(),            // event_type (String)
+            1_698_765_432 + i64::from(i), // timestamp (i64)
+            hash.clone(),                 // message_hash (Vec<u8>)
+            shard_info.clone(),           // shard_block_info
         ));
     }
 
@@ -115,13 +115,13 @@ async fn test_batch_insert_links_parameter_binding() {
     for i in 0..5 {
         let hash = test_message_hash(8000 + i);
         batched.links.push((
-            99,                       // fid
-            200 + i as i64,           // target_fid
-            "follow".to_string(),     // link_type
-            "add".to_string(),        // event_type
-            1_698_765_432 + i as i64, // timestamp
-            hash.clone(),             // message_hash
-            shard_info.clone(),       // shard_block_info
+            99,                           // fid
+            200 + i64::from(i),           // target_fid
+            "follow".to_string(),         // link_type
+            "add".to_string(),            // event_type
+            1_698_765_432 + i64::from(i), // timestamp
+            hash.clone(),                 // message_hash
+            shard_info.clone(),           // shard_block_info
         ));
     }
 
@@ -180,16 +180,16 @@ async fn test_batch_insert_verifications_parameter_binding() {
     for i in 0..5 {
         let hash = test_message_hash(7000 + i);
         batched.verifications.push((
-            99,                       // fid
-            vec![0xBB + i as u8; 20], // address (BYTEA, 20 bytes)
-            Some(vec![0xCC; 65]),     // claim_signature
-            Some(vec![0xDD; 32]),     // block_hash
-            Some(0),                  // verification_type
-            Some(1),                  // chain_id
-            "add".to_string(),        // event_type
-            1_698_765_432 + i as i64, // timestamp
-            hash.clone(),             // message_hash
-            shard_info.clone(),       // shard_block_info
+            99,                           // fid
+            vec![0xBB + i as u8; 20],     // address (BYTEA, 20 bytes)
+            Some(vec![0xCC; 65]),         // claim_signature
+            Some(vec![0xDD; 32]),         // block_hash
+            Some(0),                      // verification_type
+            Some(1),                      // chain_id
+            "add".to_string(),            // event_type
+            1_698_765_432 + i64::from(i), // timestamp
+            hash.clone(),                 // message_hash
+            shard_info.clone(),           // shard_block_info
         ));
     }
 
@@ -258,7 +258,7 @@ async fn test_large_batch_insert() {
             Some(100),
             1,
             "add".to_string(),
-            1698765432 + i as i64,
+            1698765432 + i64::from(i),
             hash,
             shard_info.clone(),
         ));

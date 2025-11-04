@@ -126,7 +126,7 @@ pub async fn handle_list_command(
         }
         DataType::Casts => {
             if let Some(fid_filter) = fid {
-                print_list_header(&format!("Casts by FID {}", fid_filter), limit);
+                print_list_header(&format!("Casts by FID {fid_filter}"), limit);
             } else {
                 print_list_header("Casts", limit);
             }

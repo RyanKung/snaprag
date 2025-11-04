@@ -1,4 +1,4 @@
-//! SnapRAG Worker Process
+//! `SnapRAG` Worker Process
 //!
 //! This binary is used as a worker process for multi-process embedding generation.
 //! It communicates with the main process via stdin/stdout using JSON messages.

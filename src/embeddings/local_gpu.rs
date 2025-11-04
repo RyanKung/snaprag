@@ -1,7 +1,7 @@
 //! Local GPU embedding client for BAAI/bge-small-en-v1.5
 //!
 //! This module provides local GPU-accelerated embedding generation using the
-//! BAAI/bge-small-en-v1.5 model from HuggingFace.
+//! BAAI/bge-small-en-v1.5 model from `HuggingFace`.
 //!
 //! This module is only available when the `local-gpu` feature is enabled.
 

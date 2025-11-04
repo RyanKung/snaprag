@@ -1,7 +1,7 @@
-//! Database layer for PostgreSQL operations
+//! Database layer for `PostgreSQL` operations
 //!
 //! This module provides a comprehensive database abstraction layer for all data operations
-//! in SnapRAG. It handles:
+//! in `SnapRAG`. It handles:
 //!
 //! - User profiles and activity tracking
 //! - Casts (posts) and reactions
@@ -79,7 +79,7 @@ pub use sync::SyncStats;
 
 /// Database connection pool wrapper
 ///
-/// Provides a high-level interface to PostgreSQL operations with connection pooling.
+/// Provides a high-level interface to `PostgreSQL` operations with connection pooling.
 ///
 /// # Thread Safety
 ///

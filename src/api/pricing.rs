@@ -44,6 +44,7 @@ impl PricingConfig {
 
     /// Get price for a specific endpoint path
     #[cfg(feature = "payment")]
+    #[must_use]
     pub fn get_price(&self, path: &str) -> Option<Decimal> {
         // Exact match first for better performance
         // Check if it's a free endpoint

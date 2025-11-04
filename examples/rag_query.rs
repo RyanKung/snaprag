@@ -1,6 +1,6 @@
 //! RAG query example
 //!
-//! Run with: cargo run --example rag_query
+//! Run with: cargo run --example `rag_query`
 
 use snaprag::AppConfig;
 use snaprag::RagQuery;

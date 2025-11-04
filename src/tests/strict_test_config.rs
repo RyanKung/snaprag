@@ -14,9 +14,9 @@ pub fn init_strict_testing() {
         let original_hook = panic::take_hook();
         panic::set_hook(Box::new(move |panic_info| {
             // Check if this is a warning that should be treated as an error
-            let msg = format!("{:?}", panic_info);
+            let msg = format!("{panic_info:?}");
             if msg.contains("warning:") && !is_generated_code_warning(&msg) {
-                eprintln!("❌ WARNING TREATED AS ERROR: {}", msg);
+                eprintln!("❌ WARNING TREATED AS ERROR: {msg}");
                 std::process::exit(1);
             }
             original_hook(panic_info);
@@ -69,7 +69,7 @@ pub fn run_strict_clippy() -> Result<(), Box<dyn std::error::Error>> {
     use std::process::Command;
 
     let output = Command::new("cargo")
-        .args(&[
+        .args([
             "clippy",
             "--all-targets",
             "--all-features",
@@ -89,7 +89,7 @@ pub fn run_strict_clippy() -> Result<(), Box<dyn std::error::Error>> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("❌ Clippy found issues:\n{}", stderr);
+        eprintln!("❌ Clippy found issues:\n{stderr}");
         return Err("Clippy strict check failed".into());
     }
 
@@ -102,22 +102,22 @@ pub fn run_strict_fmt() -> Result<(), Box<dyn std::error::Error>> {
     use std::process::Command;
 
     // First, format the code
-    let fmt_output = Command::new("cargo").args(&["fmt", "--all"]).output()?;
+    let fmt_output = Command::new("cargo").args(["fmt", "--all"]).output()?;
 
     if !fmt_output.status.success() {
         let stderr = String::from_utf8_lossy(&fmt_output.stderr);
-        eprintln!("❌ Cargo fmt failed:\n{}", stderr);
+        eprintln!("❌ Cargo fmt failed:\n{stderr}");
         return Err("Cargo fmt failed".into());
     }
 
     // Then check if formatting is correct
     let check_output = Command::new("cargo")
-        .args(&["fmt", "--all", "--", "--check"])
+        .args(["fmt", "--all", "--", "--check"])
         .output()?;
 
     if !check_output.status.success() {
         let stderr = String::from_utf8_lossy(&check_output.stderr);
-        eprintln!("❌ Code formatting check failed:\n{}", stderr);
+        eprintln!("❌ Code formatting check failed:\n{stderr}");
         return Err("Code formatting check failed".into());
     }
 
