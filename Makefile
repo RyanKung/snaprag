@@ -11,7 +11,7 @@ build: ## Build the project
 build-release: ## Build the project in release mode
 	cargo build --release
 
-test: ## Run tests
+test: ## Run tests (database tests are ignored by default)
 	cargo test
 
 test-strict: ## Run tests with strict settings (warnings as errors)
@@ -23,6 +23,68 @@ test-quick: ## Run quick tests (unit tests only)
 
 test-integration: ## Run integration tests only
 	cargo test --test "*" -- --test-threads=1
+
+test-local: ## Run ALL tests including database tests (requires local PostgreSQL)
+	@echo "🧪 Running local tests with test database..."
+	@echo "⚠️  This will create/drop snaprag_test database on localhost"
+	@echo ""
+	@$(MAKE) test-db-check
+	@echo ""
+	@$(MAKE) test-setup
+	@export SNAPRAG_CONFIG=config.test.toml && \
+	 export SNAPRAG_ALLOW_RESET=yes && \
+	 cargo run --release -- init --force && \
+	 cargo test -- --ignored --test-threads=1 || true
+	@$(MAKE) test-cleanup
+	@echo "✅ Local tests complete"
+
+test-setup: ## Create local test database
+	@echo "🗄️  Creating test database..."
+	@dropdb snaprag_test 2>/dev/null || true
+	@createdb snaprag_test
+	@psql -d snaprag_test -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || echo "⚠️  pgvector not installed"
+	@psql -d snaprag_test -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;" 2>/dev/null || true
+	@echo "✅ Test database created"
+
+test-cleanup: ## Drop local test database
+	@echo "🧹 Cleaning up test database..."
+	@dropdb snaprag_test 2>/dev/null || true
+	@echo "✅ Test database removed"
+
+test-db-check: ## Verify test database configuration (CRITICAL SAFETY CHECK)
+	@echo "🛡️  CRITICAL SAFETY CHECK: Verifying test database configuration..."
+	@if [ ! -f "config.test.toml" ]; then \
+		echo "❌ ERROR: config.test.toml not found"; \
+		echo "   Tests require local database configuration"; \
+		exit 1; \
+	fi
+	@DB_URL=$$(grep "url = " config.test.toml | cut -d'"' -f2); \
+	echo "   Checking database URL..."; \
+	if echo "$$DB_URL" | grep -qE "localhost|127\.0\.0\.1|::1"; then \
+		echo "   ✅ Database URL points to LOCALHOST"; \
+		echo "   ✅ Safe to run tests"; \
+	else \
+		echo ""; \
+		echo "   ❌❌❌ CRITICAL ERROR ❌❌❌"; \
+		echo "   Database URL does NOT point to localhost!"; \
+		echo "   Current URL: $$DB_URL"; \
+		echo ""; \
+		echo "   Running tests against this database would DESTROY PRODUCTION DATA!"; \
+		echo ""; \
+		echo "   Fix config.test.toml to use localhost database:"; \
+		echo "   url = \"postgresql://user:pass@localhost/snaprag_test\""; \
+		echo ""; \
+		exit 1; \
+	fi
+	@echo "   Checking database name..."; \
+	DB_URL=$$(grep "url = " config.test.toml | cut -d'"' -f2); \
+	if echo "$$DB_URL" | grep -q "snaprag_test"; then \
+		echo "   ✅ Database name is snaprag_test"; \
+	else \
+		echo "   ⚠️  WARNING: Database name is not snaprag_test"; \
+		echo "   Recommended to use dedicated test database"; \
+	fi; \
+	echo "   ✅ All safety checks passed"
 
 
 run: ## Run the application

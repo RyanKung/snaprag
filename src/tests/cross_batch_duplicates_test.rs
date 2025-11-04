@@ -14,7 +14,7 @@ use crate::Result;
 #[ignore] // Run manually: cargo test --test cross_batch_duplicates_test -- --ignored
 async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
     // Initialize client
-    let config = crate::config::AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -187,7 +187,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 #[ignore]
 async fn test_same_fid_across_batches() -> Result<()> {
     // Simpler test: just check if same FID appears in consecutive batches
-    let config = crate::config::AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,

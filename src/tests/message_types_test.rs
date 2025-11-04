@@ -17,7 +17,24 @@ mod message_types_tests {
 
     /// Helper to create test database
     async fn setup_test_db() -> Database {
-        let config = crate::config::AppConfig::load().expect("Failed to load config");
+        // 🛡️ CRITICAL: Force use of test configuration
+        let config_path =
+            std::env::var("SNAPRAG_CONFIG").unwrap_or_else(|_| "config.test.toml".to_string());
+        let config =
+            crate::config::AppConfig::from_file(&config_path).expect("Failed to load config");
+
+        // 🛡️ CRITICAL: Verify we're using local database
+        let db_url = config.database_url();
+        if !db_url.contains("localhost") && !db_url.contains("127.0.0.1") && !db_url.contains("::1")
+        {
+            panic!(
+                "❌ SAFETY CHECK FAILED: Test database must be localhost!\n\
+                 Current URL: {}\n\
+                 Set SNAPRAG_CONFIG=config.test.toml to use test database",
+                db_url
+            );
+        }
+
         Database::from_config(&config)
             .await
             .expect("Failed to create database")

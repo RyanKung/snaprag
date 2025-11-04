@@ -350,7 +350,6 @@ async fn test_user_activity_via_casts_and_links() -> Result<()> {
 
 #[tokio::test]
 #[ignore = "Requires database access - production database should not be modified"]
-#[ignore] // FIXME: user_profiles is now a view, cannot INSERT directly
 async fn _disabled_test_database_transaction_rollback() -> Result<()> {
     let database = create_test_database().await?;
     let test_fid = 99994i64; // Use another different high FID

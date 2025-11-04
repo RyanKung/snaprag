@@ -326,7 +326,7 @@ async fn test_sync_user_message_blocks() -> Result<()> {
         // Test initialization - no output needed
 
         // Load configuration
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
 
         // Initialize database
         let database = Database::from_config(&config).await?;
@@ -416,7 +416,7 @@ async fn test_sync_high_activity_blocks() -> Result<()> {
 
         // Test initialization for high activity blocks
 
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = Database::from_config(&config).await?;
         let db_arc = Arc::new(database);
 
@@ -477,7 +477,7 @@ async fn test_sync_early_blocks() -> Result<()> {
 
         // Test initialization for early blocks
 
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = Database::from_config(&config).await?;
         let db_arc = Arc::new(database);
 
@@ -553,7 +553,7 @@ async fn test_sync_error_handling() -> Result<()> {
 
         // Test initialization for error handling
 
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = Database::from_config(&config).await?;
         let db_arc = Arc::new(database);
 
@@ -593,7 +593,7 @@ async fn test_lock_file_management() -> Result<()> {
 
         // Test initialization for lock file management
 
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = Database::from_config(&config).await?;
         let db_arc = Arc::new(database);
 
@@ -834,7 +834,6 @@ async fn test_cli_error_handling() -> Result<()> {
 /// This helps identify good block ranges for syncing profile data
 #[tokio::test]
 #[ignore = "Requires database access - production database should not be modified"]
-#[ignore] // Run manually with: cargo test scan_for_user_data_blocks -- --ignored --nocapture
 async fn test_scan_for_user_data_blocks() -> Result<()> {
     use crate::sync::client::SnapchainClient;
 
@@ -842,7 +841,7 @@ async fn test_scan_for_user_data_blocks() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
     // Load configuration
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
 
     // Create gRPC client
     let client = SnapchainClient::new(

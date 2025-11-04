@@ -29,7 +29,7 @@ use crate::rag::Retriever;
 #[ignore] // Requires external services (DB, embeddings, LLM)
 async fn test_profile_rag_pipeline() -> Result<()> {
     // Load config
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
 
     // Initialize services
     let db = Arc::new(Database::from_config(&config).await?);
@@ -113,7 +113,7 @@ async fn test_profile_rag_pipeline() -> Result<()> {
 #[ignore] // Requires external services (DB, embeddings, LLM)
 async fn test_cast_rag_pipeline() -> Result<()> {
     // Load config
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
 
     // Initialize services
     let db = Arc::new(Database::from_config(&config).await?);
@@ -215,7 +215,7 @@ async fn test_cast_rag_pipeline() -> Result<()> {
 #[ignore] // Requires external services (DB, embeddings, LLM)
 async fn test_hybrid_search_quality() -> Result<()> {
     // Load config
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
 
     // Initialize services
     let db = Arc::new(Database::from_config(&config).await?);
@@ -272,7 +272,7 @@ async fn test_hybrid_search_quality() -> Result<()> {
 #[ignore] // Requires external services (DB, embeddings, LLM)
 async fn test_retrieval_consistency() -> Result<()> {
     // This test verifies that retrieval is deterministic and consistent
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let db = Arc::new(Database::from_config(&config).await?);
     let embedding_service = Arc::new(EmbeddingService::new(&config)?);
     let retriever = Retriever::new(Arc::clone(&db), Arc::clone(&embedding_service));
@@ -305,7 +305,7 @@ async fn test_retrieval_consistency() -> Result<()> {
 #[ignore] // Requires external services
 async fn test_cast_thread_retrieval() -> Result<()> {
     // Test retrieving and assembling cast threads
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let db = Arc::new(Database::from_config(&config).await?);
 
     // Find a cast with replies

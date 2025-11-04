@@ -27,7 +27,7 @@ mod tests {
     async fn test_event_sourcing_insert_and_query() {
         // This test verifies that the event-sourcing architecture works correctly
 
-        let config = crate::config::AppConfig::load().expect("Failed to load config");
+        let config = crate::tests::load_test_config().expect("Failed to load config");
         let db = Database::from_config(&config)
             .await
             .expect("Failed to connect to database");
@@ -140,7 +140,7 @@ mod tests {
     async fn test_concurrent_inserts_no_locks() {
         // This test verifies that concurrent inserts don't cause lock contention
 
-        let config = crate::config::AppConfig::load().expect("Failed to load config");
+        let config = crate::tests::load_test_config().expect("Failed to load config");
         let db = Database::from_config(&config)
             .await
             .expect("Failed to connect to database");

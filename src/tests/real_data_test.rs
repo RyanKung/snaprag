@@ -23,7 +23,7 @@ mod real_data_tests {
     #[ignore] // Ignored by default as it requires Snapchain setup
     async fn test_sync_real_data_from_snapchain() -> Result<()> {
         // Load configuration
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
 
         // Create database connection
         let database = std::sync::Arc::new(Database::from_config(&config).await?);
@@ -64,7 +64,7 @@ mod real_data_tests {
     async fn test_fetch_real_user_profile() -> Result<()> {
         use crate::sync::lazy_loader::LazyLoader;
 
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = std::sync::Arc::new(Database::from_config(&config).await?);
         let client = std::sync::Arc::new(SnapchainClient::from_config(&config).await?);
 
@@ -90,7 +90,7 @@ mod real_data_tests {
     async fn test_fetch_real_user_casts() -> Result<()> {
         use crate::sync::lazy_loader::LazyLoader;
 
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = std::sync::Arc::new(Database::from_config(&config).await?);
         let client = std::sync::Arc::new(SnapchainClient::from_config(&config).await?);
 
@@ -119,7 +119,7 @@ mod real_data_tests {
     #[tokio::test]
     #[ignore] // Ignored by default as it requires Snapchain setup and takes time
     async fn test_end_to_end_sync_and_query() -> Result<()> {
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = std::sync::Arc::new(Database::from_config(&config).await?);
 
         // 1. Sync some data
@@ -185,7 +185,7 @@ mod real_data_tests {
     /// This can be expanded based on specific test requirements
     #[allow(dead_code)]
     async fn setup_test_environment() -> Result<(AppConfig, std::sync::Arc<Database>)> {
-        let config = AppConfig::load()?;
+        let config = crate::tests::load_test_config()?;
         let database = std::sync::Arc::new(Database::from_config(&config).await?);
 
         // Verify schema

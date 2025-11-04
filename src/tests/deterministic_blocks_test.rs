@@ -275,13 +275,12 @@ impl DeterministicBlockRegistry {
 /// This is run manually to discover new deterministic blocks
 #[tokio::test]
 #[ignore = "Requires database access - production database should not be modified"]
-#[ignore] // Run with: cargo test scan_message_types -- --ignored --nocapture
 async fn scan_message_types() -> Result<()> {
     use crate::sync::client::SnapchainClient;
 
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -464,7 +463,6 @@ async fn scan_message_types() -> Result<()> {
 /// This helps discover FID registrations, storage events, and signer events
 #[tokio::test]
 #[ignore = "Requires database access - production database should not be modified"]
-#[ignore] // Run with: cargo test scan_for_system_messages -- --ignored --nocapture
 async fn scan_for_system_messages() -> Result<()> {
     use crate::sync::client::SnapchainClient;
 
@@ -473,7 +471,7 @@ async fn scan_for_system_messages() -> Result<()> {
     println!("\n🔍 Scanning for System Messages (OnChainEvents)");
     println!("================================================\n");
 
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -604,7 +602,6 @@ async fn scan_for_system_messages() -> Result<()> {
 /// Scan latest blocks for new message types (`UsernameProof`, `FrameAction`, etc.)
 #[tokio::test]
 #[ignore = "Requires database access - production database should not be modified"]
-#[ignore] // Run with: cargo test scan_latest_blocks -- --ignored --nocapture
 async fn scan_latest_blocks() -> Result<()> {
     use crate::sync::client::SnapchainClient;
 
@@ -614,7 +611,7 @@ async fn scan_latest_blocks() -> Result<()> {
     println!("================================================\n");
     println!("Target: UsernameProof(12), FrameAction(13), LinkCompactState(14), LendStorage(15)\n");
 
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -698,7 +695,7 @@ async fn scan_latest_blocks() -> Result<()> {
 async fn test_deterministic_block_contents() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -883,7 +880,7 @@ async fn test_comprehensive_deterministic() -> Result<()> {
 
 /// Internal helper for block content validation
 async fn validate_block_contents_internal() -> Result<()> {
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let client = SnapchainClient::new(
         &config.sync.snapchain_http_endpoint,
         &config.sync.snapchain_grpc_endpoint,
@@ -926,7 +923,7 @@ async fn validate_block_contents_internal() -> Result<()> {
 
 /// Internal helper for processing verification
 async fn process_and_verify_internal() -> Result<()> {
-    let config = AppConfig::load()?;
+    let config = crate::tests::load_test_config()?;
     let database = std::sync::Arc::new(Database::from_config(&config).await?);
     let registry = DeterministicBlockRegistry::new();
     let sync_service = SyncService::new(&config, database.clone()).await?;
@@ -949,43 +946,47 @@ async fn process_and_verify_internal() -> Result<()> {
             It has been disabled for safety. Use a dedicated test database if you need to run this test.".to_string()
         ));
 
-        // Verify database is empty
-        let count_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_activity_timeline")
-            .fetch_one(database.pool())
+        // 以下代码已禁用（包含危险的 TRUNCATE 操作）
+        #[allow(unreachable_code)]
+        {
+            // Verify database is empty
+            let count_before: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM user_activity_timeline")
+                    .fetch_one(database.pool())
+                    .await?;
+            assert_eq!(
+                count_before, 0,
+                "Database should be empty before processing"
+            );
+
+            println!("  🔄 Processing block {}...", det_block.block_number);
+
+            // Get block info before processing for timestamp validation
+            let temp_client = SnapchainClient::new(
+                &config.sync.snapchain_http_endpoint,
+                &config.sync.snapchain_grpc_endpoint,
+            )
             .await?;
-        assert_eq!(
-            count_before, 0,
-            "Database should be empty before processing"
-        );
+            let request = proto::ShardChunksRequest {
+                shard_id: det_block.shard_id,
+                start_block_number: det_block.block_number,
+                stop_block_number: Some(det_block.block_number + 1),
+            };
+            let pre_process_response = temp_client.get_shard_chunks(request).await?;
+            let block_timestamp = pre_process_response
+                .shard_chunks
+                .first()
+                .and_then(|c| c.header.as_ref())
+                .map_or(0, |h| h.timestamp);
 
-        println!("  🔄 Processing block {}...", det_block.block_number);
+            // Process single block
+            sync_service
+                .poll_once(det_block.shard_id, det_block.block_number)
+                .await?;
 
-        // Get block info before processing for timestamp validation
-        let temp_client = SnapchainClient::new(
-            &config.sync.snapchain_http_endpoint,
-            &config.sync.snapchain_grpc_endpoint,
-        )
-        .await?;
-        let request = proto::ShardChunksRequest {
-            shard_id: det_block.shard_id,
-            start_block_number: det_block.block_number,
-            stop_block_number: Some(det_block.block_number + 1),
-        };
-        let pre_process_response = temp_client.get_shard_chunks(request).await?;
-        let block_timestamp = pre_process_response
-            .shard_chunks
-            .first()
-            .and_then(|c| c.header.as_ref())
-            .map_or(0, |h| h.timestamp);
-
-        // Process single block
-        sync_service
-            .poll_once(det_block.shard_id, det_block.block_number)
-            .await?;
-
-        // === STRICT VALIDATION: FID Values ===
-        // Get FIDs from user messages (not system messages which may have FID=0)
-        let user_message_fids: Vec<i64> = sqlx::query_scalar(
+            // === STRICT VALIDATION: FID Values ===
+            // Get FIDs from user messages (not system messages which may have FID=0)
+            let user_message_fids: Vec<i64> = sqlx::query_scalar(
             "SELECT DISTINCT fid FROM user_activity_timeline 
              WHERE activity_type NOT IN ('id_register', 'storage_rent', 'signer_add', 'fname_transfer')
              ORDER BY fid"
@@ -993,33 +994,33 @@ async fn process_and_verify_internal() -> Result<()> {
         .fetch_all(database.pool())
         .await?;
 
-        for fid in &user_message_fids {
-            assert!(
-                *fid > 0,
-                "Block {}: User message FIDs must be positive (found {})",
-                det_block.block_number,
-                fid
-            );
-            assert!(
-                *fid < 100_000_000,
-                "Block {}: FID {} exceeds reasonable range (max 100M)",
-                det_block.block_number,
-                fid
-            );
-        }
-        if !user_message_fids.is_empty() {
-            println!(
-                "    ✓ FID range validation: {} user FIDs, all in valid range (1-100M)",
-                user_message_fids.len()
-            );
-        }
+            for fid in &user_message_fids {
+                assert!(
+                    *fid > 0,
+                    "Block {}: User message FIDs must be positive (found {})",
+                    det_block.block_number,
+                    fid
+                );
+                assert!(
+                    *fid < 100_000_000,
+                    "Block {}: FID {} exceeds reasonable range (max 100M)",
+                    det_block.block_number,
+                    fid
+                );
+            }
+            if !user_message_fids.is_empty() {
+                println!(
+                    "    ✓ FID range validation: {} user FIDs, all in valid range (1-100M)",
+                    user_message_fids.len()
+                );
+            }
 
-        // === SANITY CHECK: Verify no unexpected activity types ===
-        // Only validate user message activities when user messages are specified
-        // System messages (fname_transfer, etc.) are always allowed
-        if !det_block.expected_message_types.is_empty() {
-            // Get all user message activity types (not system)
-            let user_activity_types: Vec<String> = sqlx::query_scalar(
+            // === SANITY CHECK: Verify no unexpected activity types ===
+            // Only validate user message activities when user messages are specified
+            // System messages (fname_transfer, etc.) are always allowed
+            if !det_block.expected_message_types.is_empty() {
+                // Get all user message activity types (not system)
+                let user_activity_types: Vec<String> = sqlx::query_scalar(
                 "SELECT DISTINCT activity_type FROM user_activity_timeline 
                  WHERE activity_type NOT IN ('id_register', 'storage_rent', 'signer_event', 'fname_transfer', 'fname_transfer_in', 'fname_transfer_out')
                  ORDER BY activity_type"
@@ -1027,11 +1028,133 @@ async fn process_and_verify_internal() -> Result<()> {
             .fetch_all(database.pool())
             .await?;
 
-            // Build expected activity types from message types
-            let mut expected_activity_types: std::collections::HashSet<String> =
-                std::collections::HashSet::new();
-            for msg_type in det_block.expected_message_types.keys() {
-                let activity_type = match msg_type {
+                // Build expected activity types from message types
+                let mut expected_activity_types: std::collections::HashSet<String> =
+                    std::collections::HashSet::new();
+                for msg_type in det_block.expected_message_types.keys() {
+                    let activity_type = match msg_type {
+                        1 => "cast_add",
+                        2 => "cast_remove",
+                        3 => "reaction_add",
+                        4 => "reaction_remove",
+                        5 => "link_add",
+                        6 => "link_remove",
+                        7 => "verification_add",
+                        8 => "verification_remove",
+                        11 => "user_data_add",
+                        _ => continue,
+                    };
+                    expected_activity_types.insert(activity_type.to_string());
+                }
+
+                // Find unexpected user message types
+                let unexpected: Vec<String> = user_activity_types
+                    .into_iter()
+                    .filter(|t| !expected_activity_types.contains(t))
+                    .collect();
+
+                assert!(
+                    unexpected.is_empty(),
+                    "Block {}: Found unexpected user activity types: {:?}",
+                    det_block.block_number,
+                    unexpected
+                );
+            }
+
+            // === CROSS-VALIDATION: Casts (ALWAYS validate, even if expecting 0) ===
+            let expected_cast_count = det_block
+                .expected_message_types
+                .get(&1)
+                .copied()
+                .unwrap_or(0);
+            let cast_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM casts")
+                .fetch_one(database.pool())
+                .await?;
+            assert_eq!(
+                cast_count, expected_cast_count as i64,
+                "Block {} should have {} casts (got {})",
+                det_block.block_number, expected_cast_count, cast_count
+            );
+            println!("    ✓ Casts: {cast_count} (expected: {expected_cast_count})");
+
+            if cast_count > 0 {
+                // Cross-validate: All casts should have corresponding user_profiles
+                let unique_cast_authors: i64 =
+                    sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM casts")
+                        .fetch_one(database.pool())
+                        .await?;
+
+                let profiles_for_casts: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(DISTINCT p.fid) FROM user_profiles p 
+                 INNER JOIN casts c ON p.fid = c.fid",
+                )
+                .fetch_one(database.pool())
+                .await?;
+
+                assert_eq!(
+                    profiles_for_casts, unique_cast_authors,
+                    "Block {}: All cast authors ({}) must have profiles (found {})",
+                    det_block.block_number, unique_cast_authors, profiles_for_casts
+                );
+                println!(
+                "    ✓ Cast authors have profiles: {profiles_for_casts} (expected: {unique_cast_authors})"
+            );
+
+                // Cross-validate: Casts in activity timeline
+                let cast_activities: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type = 'cast_add'",
+                )
+                .fetch_one(database.pool())
+                .await?;
+                assert_eq!(
+                    cast_activities, expected_cast_count as i64,
+                    "Block {}: Cast count should match activity timeline",
+                    det_block.block_number
+                );
+                println!(
+                "    ✓ Casts in activity timeline: {cast_activities} (expected: {expected_cast_count})"
+            );
+            }
+
+            // === CROSS-VALIDATION: Activities and User Profiles ===
+
+            // First, verify all FIDs in activities have profiles
+            let fids_without_profiles: i64 = sqlx::query_scalar(
+                "SELECT COUNT(DISTINCT a.fid) FROM user_activity_timeline a 
+             LEFT JOIN user_profiles p ON a.fid = p.fid 
+             WHERE p.fid IS NULL",
+            )
+            .fetch_one(database.pool())
+            .await?;
+            assert_eq!(
+                fids_without_profiles, 0,
+                "Block {}: All activity FIDs should have profiles (found {} without)",
+                det_block.block_number, fids_without_profiles
+            );
+
+            let total_unique_fids: i64 =
+                sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM user_activity_timeline")
+                    .fetch_one(database.pool())
+                    .await?;
+
+            let profile_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profiles")
+                .fetch_one(database.pool())
+                .await?;
+
+            assert!(
+                profile_count >= total_unique_fids,
+                "Block {}: Profile count ({}) should be >= unique FIDs ({})",
+                det_block.block_number,
+                profile_count,
+                total_unique_fids
+            );
+            println!(
+                "    ✓ User profiles: {profile_count} (covering {total_unique_fids} unique FIDs)"
+            );
+
+            // Verify each expected message type created corresponding activities
+            for (msg_type, expected_count) in &det_block.expected_message_types {
+                let activity_type_name = match msg_type {
                     1 => "cast_add",
                     2 => "cast_remove",
                     3 => "reaction_add",
@@ -1043,299 +1166,182 @@ async fn process_and_verify_internal() -> Result<()> {
                     11 => "user_data_add",
                     _ => continue,
                 };
-                expected_activity_types.insert(activity_type.to_string());
-            }
 
-            // Find unexpected user message types
-            let unexpected: Vec<String> = user_activity_types
-                .into_iter()
-                .filter(|t| !expected_activity_types.contains(t))
-                .collect();
+                let actual_count: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type = $1",
+                )
+                .bind(activity_type_name)
+                .fetch_one(database.pool())
+                .await?;
 
-            assert!(
-                unexpected.is_empty(),
-                "Block {}: Found unexpected user activity types: {:?}",
-                det_block.block_number,
-                unexpected
-            );
-        }
+                assert_eq!(
+                    actual_count, *expected_count as i64,
+                    "Block {} should produce {} {} activities (got {})",
+                    det_block.block_number, expected_count, activity_type_name, actual_count
+                );
 
-        // === CROSS-VALIDATION: Casts (ALWAYS validate, even if expecting 0) ===
-        let expected_cast_count = det_block
-            .expected_message_types
-            .get(&1)
-            .copied()
-            .unwrap_or(0);
-        let cast_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM casts")
-            .fetch_one(database.pool())
-            .await?;
-        assert_eq!(
-            cast_count, expected_cast_count as i64,
-            "Block {} should have {} casts (got {})",
-            det_block.block_number, expected_cast_count, cast_count
-        );
-        println!("    ✓ Casts: {cast_count} (expected: {expected_cast_count})");
+                // Cross-validate: All activities should have valid timestamps (not NULL/0)
+                let activities_with_invalid_ts: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM user_activity_timeline 
+                 WHERE activity_type = $1 AND (timestamp IS NULL OR timestamp = 0)",
+                )
+                .bind(activity_type_name)
+                .fetch_one(database.pool())
+                .await?;
+                assert_eq!(
+                    activities_with_invalid_ts, 0,
+                    "Block {}: All {} activities should have valid timestamps (not NULL/0)",
+                    det_block.block_number, activity_type_name
+                );
 
-        if cast_count > 0 {
-            // Cross-validate: All casts should have corresponding user_profiles
-            let unique_cast_authors: i64 =
-                sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM casts")
+                // Cross-validate: Timestamps are within reasonable range
+                // Note: Farcaster timestamps are seconds since Farcaster epoch (2021-01-01)
+                // NOT Unix timestamps
+                if block_timestamp > 0 {
+                    // Check for negative timestamps
+                    let negative_timestamps: i64 = sqlx::query_scalar(
+                        "SELECT COUNT(*) FROM user_activity_timeline 
+                     WHERE activity_type = $1 AND timestamp < 0",
+                    )
+                    .bind(activity_type_name)
                     .fetch_one(database.pool())
                     .await?;
+                    assert_eq!(
+                        negative_timestamps, 0,
+                        "Block {}: {} activities have negative timestamps",
+                        det_block.block_number, activity_type_name
+                    );
 
-            let profiles_for_casts: i64 = sqlx::query_scalar(
-                "SELECT COUNT(DISTINCT p.fid) FROM user_profiles p 
-                 INNER JOIN casts c ON p.fid = c.fid",
-            )
-            .fetch_one(database.pool())
-            .await?;
-
-            assert_eq!(
-                profiles_for_casts, unique_cast_authors,
-                "Block {}: All cast authors ({}) must have profiles (found {})",
-                det_block.block_number, unique_cast_authors, profiles_for_casts
-            );
-            println!(
-                "    ✓ Cast authors have profiles: {profiles_for_casts} (expected: {unique_cast_authors})"
-            );
-
-            // Cross-validate: Casts in activity timeline
-            let cast_activities: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type = 'cast_add'",
-            )
-            .fetch_one(database.pool())
-            .await?;
-            assert_eq!(
-                cast_activities, expected_cast_count as i64,
-                "Block {}: Cast count should match activity timeline",
-                det_block.block_number
-            );
-            println!(
-                "    ✓ Casts in activity timeline: {cast_activities} (expected: {expected_cast_count})"
-            );
-        }
-
-        // === CROSS-VALIDATION: Activities and User Profiles ===
-
-        // First, verify all FIDs in activities have profiles
-        let fids_without_profiles: i64 = sqlx::query_scalar(
-            "SELECT COUNT(DISTINCT a.fid) FROM user_activity_timeline a 
-             LEFT JOIN user_profiles p ON a.fid = p.fid 
-             WHERE p.fid IS NULL",
-        )
-        .fetch_one(database.pool())
-        .await?;
-        assert_eq!(
-            fids_without_profiles, 0,
-            "Block {}: All activity FIDs should have profiles (found {} without)",
-            det_block.block_number, fids_without_profiles
-        );
-
-        let total_unique_fids: i64 =
-            sqlx::query_scalar("SELECT COUNT(DISTINCT fid) FROM user_activity_timeline")
-                .fetch_one(database.pool())
-                .await?;
-
-        let profile_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_profiles")
-            .fetch_one(database.pool())
-            .await?;
-
-        assert!(
-            profile_count >= total_unique_fids,
-            "Block {}: Profile count ({}) should be >= unique FIDs ({})",
-            det_block.block_number,
-            profile_count,
-            total_unique_fids
-        );
-        println!("    ✓ User profiles: {profile_count} (covering {total_unique_fids} unique FIDs)");
-
-        // Verify each expected message type created corresponding activities
-        for (msg_type, expected_count) in &det_block.expected_message_types {
-            let activity_type_name = match msg_type {
-                1 => "cast_add",
-                2 => "cast_remove",
-                3 => "reaction_add",
-                4 => "reaction_remove",
-                5 => "link_add",
-                6 => "link_remove",
-                7 => "verification_add",
-                8 => "verification_remove",
-                11 => "user_data_add",
-                _ => continue,
-            };
-
-            let actual_count: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type = $1",
-            )
-            .bind(activity_type_name)
-            .fetch_one(database.pool())
-            .await?;
-
-            assert_eq!(
-                actual_count, *expected_count as i64,
-                "Block {} should produce {} {} activities (got {})",
-                det_block.block_number, expected_count, activity_type_name, actual_count
-            );
-
-            // Cross-validate: All activities should have valid timestamps (not NULL/0)
-            let activities_with_invalid_ts: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM user_activity_timeline 
-                 WHERE activity_type = $1 AND (timestamp IS NULL OR timestamp = 0)",
-            )
-            .bind(activity_type_name)
-            .fetch_one(database.pool())
-            .await?;
-            assert_eq!(
-                activities_with_invalid_ts, 0,
-                "Block {}: All {} activities should have valid timestamps (not NULL/0)",
-                det_block.block_number, activity_type_name
-            );
-
-            // Cross-validate: Timestamps are within reasonable range
-            // Note: Farcaster timestamps are seconds since Farcaster epoch (2021-01-01)
-            // NOT Unix timestamps
-            if block_timestamp > 0 {
-                // Check for negative timestamps
-                let negative_timestamps: i64 = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM user_activity_timeline 
-                     WHERE activity_type = $1 AND timestamp < 0",
-                )
-                .bind(activity_type_name)
-                .fetch_one(database.pool())
-                .await?;
-                assert_eq!(
-                    negative_timestamps, 0,
-                    "Block {}: {} activities have negative timestamps",
-                    det_block.block_number, activity_type_name
-                );
-
-                // Check for unreasonably large timestamps (> 10 years from Farcaster epoch)
-                // 10 years = ~315M seconds
-                let future_timestamps: i64 = sqlx::query_scalar(
-                    "SELECT COUNT(*) FROM user_activity_timeline 
+                    // Check for unreasonably large timestamps (> 10 years from Farcaster epoch)
+                    // 10 years = ~315M seconds
+                    let future_timestamps: i64 = sqlx::query_scalar(
+                        "SELECT COUNT(*) FROM user_activity_timeline 
                      WHERE activity_type = $1 AND timestamp > 315360000",
-                )
-                .bind(activity_type_name)
-                .fetch_one(database.pool())
-                .await?;
-                assert_eq!(
-                    future_timestamps, 0,
-                    "Block {}: {} activities have timestamps > 10 years from Farcaster epoch",
-                    det_block.block_number, activity_type_name
-                );
-            }
+                    )
+                    .bind(activity_type_name)
+                    .fetch_one(database.pool())
+                    .await?;
+                    assert_eq!(
+                        future_timestamps, 0,
+                        "Block {}: {} activities have timestamps > 10 years from Farcaster epoch",
+                        det_block.block_number, activity_type_name
+                    );
+                }
 
-            println!(
+                println!(
                 "    ✓ {activity_type_name}: {actual_count} (expected: {expected_count}, valid timestamps: ✓, range: ✓)"
             );
-        }
+            }
 
-        // === STRICT VALIDATION: Deletion Effects ===
-        // If block contains CastRemove, verify casts are actually deleted
-        if let Some(remove_count) = det_block.expected_message_types.get(&2) {
-            // For CastRemove, we expect the cast to NOT be in casts table
-            // But we should see the activity record
-            let cast_remove_activities: i64 = sqlx::query_scalar(
+            // === STRICT VALIDATION: Deletion Effects ===
+            // If block contains CastRemove, verify casts are actually deleted
+            if let Some(remove_count) = det_block.expected_message_types.get(&2) {
+                // For CastRemove, we expect the cast to NOT be in casts table
+                // But we should see the activity record
+                let cast_remove_activities: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) FROM user_activity_timeline WHERE activity_type = 'cast_remove'",
             )
             .fetch_one(database.pool())
             .await?;
 
-            assert_eq!(
-                cast_remove_activities, *remove_count as i64,
-                "Block {}: CastRemove activity count mismatch",
-                det_block.block_number
-            );
+                assert_eq!(
+                    cast_remove_activities, *remove_count as i64,
+                    "Block {}: CastRemove activity count mismatch",
+                    det_block.block_number
+                );
 
-            // Note: We can't verify the cast was deleted without knowing the original cast hash
-            // This is a limitation - ideally we'd process block N-1, then block N, and verify deletion
-            println!("    ✓ cast_remove operations: {cast_remove_activities} (deletion logged)");
-        }
-
-        // === STRICT VALIDATION: Data Sampling (random field completeness checks) ===
-        // If we have casts, sample one and verify field completeness
-        if cast_count > 0 {
-            #[derive(sqlx::FromRow)]
-            struct CastSample {
-                fid: i64,
-                message_hash: Vec<u8>,
-                timestamp: i64,
+                // Note: We can't verify the cast was deleted without knowing the original cast hash
+                // This is a limitation - ideally we'd process block N-1, then block N, and verify deletion
+                println!(
+                    "    ✓ cast_remove operations: {cast_remove_activities} (deletion logged)"
+                );
             }
 
-            let sample: CastSample =
-                sqlx::query_as("SELECT fid, message_hash, timestamp FROM casts LIMIT 1")
-                    .fetch_one(database.pool())
-                    .await?;
+            // === STRICT VALIDATION: Data Sampling (random field completeness checks) ===
+            // If we have casts, sample one and verify field completeness
+            if cast_count > 0 {
+                #[derive(sqlx::FromRow)]
+                struct CastSample {
+                    fid: i64,
+                    message_hash: Vec<u8>,
+                    timestamp: i64,
+                }
 
-            assert!(sample.fid > 0, "Cast FID must be positive");
-            assert!(
-                !sample.message_hash.is_empty(),
-                "Cast must have message_hash"
-            );
-            assert!(sample.timestamp > 0, "Cast must have valid timestamp");
+                let sample: CastSample =
+                    sqlx::query_as("SELECT fid, message_hash, timestamp FROM casts LIMIT 1")
+                        .fetch_one(database.pool())
+                        .await?;
 
-            println!(
-                "    ✓ Data sampling: Cast fields complete (fid={}, hash_len={}, ts={})",
-                sample.fid,
-                sample.message_hash.len(),
-                sample.timestamp
-            );
-        }
+                assert!(sample.fid > 0, "Cast FID must be positive");
+                assert!(
+                    !sample.message_hash.is_empty(),
+                    "Cast must have message_hash"
+                );
+                assert!(sample.timestamp > 0, "Cast must have valid timestamp");
 
-        // If we have user profiles, sample and verify
-        if profile_count > 0 {
-            #[derive(sqlx::FromRow)]
-            struct ProfileSample {
-                fid: i64,
-                last_updated_timestamp: Option<i64>,
+                println!(
+                    "    ✓ Data sampling: Cast fields complete (fid={}, hash_len={}, ts={})",
+                    sample.fid,
+                    sample.message_hash.len(),
+                    sample.timestamp
+                );
             }
 
-            let sample: ProfileSample =
-                sqlx::query_as("SELECT fid, last_updated_timestamp FROM user_profiles LIMIT 1")
-                    .fetch_one(database.pool())
-                    .await?;
+            // If we have user profiles, sample and verify
+            if profile_count > 0 {
+                #[derive(sqlx::FromRow)]
+                struct ProfileSample {
+                    fid: i64,
+                    last_updated_timestamp: Option<i64>,
+                }
 
-            assert!(sample.fid > 0, "Profile FID must be positive");
-            // last_updated_timestamp can be NULL for minimal profiles
+                let sample: ProfileSample =
+                    sqlx::query_as("SELECT fid, last_updated_timestamp FROM user_profiles LIMIT 1")
+                        .fetch_one(database.pool())
+                        .await?;
 
-            println!(
-                "    ✓ Data sampling: Profile fields valid (fid={})",
-                sample.fid
-            );
-        }
+                assert!(sample.fid > 0, "Profile FID must be positive");
+                // last_updated_timestamp can be NULL for minimal profiles
 
-        // Sample activities and verify required fields
-        if total_unique_fids > 0 {
-            #[derive(sqlx::FromRow)]
-            struct ActivitySample {
-                fid: i64,
-                activity_type: String,
-                timestamp: i64,
+                println!(
+                    "    ✓ Data sampling: Profile fields valid (fid={})",
+                    sample.fid
+                );
             }
 
-            let sample: ActivitySample = sqlx::query_as(
-                "SELECT fid, activity_type, timestamp FROM user_activity_timeline LIMIT 1",
-            )
-            .fetch_one(database.pool())
-            .await?;
+            // Sample activities and verify required fields
+            if total_unique_fids > 0 {
+                #[derive(sqlx::FromRow)]
+                struct ActivitySample {
+                    fid: i64,
+                    activity_type: String,
+                    timestamp: i64,
+                }
 
-            assert!(
-                sample.fid > 0 || sample.activity_type.contains("fname_transfer"),
-                "Activity FID must be positive (or fname_transfer with FID=0)"
-            );
-            assert!(
-                !sample.activity_type.is_empty(),
-                "Activity type must not be empty"
-            );
-            assert!(sample.timestamp != 0, "Activity timestamp must be set");
+                let sample: ActivitySample = sqlx::query_as(
+                    "SELECT fid, activity_type, timestamp FROM user_activity_timeline LIMIT 1",
+                )
+                .fetch_one(database.pool())
+                .await?;
 
-            println!(
-                "    ✓ Data sampling: Activity fields complete (type={}, fid={}, ts={})",
-                sample.activity_type, sample.fid, sample.timestamp
-            );
-        }
+                assert!(
+                    sample.fid > 0 || sample.activity_type.contains("fname_transfer"),
+                    "Activity FID must be positive (or fname_transfer with FID=0)"
+                );
+                assert!(
+                    !sample.activity_type.is_empty(),
+                    "Activity type must not be empty"
+                );
+                assert!(sample.timestamp != 0, "Activity timestamp must be set");
 
-        println!("  ✅ Block {} verified\n", det_block.block_number);
+                println!(
+                    "    ✓ Data sampling: Activity fields complete (type={}, fid={}, ts={})",
+                    sample.activity_type, sample.fid, sample.timestamp
+                );
+            }
+
+            println!("  ✅ Block {} verified\n", det_block.block_number);
+        } // End of unreachable code block
     }
 
     Ok(())

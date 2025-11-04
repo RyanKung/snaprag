@@ -9,6 +9,7 @@ use tracing_subscriber::fmt::{
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::Layer;
 use tracing_subscriber::Registry;
 
 use crate::Result;
@@ -45,15 +46,28 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
     let file_appender = tracing_appender::rolling::daily("logs", "snaprag.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    // Set up console appender - simpler format for cleaner output
-    let console_layer = fmt::layer()
+    // Set up console appender - split stdout (info/debug/warn) and stderr (error)
+    // stdout layer: info, debug, warn levels
+    let stdout_layer = fmt::layer()
         .with_target(false) // Don't show target for cleaner console output
         .with_thread_ids(false)
         .with_thread_names(false)
         .with_file(false) // Don't show file paths in console
         .with_line_number(false)
         .with_span_events(FmtSpan::NONE)
-        .with_writer(std::io::stderr);
+        .with_writer(std::io::stdout)
+        .with_filter(tracing_subscriber::filter::LevelFilter::INFO); // Only info and above
+
+    // stderr layer: only errors
+    let stderr_layer = fmt::layer()
+        .with_target(true) // Show target for errors to help debugging
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(true) // Show file for errors
+        .with_line_number(true) // Show line number for errors
+        .with_span_events(FmtSpan::NONE)
+        .with_writer(std::io::stderr)
+        .with_filter(tracing_subscriber::filter::LevelFilter::ERROR); // Only errors
 
     // Set up file layer - keep detailed info in log files
     let file_layer = fmt::layer()
@@ -66,10 +80,11 @@ pub fn init_logging_with_config(config: Option<&crate::config::AppConfig>) -> Re
         .with_writer(non_blocking)
         .with_ansi(false); // No colors in file
 
-    // Initialize the registry
+    // Initialize the registry with separate stdout and stderr layers
     Registry::default()
         .with(env_filter)
-        .with(console_layer)
+        .with(stdout_layer)
+        .with(stderr_layer)
         .with(file_layer)
         .init();
 
@@ -118,15 +133,28 @@ pub fn init_logging_with_level(level: &str) -> Result<()> {
     let file_appender = tracing_appender::rolling::daily("logs", "snaprag.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    // Set up console appender - show details in verbose/debug mode
-    let console_layer = fmt::layer()
+    // Set up console appenders - split stdout and stderr
+    // stdout layer: info, debug, warn levels
+    let stdout_layer = fmt::layer()
         .with_target(true) // Show target in debug mode
         .with_thread_ids(false)
         .with_thread_names(false)
         .with_file(false)
         .with_line_number(false)
         .with_span_events(FmtSpan::NONE)
-        .with_writer(std::io::stderr);
+        .with_writer(std::io::stdout)
+        .with_filter(tracing_subscriber::filter::LevelFilter::DEBUG);
+
+    // stderr layer: only errors
+    let stderr_layer = fmt::layer()
+        .with_target(true)
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_file(true)
+        .with_line_number(true)
+        .with_span_events(FmtSpan::NONE)
+        .with_writer(std::io::stderr)
+        .with_filter(tracing_subscriber::filter::LevelFilter::ERROR);
 
     // Set up file layer - keep detailed info in log files
     let file_layer = fmt::layer()
@@ -139,10 +167,11 @@ pub fn init_logging_with_level(level: &str) -> Result<()> {
         .with_writer(non_blocking)
         .with_ansi(false); // No colors in file
 
-    // Initialize the registry
+    // Initialize the registry with separate stdout and stderr layers
     Registry::default()
         .with(env_filter)
-        .with(console_layer)
+        .with(stdout_layer)
+        .with(stderr_layer)
         .with(file_layer)
         .init();
 

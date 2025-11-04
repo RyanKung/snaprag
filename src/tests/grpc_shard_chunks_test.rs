@@ -29,7 +29,7 @@ use crate::grpc_client::HubServiceClient;
 
 /// Common test setup: load config and create gRPC client
 async fn setup_grpc_client() -> (AppConfig, HubServiceClient) {
-    let config = AppConfig::load().expect("Failed to load configuration");
+    let config = crate::tests::load_test_config().expect("Failed to load configuration");
     let grpc_endpoint = config.snapchain_grpc_endpoint();
     assert!(!grpc_endpoint.is_empty(), "gRPC endpoint must not be empty");
 
@@ -424,6 +424,7 @@ fn validate_detailed_block_data(chunk: &ShardChunk, target_block: u64) {
 }
 
 #[tokio::test]
+#[ignore = "Requires Snapchain gRPC service running on localhost:3383"]
 async fn test_parse_shard_chunks_response_real_blocks_0_to_7() {
     // Setup gRPC client
     let (_config, mut client) = setup_grpc_client().await;
@@ -500,6 +501,7 @@ async fn test_parse_shard_chunks_response_real_blocks_0_to_7() {
 }
 
 #[tokio::test]
+#[ignore = "Requires Snapchain gRPC service running on localhost:3383"]
 async fn test_parse_shard_chunks_response_real_block_9_with_fid_zero() {
     // Setup gRPC client
     let (_config, mut client) = setup_grpc_client().await;
@@ -818,6 +820,7 @@ fn test_empty_shard_chunks_response() {
 }
 
 #[tokio::test]
+#[ignore = "Requires Snapchain gRPC service running on localhost:3383"]
 async fn test_parse_block_1_detailed_analysis() {
     // Setup gRPC client
     let (_config, mut client) = setup_grpc_client().await;

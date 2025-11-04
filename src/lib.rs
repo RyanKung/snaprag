@@ -12,6 +12,9 @@
 //! - **Social Graph**: Network analysis and relationship mapping
 //! - **MBTI Analysis**: Personality inference from user behavior
 //! - **Event Sourcing**: Complete change tracking and audit logs
+
+// Clippy lint configuration
+// We want to catch all real issues, not suppress them
 //!
 //! # Quick Start
 //!
