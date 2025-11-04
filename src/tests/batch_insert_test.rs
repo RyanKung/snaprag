@@ -277,7 +277,7 @@ async fn test_large_batch_insert() {
             Some(100),
             1,
             "add".to_string(),
-            1698765432 + i64::from(i),
+            1_698_765_432 + i64::from(i),
             hash,
             shard_info.clone(),
         ));

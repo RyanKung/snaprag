@@ -105,7 +105,7 @@ impl DeterministicBlockRegistry {
         // Block 1250000: First block with user messages
         // Discovered via scanning - contains multiple message types
         blocks.push(
-            DeterministicBlock::new(1250000, 1, "First user messages block")
+            DeterministicBlock::new(1_250_000, 1, "First user messages block")
                 .with_transactions(7)
                 .with_message_type(1, 2) // CastAdd
                 .with_message_type(3, 3) // ReactionAdd
@@ -115,7 +115,7 @@ impl DeterministicBlockRegistry {
 
         // Block 1250300: Multiple CastAdd messages
         blocks.push(
-            DeterministicBlock::new(1250300, 1, "Block with multiple casts")
+            DeterministicBlock::new(1_250_300, 1, "Block with multiple casts")
                 .with_transactions(8)
                 .with_message_type(1, 5) // CastAdd
                 .with_message_type(3, 3) // ReactionAdd
@@ -124,7 +124,7 @@ impl DeterministicBlockRegistry {
 
         // Block 1250500: Contains VerificationAdd
         blocks.push(
-            DeterministicBlock::new(1250500, 1, "First VerificationAdd message")
+            DeterministicBlock::new(1_250_500, 1, "First VerificationAdd message")
                 .with_transactions(5)
                 .with_message_type(7, 1) // VerificationAdd
                 .with_message_type(3, 3) // ReactionAdd
@@ -133,7 +133,7 @@ impl DeterministicBlockRegistry {
 
         // Block 1250800: First block with UserDataAdd
         blocks.push(
-            DeterministicBlock::new(1250800, 1, "First UserDataAdd message")
+            DeterministicBlock::new(1_250_800, 1, "First UserDataAdd message")
                 .with_transactions(6)
                 .with_message_type(11, 1) // UserDataAdd
                 .with_message_type(1, 1) // CastAdd
@@ -144,7 +144,7 @@ impl DeterministicBlockRegistry {
         // Block 1251400: First block with CastRemove
         // Full scan result: U2:1,U5:2,U6:1,U3:1
         blocks.push(
-            DeterministicBlock::new(1251400, 1, "First CastRemove message")
+            DeterministicBlock::new(1_251_400, 1, "First CastRemove message")
                 .with_transactions(4) // Corrected from scan
                 .with_message_type(2, 1) // CastRemove
                 .with_message_type(5, 2) // LinkAdd
@@ -155,7 +155,7 @@ impl DeterministicBlockRegistry {
         // Block 5009700: First block with ReactionRemove (from comprehensive scan)
         // Full scan result: U3:1,U4:1,U6:4,U5:3
         blocks.push(
-            DeterministicBlock::new(5009700, 1, "First ReactionRemove message")
+            DeterministicBlock::new(5_009_700, 1, "First ReactionRemove message")
                 .with_transactions(8) // Corrected from scan: actual count is 8
                 .with_message_type(4, 1) // ReactionRemove
                 .with_message_type(3, 1) // ReactionAdd
@@ -166,7 +166,7 @@ impl DeterministicBlockRegistry {
         // Block 1319500: First VerificationRemove (very rare type!)
         // Full scan result: U4:1,U1:2,U6:1,U8:1,U3:3
         blocks.push(
-            DeterministicBlock::new(1319500, 1, "First VerificationRemove message")
+            DeterministicBlock::new(1_319_500, 1, "First VerificationRemove message")
                 .with_transactions(8)
                 .with_message_type(8, 1) // VerificationRemove
                 .with_message_type(4, 1) // ReactionRemove
@@ -296,17 +296,17 @@ async fn scan_message_types() -> Result<()> {
         ("Genesis blocks (0-100)", 0, 100, 1), // Every block - system msgs
         ("Early blocks (100-1000)", 100, 1000, 10), // Frequent scan
         ("Early-mid (1000-10000)", 1000, 10000, 100), // Moderate scan
-        ("Mid blocks (10000-100000)", 10000, 100000, 1000), // Sparse scan
+        ("Mid blocks (10000-100000)", 10_000, 100_000, 1_000), // Sparse scan
         (
             "User activity start (1250000-1260000)",
-            1250000,
-            1260000,
+            1_250_000,
+            1_260_000,
             50,
         ), // Dense scan
         (
             "Extended user activity (1260000-1500000)",
-            1260000,
-            1500000,
+            1_260_000,
+            1_500_000,
             500,
         ), // Wide scan for Type 8
         ("Later activity (5000000-5020000)", 5000000, 5020000, 100), // ReactionRemove found here

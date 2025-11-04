@@ -11,7 +11,7 @@ use crate::sync::client::SnapchainClient;
 use crate::Result;
 
 #[tokio::test]
-#[ignore] // Run manually: cargo test --test cross_batch_duplicates_test -- --ignored
+#[ignore = "Run manually: cargo test --test cross_batch_duplicates_test -- --ignored"]
 async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
     // Initialize client
     let config = crate::tests::load_test_config()?;
@@ -184,7 +184,7 @@ async fn test_cross_batch_message_hash_duplicates() -> Result<()> {
 }
 
 #[tokio::test]
-#[ignore]
+#[ignore = "Run manually to test FID consistency across batches"]
 async fn test_same_fid_across_batches() -> Result<()> {
     // Simpler test: just check if same FID appears in consecutive batches
     let config = crate::tests::load_test_config()?;

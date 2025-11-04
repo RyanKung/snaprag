@@ -14,8 +14,8 @@
 //! - **Event Sourcing**: Complete change tracking and audit logs
 
 // Clippy lint configuration
-// Allow documentation warnings - focus on code correctness
-#![allow(clippy::missing_errors_doc)]
+// Gradually enabling lints to improve code quality
+// #![allow(clippy::missing_errors_doc)] - Being fixed
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::doc_markdown)]
 //!
