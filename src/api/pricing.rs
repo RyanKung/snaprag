@@ -19,11 +19,10 @@ pub struct PricingConfig {
     pub enterprise_endpoints: Vec<String>,
 }
 
-impl PricingConfig {
+impl Default for PricingConfig {
     /// Create default pricing configuration
     /// NOTE: Paths should be WITHOUT /api prefix (middleware receives nested paths)
-    #[must_use]
-    pub fn default() -> Self {
+    fn default() -> Self {
         Self {
             free_endpoints: vec![
                 "/health".to_string(),
@@ -41,6 +40,9 @@ impl PricingConfig {
             enterprise_endpoints: vec!["/rag/query".to_string()],
         }
     }
+}
+
+impl PricingConfig {
 
     /// Get price for a specific endpoint path
     #[cfg(feature = "payment")]
