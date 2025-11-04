@@ -43,7 +43,6 @@ impl Default for PricingConfig {
 }
 
 impl PricingConfig {
-
     /// Get price for a specific endpoint path
     #[cfg(feature = "payment")]
     #[must_use]

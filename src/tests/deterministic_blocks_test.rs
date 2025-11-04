@@ -5,6 +5,8 @@
 //! 2. Deterministic Assertions - Validates exact block contents
 //! 3. Processing Verification - Validates database results after processing
 
+#![allow(clippy::unreadable_literal)] // Test data with large block numbers is acceptable
+
 use std::collections::HashMap;
 
 use crate::config::AppConfig;
@@ -309,8 +311,18 @@ async fn scan_message_types() -> Result<()> {
             1_500_000,
             500,
         ), // Wide scan for Type 8
-        ("Later activity (5000000-5020000)", 5_000_000, 5_020_000, 100), // ReactionRemove found here
-        ("Extended later (5020000-6000000)", 5_020_000, 6_000_000, 1_000), // More Type 8 search
+        (
+            "Later activity (5000000-5020000)",
+            5_000_000,
+            5_020_000,
+            100,
+        ), // ReactionRemove found here
+        (
+            "Extended later (5020000-6000000)",
+            5_020_000,
+            6_000_000,
+            1_000,
+        ), // More Type 8 search
         ("Very late (10000000-10020000)", 10_000_000, 10_020_000, 100),
         ("Recent blocks (15000000-15020000)", 15000000, 15020000, 100), // Frame, UsernameProof
         ("Latest blocks (20000000-20020000)", 20000000, 20020000, 100), // Very new features

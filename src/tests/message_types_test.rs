@@ -9,6 +9,7 @@
 /// Each test cleans up its data after execution to ensure test isolation.
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)] // Test data with large numbers is acceptable
 mod message_types_tests {
     use crate::database::Database;
     use crate::models::ShardBlockInfo;
@@ -25,11 +26,14 @@ mod message_types_tests {
 
         // 🛡️ CRITICAL: Verify we're using local database
         let db_url = config.database_url();
-        assert!(!(!db_url.contains("localhost") && !db_url.contains("127.0.0.1") && !db_url.contains("::1")), 
-                "❌ SAFETY CHECK FAILED: Test database must be localhost!\n\
+        assert!(
+            !(!db_url.contains("localhost")
+                && !db_url.contains("127.0.0.1")
+                && !db_url.contains("::1")),
+            "❌ SAFETY CHECK FAILED: Test database must be localhost!\n\
                  Current URL: {db_url}\n\
                  Set SNAPRAG_CONFIG=config.test.toml to use test database"
-            );
+        );
 
         Database::from_config(&config)
             .await

@@ -340,10 +340,7 @@ impl LazyLoader {
     }
 
     /// Parse cast message from Snapchain response
-    fn parse_cast_message(
-        &self,
-        message: &crate::sync::client::FarcasterMessage,
-    ) -> Option<Cast> {
+    fn parse_cast_message(&self, message: &crate::sync::client::FarcasterMessage) -> Option<Cast> {
         let Some(ref data) = message.data else {
             return None;
         };
