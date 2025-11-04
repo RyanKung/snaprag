@@ -242,6 +242,9 @@ pub async fn handle_search_command(
 }
 
 /// Handle activity command
+///
+/// # Panics
+/// Never panics - unwrap is only called after checking Option is Some
 pub async fn handle_activity_command(
     snaprag: &SnapRag,
     fid: i64,

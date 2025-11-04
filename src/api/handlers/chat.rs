@@ -191,6 +191,9 @@ pub async fn create_chat_session(
 }
 
 /// Send a message in a chat session
+///
+/// # Panics
+/// Panics if the system time is before UNIX_EPOCH (1970-01-01), which is impossible on modern systems
 pub async fn send_chat_message(
     State(state): State<AppState>,
     Json(req): Json<ChatMessageRequest>,

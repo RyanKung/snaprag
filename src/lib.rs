@@ -16,7 +16,7 @@
 // Clippy lint configuration
 // Gradually enabling lints to improve code quality
 // #![allow(clippy::missing_errors_doc)] - Being fixed
-#![allow(clippy::missing_panics_doc)]
+// #![allow(clippy::missing_panics_doc)] - Being fixed
 #![allow(clippy::doc_markdown)]
 //!
 //! # Quick Start

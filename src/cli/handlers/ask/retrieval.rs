@@ -51,6 +51,9 @@ impl Spinner {
 }
 
 /// Find relevant casts using semantic search and heuristics
+///
+/// # Panics
+/// Panics if the system time is before UNIX_EPOCH (1970-01-01), which is impossible on modern systems
 pub async fn find_relevant_casts(
     database: &Database,
     embedding_service: &EmbeddingService,

@@ -131,8 +131,11 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
         "links",
         "reactions",
         "verifications",
-        "user_profiles",
         "user_data",
+        "username_proofs",
+        "frame_actions",
+        "onchain_events",
+        "processed_messages",
     ];
 
     for table in &tables {
@@ -260,8 +263,11 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
         "links",
         "reactions",
         "verifications",
-        "user_profiles",
         "user_data",
+        "username_proofs",
+        "frame_actions",
+        "onchain_events",
+        "processed_messages",
     ];
 
     for table in &tables {
@@ -482,8 +488,11 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         "links",
         "reactions",
         "verifications",
-        "user_profiles",
         "user_data",
+        "username_proofs",
+        "frame_actions",
+        "onchain_events",
+        "processed_messages",
     ];
 
     let mut enabled_count = 0;

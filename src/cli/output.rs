@@ -410,6 +410,10 @@ pub fn print_error(msg: &str) {
     println!("❌ {msg}");
 }
 
+/// Print a prompt message without newline
+///
+/// # Panics
+/// Panics if stdout flush fails (extremely unlikely, only if stdout is closed/broken)
 pub fn print_prompt(msg: &str) {
     print!("{msg}");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();

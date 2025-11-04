@@ -25,6 +25,10 @@ fn cache_key_from_request(req: &Request<Body>) -> String {
     format!("GET:{path}?{query}")
 }
 
+/// Cache proxy middleware for GET requests
+///
+/// # Panics
+/// Panics if the response builder fails to create error responses (extremely unlikely)
 pub async fn cache_proxy_middleware(
     state: axum::extract::State<CacheProxyState>,
     request: Request<Body>,

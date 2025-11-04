@@ -9,6 +9,9 @@ use crate::Result;
 use crate::SnapRag;
 
 /// Handle cast search command
+///
+/// # Panics
+/// Never panics - unwrap is only called after checking Option is Some
 pub async fn handle_cast_search(
     snaprag: &SnapRag,
     query: String,
@@ -108,6 +111,9 @@ pub async fn handle_cast_search(
 }
 
 /// Handle cast recent command
+///
+/// # Panics
+/// Never panics - unwrap is only called after checking Option is Some
 pub async fn handle_cast_recent(snaprag: &SnapRag, fid: i64, limit: usize) -> Result<()> {
     print_info(&format!("📝 Recent casts by FID {fid}"));
 
@@ -168,6 +174,9 @@ pub async fn handle_cast_recent(snaprag: &SnapRag, fid: i64, limit: usize) -> Re
 }
 
 /// Handle cast thread command
+///
+/// # Panics
+/// Never panics - unwrap is only called after checking Option is Some
 pub async fn handle_cast_thread(snaprag: &SnapRag, hash: String, depth: usize) -> Result<()> {
     print_info(&format!("🧵 Loading cast thread for {}...", &hash[..12]));
 

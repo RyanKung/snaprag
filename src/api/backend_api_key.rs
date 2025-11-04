@@ -8,6 +8,10 @@ pub struct ApiKeyState {
     pub expected_key: String,
 }
 
+/// Backend API key authentication middleware
+///
+/// # Panics
+/// Panics if the response builder fails to create an UNAUTHORIZED response (extremely unlikely)
 pub async fn backend_api_key_middleware(
     state: axum::extract::State<ApiKeyState>,
     request: Request<Body>,

@@ -713,6 +713,9 @@ pub async fn handle_embeddings_test_cast(
 }
 
 /// Handle cast embeddings backfill with optional multi-vector support
+///
+/// # Panics
+/// Panics if casts retrieved from database have None for text field (should never happen for valid casts)
 pub async fn handle_cast_embeddings_backfill_multivector(
     config: &AppConfig,
     force: bool,

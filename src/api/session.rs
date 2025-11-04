@@ -32,6 +32,10 @@ pub struct ChatSession {
 }
 
 impl ChatSession {
+    /// Create a new chat session
+    ///
+    /// # Panics
+    /// Panics if the system time is before UNIX_EPOCH (1970-01-01), which is impossible on modern systems
     #[must_use]
     pub fn new(
         fid: i64,
@@ -58,6 +62,10 @@ impl ChatSession {
         }
     }
 
+    /// Add a message to the conversation history
+    ///
+    /// # Panics
+    /// Panics if the system time is before UNIX_EPOCH (1970-01-01), which is impossible on modern systems
     pub fn add_message(&mut self, role: &str, content: String) {
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -79,6 +87,10 @@ impl ChatSession {
         }
     }
 
+    /// Check if the session has expired
+    ///
+    /// # Panics
+    /// Panics if the system time is before UNIX_EPOCH (1970-01-01), which is impossible on modern systems
     #[must_use]
     pub fn is_expired(&self, timeout_secs: u64) -> bool {
         let now = SystemTime::now()

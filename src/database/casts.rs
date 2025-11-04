@@ -324,6 +324,9 @@ impl Database {
 
     /// Semantic search for casts (lightweight version without engagement metrics)
     /// Now searches both single-vector and multi-vector tables for comprehensive results
+    ///
+    /// # Panics
+    /// Never panics - unwrap is only called when HashMap key is known to exist
     pub async fn semantic_search_casts_simple(
         &self,
         query_embedding: Vec<f32>,
@@ -745,6 +748,9 @@ impl Database {
     }
 
     /// Get cast thread (recursive parents and children)
+    ///
+    /// # Panics
+    /// Never panics - unwrap is only called after checking Option is Some
     pub async fn get_cast_thread(
         &self,
         message_hash: Vec<u8>,
