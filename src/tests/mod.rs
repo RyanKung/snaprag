@@ -18,6 +18,8 @@ use crate::database::Database;
 use crate::Result;
 
 /// Test helper to create a test database connection
+/// NOTE: Tests requiring database access should be marked with #[ignore]
+/// to avoid accessing production database
 pub async fn create_test_database() -> Result<Database> {
     let config = AppConfig::load()?;
     let database = Database::from_config(&config).await?;

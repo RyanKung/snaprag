@@ -11,6 +11,7 @@ use crate::models::UserProfile;
 use crate::Result;
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_user_profile_create_and_read() -> Result<()> {
     let database = create_test_database().await?;
     let test_fid = 99999i64; // Use a high FID to avoid conflicts
@@ -60,6 +61,7 @@ async fn test_user_profile_create_and_read() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_user_profile_update() -> Result<()> {
     let database = create_test_database().await?;
     let test_fid = 99998i64; // Use a different high FID
@@ -118,6 +120,7 @@ async fn test_user_profile_update() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_user_profile_upsert() -> Result<()> {
     let database = create_test_database().await?;
     let test_fid = 99997i64; // Use another different high FID
@@ -207,6 +210,7 @@ async fn test_user_profile_upsert() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_user_data_changes_crud() -> Result<()> {
     let database = create_test_database().await?;
     let test_fid = 99996i64; // Use another different high FID
@@ -262,6 +266,7 @@ async fn test_user_data_changes_crud() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_user_activity_via_casts_and_links() -> Result<()> {
     let database = create_test_database().await?;
     let test_fid = 99995i64; // Use another different high FID
@@ -344,6 +349,7 @@ async fn test_user_activity_via_casts_and_links() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 #[ignore] // FIXME: user_profiles is now a view, cannot INSERT directly
 async fn _disabled_test_database_transaction_rollback() -> Result<()> {
     let database = create_test_database().await?;
@@ -414,6 +420,7 @@ async fn _disabled_test_database_transaction_rollback() -> Result<()> {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_database_concurrent_operations() -> Result<()> {
     let database = create_test_database().await?;
     let test_fid_base = 99990i64; // Base FID for concurrent tests

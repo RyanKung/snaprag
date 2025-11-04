@@ -274,6 +274,7 @@ impl DeterministicBlockRegistry {
 /// Scan blocks to find those containing specific message types
 /// This is run manually to discover new deterministic blocks
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 #[ignore] // Run with: cargo test scan_message_types -- --ignored --nocapture
 async fn scan_message_types() -> Result<()> {
     use crate::sync::client::SnapchainClient;
@@ -462,6 +463,7 @@ async fn scan_message_types() -> Result<()> {
 /// Scan for system messages (`OnChainEvents`) in early blocks
 /// This helps discover FID registrations, storage events, and signer events
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 #[ignore] // Run with: cargo test scan_for_system_messages -- --ignored --nocapture
 async fn scan_for_system_messages() -> Result<()> {
     use crate::sync::client::SnapchainClient;
@@ -601,6 +603,7 @@ async fn scan_for_system_messages() -> Result<()> {
 
 /// Scan latest blocks for new message types (`UsernameProof`, `FrameAction`, etc.)
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 #[ignore] // Run with: cargo test scan_latest_blocks -- --ignored --nocapture
 async fn scan_latest_blocks() -> Result<()> {
     use crate::sync::client::SnapchainClient;
@@ -691,6 +694,7 @@ async fn scan_latest_blocks() -> Result<()> {
 
 /// Test known deterministic blocks for exact content
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_deterministic_block_contents() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -830,6 +834,7 @@ async fn test_deterministic_block_contents() -> Result<()> {
 
 /// Test that deterministic blocks are processed correctly and produce expected database state
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_deterministic_block_processing() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -849,6 +854,7 @@ async fn test_deterministic_block_processing() -> Result<()> {
 /// Comprehensive test using all three tiers
 /// Note: Run tier 1 (scan) manually first, then run tier 2 and 3 as unit tests
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_comprehensive_deterministic() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
 
@@ -931,10 +937,17 @@ async fn process_and_verify_internal() -> Result<()> {
             det_block.block_number
         );
 
+        // ⚠️  DANGER: TRUNCATE operation DISABLED to prevent data loss on production database
+        // ⚠️  This test should only run in isolated test environment with test database
         // Clean database before processing each block
-        sqlx::query("TRUNCATE user_profiles, casts, user_activity_timeline CASCADE")
-            .execute(database.pool())
-            .await?;
+        // sqlx::query("TRUNCATE user_profiles, casts, user_activity_timeline CASCADE")
+        //     .execute(database.pool())
+        //     .await?;
+
+        return Err(crate::SnapRagError::Custom(
+            "This test performs TRUNCATE operations and should NEVER run against production database. \
+            It has been disabled for safety. Use a dedicated test database if you need to run this test.".to_string()
+        ));
 
         // Verify database is empty
         let count_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_activity_timeline")

@@ -173,16 +173,22 @@ fn run_snaprag_command(args: &[&str]) -> Result<String> {
 
 /// Helper function to clean up before each test
 fn cleanup_before_test() -> Result<()> {
+    // ⚠️  DANGER: This function previously called `snaprag reset --force` which DELETES ALL DATABASE DATA!
+    // ⚠️  DISABLED to prevent accidental data loss on production database.
+    // ⚠️  Tests requiring database access should be marked with #[ignore] and run manually in test environment.
+
+    // Only perform safe cleanup operations:
+
     // Force kill any snaprag processes
     force_kill_snaprag_processes()?;
 
     // Stop any running sync processes with timeout
     let _ = run_snaprag_command_with_timeout(&["sync", "stop", "--force"], 5);
 
-    // Reset all data and lock files with timeout
-    let _ = run_snaprag_command_with_timeout(&["reset", "--force"], 10);
+    // ❌ DANGEROUS - DISABLED: Reset all data and lock files
+    // let _ = run_snaprag_command_with_timeout(&["reset", "--force"], 10);
 
-    // Remove lock file directly if it still exists
+    // Remove lock file directly if it still exists (safe operation)
     remove_lock_file_directly()?;
 
     // Wait for cleanup to complete
@@ -302,6 +308,7 @@ fn assert_no_snaprag_processes_running() -> Result<()> {
 /// Integration test for sync service with user message blocks
 /// Tests the complete sync pipeline from gRPC to database
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_sync_user_message_blocks() -> Result<()> {
     run_integration_test_with_timeout("test_sync_user_message_blocks", || async {
         // Acquire global test lock to ensure serial execution
@@ -394,6 +401,7 @@ async fn test_sync_user_message_blocks() -> Result<()> {
 
 /// Test sync with high activity blocks (5000000+)
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_sync_high_activity_blocks() -> Result<()> {
     run_integration_test_with_timeout("test_sync_high_activity_blocks", || async {
         // Acquire global test lock to ensure serial execution
@@ -454,6 +462,7 @@ async fn test_sync_high_activity_blocks() -> Result<()> {
 
 /// Test sync with early blocks (no user messages)
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_sync_early_blocks() -> Result<()> {
     run_integration_test_with_timeout("test_sync_early_blocks", || async {
         // Acquire global test lock to ensure serial execution
@@ -529,6 +538,7 @@ async fn test_sync_early_blocks() -> Result<()> {
 
 /// Test sync service error handling
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_sync_error_handling() -> Result<()> {
     run_integration_test_with_timeout("test_sync_error_handling", || async {
         // Acquire global test lock to ensure serial execution
@@ -568,6 +578,7 @@ async fn test_sync_error_handling() -> Result<()> {
 
 /// Test lock file management during sync
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_lock_file_management() -> Result<()> {
     run_integration_test_with_timeout("test_lock_file_management", || async {
         // Acquire global test lock to ensure serial execution
@@ -655,6 +666,7 @@ async fn test_lock_file_management() -> Result<()> {
 
 /// Test CLI commands functionality
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_cli_functionality() -> Result<()> {
     run_integration_test_with_timeout("test_cli_functionality", || async {
         // Acquire global test lock to ensure serial execution
@@ -728,6 +740,7 @@ async fn test_cli_functionality() -> Result<()> {
 
 /// Test CLI commands with different block ranges
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_cli_sync_ranges() -> Result<()> {
     run_integration_test_with_timeout("test_cli_sync_ranges", || async {
         // Acquire global test lock to ensure serial execution
@@ -772,6 +785,7 @@ async fn test_cli_sync_ranges() -> Result<()> {
 
 /// Test CLI error handling
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_cli_error_handling() -> Result<()> {
     run_integration_test_with_timeout("test_cli_error_handling", || async {
         // Acquire global test lock to ensure serial execution
@@ -819,6 +833,7 @@ async fn test_cli_error_handling() -> Result<()> {
 /// Test to scan blocks and find which ones contain `UserDataAdd` messages
 /// This helps identify good block ranges for syncing profile data
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 #[ignore] // Run manually with: cargo test scan_for_user_data_blocks -- --ignored --nocapture
 async fn test_scan_for_user_data_blocks() -> Result<()> {
     use crate::sync::client::SnapchainClient;

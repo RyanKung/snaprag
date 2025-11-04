@@ -26,7 +26,7 @@ impl PromptTemplate {
         let mut result = self.template.clone();
         for var in &self.variables {
             if let Some(value) = values.get(var) {
-                result = result.replace(&format!("{{{var}}}"), value);
+                result = result.replace(&format!("{{{{{var}}}}}"), value);
             }
         }
         result

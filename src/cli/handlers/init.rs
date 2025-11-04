@@ -74,6 +74,24 @@ pub async fn handle_init_command(snaprag: &SnapRag, force: bool, skip_indexes: b
 
 /// Handle database reset command
 pub async fn handle_reset_command(snaprag: &SnapRag, force: bool) -> Result<()> {
+    // 🛡️ PRODUCTION SAFETY CHECK: Require explicit environment variable to run reset
+    // This prevents accidental data loss from tests or scripts
+    if std::env::var("SNAPRAG_ALLOW_RESET").is_err() {
+        print_warning("⚠️  RESET COMMAND BLOCKED FOR SAFETY!");
+        print_warning("");
+        print_warning("To prevent accidental data loss, the reset command requires");
+        print_warning("an explicit environment variable to be set.");
+        print_warning("");
+        print_info("To allow reset, run:");
+        println!("   export SNAPRAG_ALLOW_RESET=yes");
+        println!("   snaprag reset --force");
+        println!();
+        print_warning("⚠️  WARNING: This will DELETE ALL DATABASE DATA!");
+        return Err(crate::SnapRagError::Custom(
+            "Reset blocked. Set SNAPRAG_ALLOW_RESET=yes to proceed.".to_string(),
+        ));
+    }
+
     if !force {
         print_warning("This will DROP ALL TABLES from the database and remove lock files!");
         print_warning("This is a complete reset - all data will be lost!");

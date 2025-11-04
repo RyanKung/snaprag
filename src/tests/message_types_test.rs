@@ -64,6 +64,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_all_message_types_coverage() {
         let db = setup_test_db().await;
 
@@ -103,6 +104,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_cast_add_type_1() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -167,6 +169,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_reaction_add_type_3() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -219,6 +222,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_link_add_type_5() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -269,6 +273,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_verification_add_type_7() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -329,6 +334,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_user_data_add_type_11() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -383,6 +389,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_username_proof_type_12() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -435,6 +442,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_frame_action_type_13() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -495,6 +503,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_remove_events_soft_delete() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -556,6 +565,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_reaction_remove_type_4() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -623,6 +633,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_verification_remove_type_8() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -699,6 +710,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_soft_delete_query_filtering() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -840,6 +852,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_boundary_conditions() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -1020,6 +1033,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_unique_constraint_conflicts() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -1178,6 +1192,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_idempotency_all_types() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -1322,6 +1337,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_cleanup_safety() {
         // This test verifies that our cleanup approach is safe and doesn't
         // accidentally delete real user data
@@ -1349,6 +1365,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_user_profile_changes_aggregation() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -1527,6 +1544,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_concurrent_message_hash_inserts() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -1594,6 +1612,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_error_handling_invalid_data() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();
@@ -1676,6 +1695,7 @@ mod message_types_tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires database access - production database should not be modified"]
     async fn test_onchain_events_all_types() {
         let db = setup_test_db().await;
         let shard_info = test_shard_info();

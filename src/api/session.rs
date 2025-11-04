@@ -72,9 +72,10 @@ impl ChatSession {
 
         self.last_activity = timestamp;
 
-        // Keep only last 10 exchanges (20 messages) to avoid context overflow
-        if self.conversation_history.len() > 20 {
-            self.conversation_history.drain(0..2);
+        // Keep only last context_limit messages to avoid context overflow
+        if self.conversation_history.len() > self.context_limit {
+            let excess = self.conversation_history.len() - self.context_limit;
+            self.conversation_history.drain(0..excess);
         }
     }
 

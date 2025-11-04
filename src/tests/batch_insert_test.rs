@@ -31,6 +31,7 @@ fn test_message_hash(seed: u32) -> Vec<u8> {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_batch_insert_reactions_parameter_binding() {
     let db = setup_test_db().await;
     let shard_info = test_shard_info();
@@ -103,6 +104,7 @@ async fn test_batch_insert_reactions_parameter_binding() {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_batch_insert_links_parameter_binding() {
     let db = setup_test_db().await;
     let shard_info = test_shard_info();
@@ -168,6 +170,7 @@ async fn test_batch_insert_links_parameter_binding() {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_batch_insert_verifications_parameter_binding() {
     let db = setup_test_db().await;
     let shard_info = test_shard_info();
@@ -240,6 +243,7 @@ async fn test_batch_insert_verifications_parameter_binding() {
 }
 
 #[tokio::test]
+#[ignore = "Requires database access - production database should not be modified"]
 async fn test_large_batch_insert() {
     let db = setup_test_db().await;
     let shard_info = test_shard_info();
