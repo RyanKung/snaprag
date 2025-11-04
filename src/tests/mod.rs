@@ -100,7 +100,7 @@ fn mask_password(url: &str) -> String {
             let after_at = &url[start + 3 + at_pos..];
             if let Some(colon_pos) = url[start + 3..start + 3 + at_pos].find(':') {
                 let username = &url[start + 3..start + 3 + colon_pos];
-                return format!("{}{}:****{}", before_creds, username, after_at);
+                return format!("{before_creds}{username}:****{after_at}");
             }
         }
     }

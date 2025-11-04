@@ -309,9 +309,9 @@ async fn scan_message_types() -> Result<()> {
             1_500_000,
             500,
         ), // Wide scan for Type 8
-        ("Later activity (5000000-5020000)", 5000000, 5020000, 100), // ReactionRemove found here
-        ("Extended later (5020000-6000000)", 5020000, 6000000, 1000), // More Type 8 search
-        ("Very late (10000000-10020000)", 10000000, 10020000, 100),
+        ("Later activity (5000000-5020000)", 5_000_000, 5_020_000, 100), // ReactionRemove found here
+        ("Extended later (5020000-6000000)", 5_020_000, 6_000_000, 1_000), // More Type 8 search
+        ("Very late (10000000-10020000)", 10_000_000, 10_020_000, 100),
         ("Recent blocks (15000000-15020000)", 15000000, 15020000, 100), // Frame, UsernameProof
         ("Latest blocks (20000000-20020000)", 20000000, 20020000, 100), // Very new features
         ("Cutting edge (25000000-25010000)", 25000000, 25010000, 100),  // Latest features
@@ -928,7 +928,7 @@ async fn process_and_verify_internal() -> Result<()> {
     let registry = DeterministicBlockRegistry::new();
     let sync_service = SyncService::new(&config, database.clone()).await?;
 
-    for det_block in registry.blocks() {
+    if let Some(det_block) = registry.blocks().iter().next() {
         println!(
             "  🧹 Cleaning database for block {}...",
             det_block.block_number

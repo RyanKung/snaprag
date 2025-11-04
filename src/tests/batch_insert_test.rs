@@ -16,14 +16,11 @@ async fn setup_test_db() -> Database {
 
     // 🛡️ CRITICAL: Verify we're using local database
     let db_url = config.database_url();
-    if !db_url.contains("localhost") && !db_url.contains("127.0.0.1") && !db_url.contains("::1") {
-        panic!(
+    assert!(!(!db_url.contains("localhost") && !db_url.contains("127.0.0.1") && !db_url.contains("::1")), 
             "❌ SAFETY CHECK FAILED: Test database must be localhost!\n\
-             Current URL: {}\n\
-             Set SNAPRAG_CONFIG=config.test.toml to use test database",
-            db_url
+             Current URL: {db_url}\n\
+             Set SNAPRAG_CONFIG=config.test.toml to use test database"
         );
-    }
 
     Database::from_config(&config)
         .await
