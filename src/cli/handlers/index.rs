@@ -29,8 +29,9 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
     // Show what will be done
     println!("\n⚠️  This will:");
     println!("  1. Drop non-essential indexes (idx_casts_fid, idx_user_profiles_username, etc.)");
-    println!("  2. Disable autovacuum on all main tables");
-    println!("  3. Speed up bulk inserts by 30-70%");
+    println!("  2. Keep vector indexes (no vector data during sync)");
+    println!("  3. Disable autovacuum on all main tables");
+    println!("  4. Speed up bulk inserts by 30-70%");
     println!("\n⚠️  You MUST run 'snaprag index set' after bulk sync completes!");
     println!("     Without indexes, queries will be VERY slow.\n");
 
@@ -51,24 +52,46 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     // Drop non-essential indexes (keep primary keys and unique constraints)
     let indexes_to_drop = vec![
-        // Casts
+        // Casts - basic indexes
         "idx_casts_fid",
         "idx_casts_timestamp",
-        // Casts pg_trgm trigram indexes
+        // Casts - optimization indexes
+        "idx_casts_text_hash",
+        "idx_casts_message_hash_desc",
+        "idx_casts_text_hash_desc_composite",
+        // Casts - pg_trgm trigram indexes
         "idx_casts_text_trgm",
+        // Cast embeddings - basic indexes
+        "idx_cast_embeddings_fid",
+        "idx_cast_embeddings_message_hash",
+        "idx_cast_embeddings_message_hash_btree",
+        // Cast embeddings - pg_trgm indexes
         "idx_cast_embeddings_text_trgm",
+        // Cast embedding chunks - basic indexes
+        "idx_cast_embedding_chunks_fid",
+        "idx_cast_embedding_chunks_message_hash",
+        "idx_cast_embedding_chunks_strategy",
+        // Cast embedding chunks - pg_trgm indexes
         "idx_cast_embedding_chunks_text_trgm",
+        // Cast embedding aggregated - basic indexes
+        "idx_cast_embedding_aggregated_fid",
+        "idx_cast_embedding_aggregated_message_hash",
+        // Note: Vector indexes (idx_cast_embedding_*_embedding_cosine) are NOT dropped
+        // because they are not affected during sync (no vector data is written during sync)
         // User profiles
         "idx_user_profiles_username",
         "idx_user_profiles_display_name",
-        // User profile pg_trgm trigram indexes
+        // User profile changes - pg_trgm indexes
         "idx_user_profile_changes_value_trgm",
+        // User profile snapshots
+        "idx_profile_snapshots_fid_timestamp",
+        // Username proofs - pg_trgm indexes
         "idx_username_proofs_username_trgm",
         // Links
         "idx_links_source_fid",
         "idx_links_target_fid",
         "idx_links_timestamp",
-        // Reactions - 删除所有非唯一约束索引
+        // Reactions
         "idx_reactions_fid",
         "idx_reactions_target_cast_hash",
         "idx_reactions_timestamp",
@@ -84,6 +107,10 @@ async fn handle_index_unset(snaprag: &SnapRag, force: bool) -> Result<()> {
         // User data
         "idx_user_data_fid",
         "idx_user_data_type",
+        // Sync tracking indexes (⚠️ Warning: Removing these may slow down sync operations)
+        "idx_processed_messages_hash",
+        "idx_processed_shard_height",
+        "idx_sync_progress_shard_id",
     ];
 
     for index_name in &indexes_to_drop {
@@ -133,8 +160,9 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     println!("\n✅ This will:");
     println!("  1. Recreate all non-essential indexes (CONCURRENTLY, won't block writes)");
-    println!("  2. Re-enable autovacuum on all tables");
-    println!("  3. Run VACUUM ANALYZE to optimize query performance");
+    println!("  2. Skip vector indexes (already exist, not affected during sync)");
+    println!("  3. Re-enable autovacuum on all tables");
+    println!("  4. Run VACUUM ANALYZE to optimize query performance");
     println!("\n⏱️  This may take 30-60 minutes for large datasets.\n");
 
     if !force {
@@ -154,24 +182,46 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     // Recreate indexes with CONCURRENTLY (won't block writes)
     let indexes_to_create = vec![
-        // Casts
+        // Casts - basic indexes
         ("idx_casts_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_fid ON casts(fid)"),
         ("idx_casts_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_timestamp ON casts(timestamp DESC)"),
-        // Casts pg_trgm trigram indexes for text search
+        // Casts - optimization indexes
+        ("idx_casts_text_hash", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_hash ON casts(message_hash) WHERE text IS NOT NULL AND length(text) > 0"),
+        ("idx_casts_message_hash_desc", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_message_hash_desc ON casts(message_hash DESC) WHERE text IS NOT NULL AND length(text) > 0"),
+        ("idx_casts_text_hash_desc_composite", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_hash_desc_composite ON casts(message_hash DESC, fid, timestamp) WHERE text IS NOT NULL AND length(text) > 0"),
+        // Casts - pg_trgm trigram indexes
         ("idx_casts_text_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_casts_text_trgm ON casts USING gin(text gin_trgm_ops) WHERE text IS NOT NULL AND length(text) > 0"),
+        // Cast embeddings - basic indexes
+        ("idx_cast_embeddings_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embeddings_fid ON cast_embeddings(fid)"),
+        ("idx_cast_embeddings_message_hash", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embeddings_message_hash ON cast_embeddings(message_hash)"),
+        ("idx_cast_embeddings_message_hash_btree", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embeddings_message_hash_btree ON cast_embeddings USING btree(message_hash)"),
+        // Cast embeddings - pg_trgm indexes
         ("idx_cast_embeddings_text_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embeddings_text_trgm ON cast_embeddings USING gin(text gin_trgm_ops) WHERE text IS NOT NULL AND length(text) > 0"),
+        // Cast embedding chunks - basic indexes
+        ("idx_cast_embedding_chunks_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_chunks_fid ON cast_embedding_chunks(fid)"),
+        ("idx_cast_embedding_chunks_message_hash", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_chunks_message_hash ON cast_embedding_chunks(message_hash)"),
+        ("idx_cast_embedding_chunks_strategy", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_chunks_strategy ON cast_embedding_chunks(chunk_strategy)"),
+        // Cast embedding chunks - pg_trgm indexes
         ("idx_cast_embedding_chunks_text_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_chunks_text_trgm ON cast_embedding_chunks USING gin(chunk_text gin_trgm_ops) WHERE chunk_text IS NOT NULL AND length(chunk_text) > 0"),
+        // Cast embedding aggregated - basic indexes
+        ("idx_cast_embedding_aggregated_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_aggregated_fid ON cast_embedding_aggregated(fid)"),
+        ("idx_cast_embedding_aggregated_message_hash", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_cast_embedding_aggregated_message_hash ON cast_embedding_aggregated(message_hash)"),
+        // Note: Vector indexes (idx_cast_embedding_*_embedding_cosine) are NOT recreated here
+        // because they don't need to be dropped during sync (no vector data during sync)
         // User profiles
         ("idx_user_profiles_username", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)"),
         ("idx_user_profiles_display_name", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profiles_display_name ON user_profiles(display_name)"),
-        // User profile pg_trgm trigram indexes
+        // User profile changes - pg_trgm indexes
         ("idx_user_profile_changes_value_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_profile_changes_value_trgm ON user_profile_changes USING gin(field_value gin_trgm_ops) WHERE field_value IS NOT NULL AND length(field_value) > 0"),
+        // User profile snapshots
+        ("idx_profile_snapshots_fid_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_profile_snapshots_fid_timestamp ON user_profile_snapshots(fid, snapshot_timestamp DESC)"),
+        // Username proofs - pg_trgm indexes
         ("idx_username_proofs_username_trgm", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_username_proofs_username_trgm ON username_proofs USING gin(username gin_trgm_ops) WHERE username IS NOT NULL AND length(username) > 0"),
         // Links
         ("idx_links_source_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_source_fid ON links(fid)"),
         ("idx_links_target_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_target_fid ON links(target_fid)"),
         ("idx_links_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_links_timestamp ON links(timestamp DESC)"),
-        // Reactions - 恢复所有索引
+        // Reactions
         ("idx_reactions_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_fid ON reactions(fid)"),
         ("idx_reactions_target_cast_hash", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_target_cast_hash ON reactions(target_cast_hash)"),
         ("idx_reactions_timestamp", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_reactions_timestamp ON reactions(timestamp DESC)"),
@@ -187,6 +237,10 @@ async fn handle_index_set(snaprag: &SnapRag, force: bool) -> Result<()> {
         // User data
         ("idx_user_data_fid", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_data_fid ON user_data(fid)"),
         ("idx_user_data_type", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_data_type ON user_data(data_type)"),
+        // Sync tracking indexes (⚠️ Important: These are needed for sync operations)
+        ("idx_processed_messages_hash", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processed_messages_hash ON processed_messages(message_hash)"),
+        ("idx_processed_shard_height", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processed_shard_height ON processed_messages(shard_id, block_height DESC)"),
+        ("idx_sync_progress_shard_id", "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sync_progress_shard_id ON sync_progress(shard_id)"),
     ];
 
     for (name, sql) in &indexes_to_create {
@@ -276,18 +330,38 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
     // Check which indexes exist
     println!("\n🔍 Non-Essential Indexes:");
     let indexes = vec![
-        // Casts
+        // Casts - basic indexes
         "idx_casts_fid",
         "idx_casts_timestamp",
-        // Casts pg_trgm trigram indexes
+        // Casts - optimization indexes
+        "idx_casts_text_hash",
+        "idx_casts_message_hash_desc",
+        "idx_casts_text_hash_desc_composite",
+        // Casts - pg_trgm trigram indexes
         "idx_casts_text_trgm",
+        // Cast embeddings - basic indexes
+        "idx_cast_embeddings_fid",
+        "idx_cast_embeddings_message_hash",
+        "idx_cast_embeddings_message_hash_btree",
+        // Cast embeddings - pg_trgm indexes
         "idx_cast_embeddings_text_trgm",
+        // Cast embedding chunks - basic indexes
+        "idx_cast_embedding_chunks_fid",
+        "idx_cast_embedding_chunks_message_hash",
+        "idx_cast_embedding_chunks_strategy",
+        // Cast embedding chunks - pg_trgm indexes
         "idx_cast_embedding_chunks_text_trgm",
+        // Cast embedding aggregated - basic indexes
+        "idx_cast_embedding_aggregated_fid",
+        "idx_cast_embedding_aggregated_message_hash",
         // User profiles
         "idx_user_profiles_username",
         "idx_user_profiles_display_name",
-        // User profile pg_trgm trigram indexes
+        // User profile changes - pg_trgm indexes
         "idx_user_profile_changes_value_trgm",
+        // User profile snapshots
+        "idx_profile_snapshots_fid_timestamp",
+        // Username proofs - pg_trgm indexes
         "idx_username_proofs_username_trgm",
         // Links
         "idx_links_source_fid",
@@ -309,6 +383,10 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         // User data
         "idx_user_data_fid",
         "idx_user_data_type",
+        // Sync tracking indexes
+        "idx_processed_messages_hash",
+        "idx_processed_shard_height",
+        "idx_sync_progress_shard_id",
     ];
 
     let mut existing_count = 0;
@@ -364,6 +442,38 @@ async fn handle_index_status(snaprag: &SnapRag) -> Result<()> {
         trigram_count,
         trigram_indexes.len()
     );
+
+    // Show vector index status (these are NOT managed by index set/unset)
+    println!("\n🎯 Vector Indexes (Not affected by sync):");
+    let vector_indexes = vec![
+        "idx_cast_embedding_chunks_embedding_cosine",
+        "idx_cast_embedding_aggregated_embedding_cosine",
+    ];
+
+    let mut vector_count = 0;
+    for index_name in &vector_indexes {
+        let result: Option<(bool,)> =
+            sqlx::query_as("SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)")
+                .bind(index_name)
+                .fetch_optional(db)
+                .await?;
+
+        if let Some((exists,)) = result {
+            if exists {
+                println!("  ✅ {index_name}");
+                vector_count += 1;
+            } else {
+                println!("  ❌ {index_name} (missing)");
+            }
+        }
+    }
+
+    println!(
+        "\n  Status: {}/{} vector indexes present",
+        vector_count,
+        vector_indexes.len()
+    );
+    println!("  Note: Vector indexes are NOT dropped during sync (no vector data during sync)");
 
     // Check autovacuum status
     println!("\n🛑 Autovacuum Status:");
