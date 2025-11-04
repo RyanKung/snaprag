@@ -103,7 +103,6 @@ pub async fn handle_rag_query_casts(
 }
 
 /// Handle cast embeddings backfill command
-
 pub async fn handle_rag_query(
     config: &AppConfig,
     query: String,

@@ -440,7 +440,6 @@ async fn process_single_cast_with_retry(
                         );
                         if attempt < max_retries {
                             tokio::time::sleep(Duration::from_millis(100 * attempt as u64)).await;
-                            continue;
                         }
                     }
                 }
@@ -452,7 +451,6 @@ async fn process_single_cast_with_retry(
                 );
                 if attempt < max_retries {
                     tokio::time::sleep(Duration::from_millis(100 * attempt as u64)).await;
-                    continue;
                 }
             }
         }
@@ -632,7 +630,6 @@ async fn process_casts_with_separated_concurrency(
                                             100 * attempt as u64,
                                         ))
                                         .await;
-                                        continue;
                                     }
                                 }
                             }

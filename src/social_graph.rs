@@ -672,13 +672,13 @@ impl SocialGraphAnalyzer {
     async fn analyze_mentions(&self, fid: i64) -> Result<Vec<UserMention>> {
         // Get casts with mentions
         let casts = sqlx::query_as::<_, (Option<serde_json::Value>,)>(
-            r#"
+            r"
             SELECT mentions
             FROM casts
             WHERE fid = $1 AND mentions IS NOT NULL
             ORDER BY timestamp DESC
             LIMIT 100
-            "#,
+            ",
         )
         .bind(fid)
         .fetch_all(self.database.pool())

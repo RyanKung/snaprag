@@ -100,10 +100,10 @@ pub async fn find_relevant_casts(
     // Score = similarity * log(length) * recency_factor
     user_casts.sort_by(|a, b| {
         // Recency factor: 1.0 for recent (< 30 days), decays to 0.5 for old (> 1 year)
-        let age_a_days = ((now - a.timestamp) as f32) / 86400.0;
-        let age_b_days = ((now - b.timestamp) as f32) / 86400.0;
-        let recency_a = (1.0 - (age_a_days / 365.0).min(0.5)).max(0.5);
-        let recency_b = (1.0 - (age_b_days / 365.0).min(0.5)).max(0.5);
+        let cast_a_age_days = ((now - a.timestamp) as f32) / 86400.0;
+        let cast_b_age_days = ((now - b.timestamp) as f32) / 86400.0;
+        let recency_a = (1.0 - (cast_a_age_days / 365.0).min(0.5)).max(0.5);
+        let recency_b = (1.0 - (cast_b_age_days / 365.0).min(0.5)).max(0.5);
 
         // Combine: similarity (most important) + substance + recency
         let score_a = a.similarity * (a.text.len() as f32).ln().max(1.0) * recency_a;

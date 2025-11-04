@@ -160,7 +160,7 @@ fn chunk_by_sentences(text: &str, max_length: usize) -> Option<String> {
     let mut result = String::new();
     for sentence in sentences {
         let trimmed = sentence.trim();
-        if result.len() + trimmed.len() + 1 <= max_length {
+        if result.len() + trimmed.len() < max_length {
             if !result.is_empty() {
                 result.push_str(". ");
             }
@@ -243,7 +243,7 @@ fn chunk_by_importance(text: &str, max_length: usize) -> Option<String> {
     let mut result = String::new();
     for (_, sentence) in scored_sentences {
         let trimmed = sentence.trim();
-        if result.len() + trimmed.len() + 1 <= max_length {
+        if result.len() + trimmed.len() < max_length {
             if !result.is_empty() {
                 result.push_str(". ");
             }

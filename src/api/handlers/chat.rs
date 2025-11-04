@@ -258,10 +258,10 @@ pub async fn send_chat_message(
     // Sort by: relevance * substance * recency
     user_casts.sort_by(|a, b| {
         // Recency factor: newer posts (< 30 days) = 1.0, older (> 1 year) = 0.5
-        let age_a_days = ((now - a.timestamp) as f32) / 86400.0;
-        let age_b_days = ((now - b.timestamp) as f32) / 86400.0;
-        let recency_a = (1.0 - (age_a_days / 365.0).min(0.5)).max(0.5);
-        let recency_b = (1.0 - (age_b_days / 365.0).min(0.5)).max(0.5);
+        let cast_a_age_days = ((now - a.timestamp) as f32) / 86400.0;
+        let cast_b_age_days = ((now - b.timestamp) as f32) / 86400.0;
+        let recency_a = (1.0 - (cast_a_age_days / 365.0).min(0.5)).max(0.5);
+        let recency_b = (1.0 - (cast_b_age_days / 365.0).min(0.5)).max(0.5);
 
         // Combined score: similarity * substance * recency
         let score_a = a.similarity * (a.text.len() as f32).ln().max(1.0) * recency_a;

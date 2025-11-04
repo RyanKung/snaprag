@@ -345,7 +345,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore] // Requires API key
+    #[ignore = "Requires API key"]
     async fn test_openai_embedding() {
         let client = EmbeddingClient::new(
             EmbeddingProvider::OpenAI,

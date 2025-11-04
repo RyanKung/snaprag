@@ -8,13 +8,13 @@ impl Database {
     /// Create a user profile snapshot
     pub async fn create_user_profile_snapshot(&self, snapshot: &UserProfileSnapshot) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO user_profile_snapshots (
                 fid, username, display_name, bio, pfp_url, website_url,
                 snapshot_timestamp, message_hash
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            "#,
+            ",
         )
         .bind(snapshot.fid)
         .bind(&snapshot.username)

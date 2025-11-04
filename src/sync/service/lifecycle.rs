@@ -685,7 +685,7 @@ impl LifecycleManager {
                                         backoff_secs,
                                     ))
                                     .await;
-                                    continue; // Retry
+                                    // Retry
                                 }
                                 Err(e) => {
                                     let error_msg = e.to_string();

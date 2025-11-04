@@ -11,12 +11,12 @@ use serde_json::Value;
 use tonic::transport::Channel;
 
 use crate::generated::blocks::ShardChunk;
+use crate::generated::grpc_client::hub_service_client::HubServiceClient;
 use crate::generated::grpc_client::message_data;
 use crate::generated::grpc_client::{
     self as grpc_proto,
 };
 use crate::generated::hub_event::HubEvent;
-use crate::generated::hub_service_client::HubServiceClient;
 use crate::generated::request_response::FidsRequest;
 use crate::generated::request_response::FidsResponse;
 use crate::generated::request_response::GetInfoRequest;

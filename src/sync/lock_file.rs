@@ -387,7 +387,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // OUTDATED: Progress structure changed from current_shard/current_block to shard_progress map
+    #[ignore = "OUTDATED: Progress structure changed from current_shard/current_block to shard_progress map"]
     fn test_lock_file_update() {
         let manager = SyncLockManager::new();
         let lock = manager.create_lock("running", None).unwrap();

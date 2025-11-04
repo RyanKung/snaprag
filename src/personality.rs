@@ -578,7 +578,7 @@ impl MbtiAnalyzer {
             .join("\n- ");
 
         let prompt = format!(
-            r#"You are an expert MBTI personality analyst. Based on the following user behavior data,
+            r"You are an expert MBTI personality analyst. Based on the following user behavior data,
 provide a detailed MBTI personality analysis.
 
 MBTI Type: {type}
@@ -605,7 +605,7 @@ Provide a 3-4 paragraph analysis that:
 3. Discusses their likely strengths and potential blind spots
 4. Provides insights on how they engage with their community
 
-Be specific, insightful, and connect observations to MBTI theory."#,
+Be specific, insightful, and connect observations to MBTI theory.",
             type = mbti_type,
             ei = dimensions.ei_score,
             sn = dimensions.sn_score,

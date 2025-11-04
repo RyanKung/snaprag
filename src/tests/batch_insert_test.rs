@@ -20,7 +20,7 @@ fn test_shard_info() -> ShardBlockInfo {
         shard_id: 1,
         block_height: 1000,
         transaction_fid: 99,
-        timestamp: 1698765432,
+        timestamp: 1_698_765_432,
     }
 }
 
@@ -48,7 +48,7 @@ async fn test_batch_insert_reactions_parameter_binding() {
             Some(100 + i as i64),     // target_fid (Option<i64>)
             1,                        // reaction_type (i16)
             "add".to_string(),        // event_type (String)
-            1698765432 + i as i64,    // timestamp (i64)
+            1_698_765_432 + i as i64, // timestamp (i64)
             hash.clone(),             // message_hash (Vec<u8>)
             shard_info.clone(),       // shard_block_info
         ));
@@ -115,13 +115,13 @@ async fn test_batch_insert_links_parameter_binding() {
     for i in 0..5 {
         let hash = test_message_hash(8000 + i);
         batched.links.push((
-            99,                    // fid
-            200 + i as i64,        // target_fid
-            "follow".to_string(),  // link_type
-            "add".to_string(),     // event_type
-            1698765432 + i as i64, // timestamp
-            hash.clone(),          // message_hash
-            shard_info.clone(),    // shard_block_info
+            99,                       // fid
+            200 + i as i64,           // target_fid
+            "follow".to_string(),     // link_type
+            "add".to_string(),        // event_type
+            1_698_765_432 + i as i64, // timestamp
+            hash.clone(),             // message_hash
+            shard_info.clone(),       // shard_block_info
         ));
     }
 
@@ -187,7 +187,7 @@ async fn test_batch_insert_verifications_parameter_binding() {
             Some(0),                  // verification_type
             Some(1),                  // chain_id
             "add".to_string(),        // event_type
-            1698765432 + i as i64,    // timestamp
+            1_698_765_432 + i as i64, // timestamp
             hash.clone(),             // message_hash
             shard_info.clone(),       // shard_block_info
         ));

@@ -197,7 +197,7 @@ impl MultiVectorEmbeddingService {
 
         for sentence in sentences {
             let trimmed = sentence.trim();
-            if current_chunk.len() + trimmed.len() + 1 <= self.default_chunk_size {
+            if current_chunk.len() + trimmed.len() < self.default_chunk_size {
                 if !current_chunk.is_empty() {
                     current_chunk.push_str(". ");
                 }

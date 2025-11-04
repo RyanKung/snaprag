@@ -159,7 +159,6 @@ pub async fn handle_cast_embeddings_backfill(
 }
 
 /// Handle sync command
-
 pub async fn handle_embeddings_backfill(
     config: &AppConfig,
     data_type: crate::cli::EmbeddingDataType,
