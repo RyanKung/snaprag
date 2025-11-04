@@ -303,7 +303,7 @@ impl LazyLoader {
 
             // Parse and save casts
             for message in casts_response.messages {
-                if let Some(cast) = self.parse_cast_message(&message)? {
+                if let Some(cast) = self.parse_cast_message(&message) {
                     // Save cast to database (upsert)
                     if let Err(e) = self
                         .database
@@ -343,9 +343,9 @@ impl LazyLoader {
     fn parse_cast_message(
         &self,
         message: &crate::sync::client::FarcasterMessage,
-    ) -> Result<Option<Cast>> {
+    ) -> Option<Cast> {
         let Some(ref data) = message.data else {
-            return Ok(None);
+            return None;
         };
 
         let fid = data.fid as i64;
@@ -380,7 +380,7 @@ impl LazyLoader {
             .and_then(|cast_body| cast_body.get("mentions"))
             .and_then(|v| serde_json::to_value(v).ok());
 
-        Ok(Some(Cast {
+        Some(Cast {
             id: uuid::Uuid::new_v4(),
             fid,
             text,
@@ -394,7 +394,7 @@ impl LazyLoader {
             block_height: None,
             transaction_fid: None,
             created_at: chrono::Utc::now(),
-        }))
+        })
     }
 
     /// Get or fetch user profile (smart query)
