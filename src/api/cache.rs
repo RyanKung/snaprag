@@ -362,7 +362,7 @@ impl CacheService {
     }
 
     /// Start background cleanup task
-    pub async fn start_cleanup_task(&self) {
+    pub fn start_cleanup_task(&self) {
         let cache_service = Arc::new(self.clone());
 
         tokio::spawn(async move {

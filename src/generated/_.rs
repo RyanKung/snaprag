@@ -24,19 +24,21 @@ pub enum UserNameType {
     UsernameTypeBasename = 3,
 }
 impl UserNameType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            UserNameType::UsernameTypeNone => "USERNAME_TYPE_NONE",
-            UserNameType::UsernameTypeFname => "USERNAME_TYPE_FNAME",
-            UserNameType::UsernameTypeEnsL1 => "USERNAME_TYPE_ENS_L1",
-            UserNameType::UsernameTypeBasename => "USERNAME_TYPE_BASENAME",
+            Self::UsernameTypeNone => "USERNAME_TYPE_NONE",
+            Self::UsernameTypeFname => "USERNAME_TYPE_FNAME",
+            Self::UsernameTypeEnsL1 => "USERNAME_TYPE_ENS_L1",
+            Self::UsernameTypeBasename => "USERNAME_TYPE_BASENAME",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "USERNAME_TYPE_NONE" => Some(Self::UsernameTypeNone),
@@ -49,7 +51,7 @@ impl UserNameType {
 }
 /// *
 /// A Message is a delta operation on the Farcaster network. The message protobuf is an envelope
-/// that wraps a MessageData object and contains a hash and signature which can verify its authenticity.
+/// that wraps a `MessageData` object and contains a hash and signature which can verify its authenticity.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Message {
@@ -71,13 +73,13 @@ pub struct Message {
     /// Public key or address of the key pair that produced the signature
     #[prost(bytes = "vec", tag = "6")]
     pub signer: ::prost::alloc::vec::Vec<u8>,
-    /// MessageData serialized to bytes if using protobuf serialization other than ts-proto
+    /// `MessageData` serialized to bytes if using protobuf serialization other than ts-proto
     #[prost(bytes = "vec", optional, tag = "7")]
     pub data_bytes: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 /// *
-/// A MessageData object contains properties common to all messages and wraps a body object which
-/// contains properties specific to the MessageType.
+/// A `MessageData` object contains properties common to all messages and wraps a body object which
+/// contains properties specific to the `MessageType`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MessageData {
@@ -114,10 +116,10 @@ pub mod message_data {
         VerificationAddAddressBody(super::VerificationAddAddressBody),
         #[prost(message, tag = "10")]
         VerificationRemoveBody(super::VerificationRemoveBody),
-        /// SignerAddBody signer_add_body = 11; // Deprecated
+        /// `SignerAddBody` `signer_add_body` = 11; // Deprecated
         #[prost(message, tag = "12")]
         UserDataBody(super::UserDataBody),
-        /// SignerRemoveBody signer_remove_body = 13; // Deprecated
+        /// `SignerRemoveBody` `signer_remove_body` = 13; // Deprecated
         #[prost(message, tag = "14")]
         LinkBody(super::LinkBody),
         #[prost(message, tag = "15")]
@@ -231,7 +233,7 @@ pub mod reaction_body {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Target {
-        /// CastId of the Cast to react to
+        /// `CastId` of the Cast to react to
         #[prost(message, tag = "2")]
         TargetCastId(super::CastId),
         /// URL to react to
@@ -342,26 +344,28 @@ pub struct LendStorageBody {
     #[prost(enumeration = "StorageUnitType", tag = "3")]
     pub unit_type: i32,
 }
-/// * Type of hashing scheme used to produce a digest of MessageData
+/// * Type of hashing scheme used to produce a digest of `MessageData`
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum HashScheme {
     None = 0,
-    /// Default scheme for hashing MessageData
+    /// Default scheme for hashing `MessageData`
     Blake3 = 1,
 }
 impl HashScheme {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            HashScheme::None => "HASH_SCHEME_NONE",
-            HashScheme::Blake3 => "HASH_SCHEME_BLAKE3",
+            Self::None => "HASH_SCHEME_NONE",
+            Self::Blake3 => "HASH_SCHEME_BLAKE3",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "HASH_SCHEME_NONE" => Some(Self::None),
@@ -381,18 +385,20 @@ pub enum SignatureScheme {
     Eip712 = 2,
 }
 impl SignatureScheme {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            SignatureScheme::None => "SIGNATURE_SCHEME_NONE",
-            SignatureScheme::Ed25519 => "SIGNATURE_SCHEME_ED25519",
-            SignatureScheme::Eip712 => "SIGNATURE_SCHEME_EIP712",
+            Self::None => "SIGNATURE_SCHEME_NONE",
+            Self::Ed25519 => "SIGNATURE_SCHEME_ED25519",
+            Self::Eip712 => "SIGNATURE_SCHEME_EIP712",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "SIGNATURE_SCHEME_NONE" => Some(Self::None),
@@ -402,7 +408,7 @@ impl SignatureScheme {
         }
     }
 }
-/// * Type of the MessageBody
+/// * Type of the `MessageBody`
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum MessageType {
@@ -424,8 +430,8 @@ pub enum MessageType {
     /// Remove a Verification
     VerificationRemove = 8,
     ///   Deprecated
-    ///   MESSAGE_TYPE_SIGNER_ADD = 9; // Add a new Ed25519 key pair that signs messages for a user
-    ///   MESSAGE_TYPE_SIGNER_REMOVE = 10; // Remove an Ed25519 key pair that signs messages for a user
+    ///   `MESSAGE_TYPE_SIGNER_ADD` = 9; // Add a new Ed25519 key pair that signs messages for a user
+    ///   `MESSAGE_TYPE_SIGNER_REMOVE` = 10; // Remove an Ed25519 key pair that signs messages for a user
     ///
     /// Add metadata about a user
     UserDataAdd = 11,
@@ -438,31 +444,33 @@ pub enum MessageType {
     LendStorage = 15,
 }
 impl MessageType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            MessageType::None => "MESSAGE_TYPE_NONE",
-            MessageType::CastAdd => "MESSAGE_TYPE_CAST_ADD",
-            MessageType::CastRemove => "MESSAGE_TYPE_CAST_REMOVE",
-            MessageType::ReactionAdd => "MESSAGE_TYPE_REACTION_ADD",
-            MessageType::ReactionRemove => "MESSAGE_TYPE_REACTION_REMOVE",
-            MessageType::LinkAdd => "MESSAGE_TYPE_LINK_ADD",
-            MessageType::LinkRemove => "MESSAGE_TYPE_LINK_REMOVE",
-            MessageType::VerificationAddEthAddress => {
+            Self::None => "MESSAGE_TYPE_NONE",
+            Self::CastAdd => "MESSAGE_TYPE_CAST_ADD",
+            Self::CastRemove => "MESSAGE_TYPE_CAST_REMOVE",
+            Self::ReactionAdd => "MESSAGE_TYPE_REACTION_ADD",
+            Self::ReactionRemove => "MESSAGE_TYPE_REACTION_REMOVE",
+            Self::LinkAdd => "MESSAGE_TYPE_LINK_ADD",
+            Self::LinkRemove => "MESSAGE_TYPE_LINK_REMOVE",
+            Self::VerificationAddEthAddress => {
                 "MESSAGE_TYPE_VERIFICATION_ADD_ETH_ADDRESS"
             }
-            MessageType::VerificationRemove => "MESSAGE_TYPE_VERIFICATION_REMOVE",
-            MessageType::UserDataAdd => "MESSAGE_TYPE_USER_DATA_ADD",
-            MessageType::UsernameProof => "MESSAGE_TYPE_USERNAME_PROOF",
-            MessageType::FrameAction => "MESSAGE_TYPE_FRAME_ACTION",
-            MessageType::LinkCompactState => "MESSAGE_TYPE_LINK_COMPACT_STATE",
-            MessageType::LendStorage => "MESSAGE_TYPE_LEND_STORAGE",
+            Self::VerificationRemove => "MESSAGE_TYPE_VERIFICATION_REMOVE",
+            Self::UserDataAdd => "MESSAGE_TYPE_USER_DATA_ADD",
+            Self::UsernameProof => "MESSAGE_TYPE_USERNAME_PROOF",
+            Self::FrameAction => "MESSAGE_TYPE_FRAME_ACTION",
+            Self::LinkCompactState => "MESSAGE_TYPE_LINK_COMPACT_STATE",
+            Self::LendStorage => "MESSAGE_TYPE_LEND_STORAGE",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "MESSAGE_TYPE_NONE" => Some(Self::None),
@@ -498,19 +506,21 @@ pub enum FarcasterNetwork {
     Devnet = 3,
 }
 impl FarcasterNetwork {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            FarcasterNetwork::None => "FARCASTER_NETWORK_NONE",
-            FarcasterNetwork::Mainnet => "FARCASTER_NETWORK_MAINNET",
-            FarcasterNetwork::Testnet => "FARCASTER_NETWORK_TESTNET",
-            FarcasterNetwork::Devnet => "FARCASTER_NETWORK_DEVNET",
+            Self::None => "FARCASTER_NETWORK_NONE",
+            Self::Mainnet => "FARCASTER_NETWORK_MAINNET",
+            Self::Testnet => "FARCASTER_NETWORK_TESTNET",
+            Self::Devnet => "FARCASTER_NETWORK_DEVNET",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "FARCASTER_NETWORK_NONE" => Some(Self::None),
@@ -521,7 +531,7 @@ impl FarcasterNetwork {
         }
     }
 }
-/// * Type of UserData
+/// * Type of `UserData`
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum UserDataType {
@@ -552,32 +562,34 @@ pub enum UserDataType {
     ProfileToken = 13,
 }
 impl UserDataType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            UserDataType::None => "USER_DATA_TYPE_NONE",
-            UserDataType::Pfp => "USER_DATA_TYPE_PFP",
-            UserDataType::Display => "USER_DATA_TYPE_DISPLAY",
-            UserDataType::Bio => "USER_DATA_TYPE_BIO",
-            UserDataType::Url => "USER_DATA_TYPE_URL",
-            UserDataType::Username => "USER_DATA_TYPE_USERNAME",
-            UserDataType::Location => "USER_DATA_TYPE_LOCATION",
-            UserDataType::Twitter => "USER_DATA_TYPE_TWITTER",
-            UserDataType::Github => "USER_DATA_TYPE_GITHUB",
-            UserDataType::Banner => "USER_DATA_TYPE_BANNER",
-            UserDataType::UserDataPrimaryAddressEthereum => {
+            Self::None => "USER_DATA_TYPE_NONE",
+            Self::Pfp => "USER_DATA_TYPE_PFP",
+            Self::Display => "USER_DATA_TYPE_DISPLAY",
+            Self::Bio => "USER_DATA_TYPE_BIO",
+            Self::Url => "USER_DATA_TYPE_URL",
+            Self::Username => "USER_DATA_TYPE_USERNAME",
+            Self::Location => "USER_DATA_TYPE_LOCATION",
+            Self::Twitter => "USER_DATA_TYPE_TWITTER",
+            Self::Github => "USER_DATA_TYPE_GITHUB",
+            Self::Banner => "USER_DATA_TYPE_BANNER",
+            Self::UserDataPrimaryAddressEthereum => {
                 "USER_DATA_PRIMARY_ADDRESS_ETHEREUM"
             }
-            UserDataType::UserDataPrimaryAddressSolana => {
+            Self::UserDataPrimaryAddressSolana => {
                 "USER_DATA_PRIMARY_ADDRESS_SOLANA"
             }
-            UserDataType::ProfileToken => "USER_DATA_TYPE_PROFILE_TOKEN",
+            Self::ProfileToken => "USER_DATA_TYPE_PROFILE_TOKEN",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "USER_DATA_TYPE_NONE" => Some(Self::None),
@@ -610,18 +622,20 @@ pub enum CastType {
     TenKCast = 2,
 }
 impl CastType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            CastType::Cast => "CAST",
-            CastType::LongCast => "LONG_CAST",
-            CastType::TenKCast => "TEN_K_CAST",
+            Self::Cast => "CAST",
+            Self::LongCast => "LONG_CAST",
+            Self::TenKCast => "TEN_K_CAST",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "CAST" => Some(Self::Cast),
@@ -642,18 +656,20 @@ pub enum ReactionType {
     Recast = 2,
 }
 impl ReactionType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            ReactionType::None => "REACTION_TYPE_NONE",
-            ReactionType::Like => "REACTION_TYPE_LIKE",
-            ReactionType::Recast => "REACTION_TYPE_RECAST",
+            Self::None => "REACTION_TYPE_NONE",
+            Self::Like => "REACTION_TYPE_LIKE",
+            Self::Recast => "REACTION_TYPE_RECAST",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "REACTION_TYPE_NONE" => Some(Self::None),
@@ -671,17 +687,19 @@ pub enum Protocol {
     Solana = 1,
 }
 impl Protocol {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            Protocol::Ethereum => "PROTOCOL_ETHEREUM",
-            Protocol::Solana => "PROTOCOL_SOLANA",
+            Self::Ethereum => "PROTOCOL_ETHEREUM",
+            Self::Solana => "PROTOCOL_SOLANA",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "PROTOCOL_ETHEREUM" => Some(Self::Ethereum),
@@ -698,18 +716,20 @@ pub enum StorageUnitType {
     UnitType2025 = 2,
 }
 impl StorageUnitType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            StorageUnitType::UnitTypeLegacy => "UNIT_TYPE_LEGACY",
-            StorageUnitType::UnitType2024 => "UNIT_TYPE_2024",
-            StorageUnitType::UnitType2025 => "UNIT_TYPE_2025",
+            Self::UnitTypeLegacy => "UNIT_TYPE_LEGACY",
+            Self::UnitType2024 => "UNIT_TYPE_2024",
+            Self::UnitType2025 => "UNIT_TYPE_2025",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNIT_TYPE_LEGACY" => Some(Self::UnitTypeLegacy),
@@ -825,21 +845,23 @@ pub enum OnChainEventType {
     EventTypeTierPurchase = 5,
 }
 impl OnChainEventType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            OnChainEventType::EventTypeNone => "EVENT_TYPE_NONE",
-            OnChainEventType::EventTypeSigner => "EVENT_TYPE_SIGNER",
-            OnChainEventType::EventTypeSignerMigrated => "EVENT_TYPE_SIGNER_MIGRATED",
-            OnChainEventType::EventTypeIdRegister => "EVENT_TYPE_ID_REGISTER",
-            OnChainEventType::EventTypeStorageRent => "EVENT_TYPE_STORAGE_RENT",
-            OnChainEventType::EventTypeTierPurchase => "EVENT_TYPE_TIER_PURCHASE",
+            Self::EventTypeNone => "EVENT_TYPE_NONE",
+            Self::EventTypeSigner => "EVENT_TYPE_SIGNER",
+            Self::EventTypeSignerMigrated => "EVENT_TYPE_SIGNER_MIGRATED",
+            Self::EventTypeIdRegister => "EVENT_TYPE_ID_REGISTER",
+            Self::EventTypeStorageRent => "EVENT_TYPE_STORAGE_RENT",
+            Self::EventTypeTierPurchase => "EVENT_TYPE_TIER_PURCHASE",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "EVENT_TYPE_NONE" => Some(Self::EventTypeNone),
@@ -859,17 +881,19 @@ pub enum TierType {
     Pro = 1,
 }
 impl TierType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            TierType::None => "None",
-            TierType::Pro => "Pro",
+            Self::None => "None",
+            Self::Pro => "Pro",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "None" => Some(Self::None),
@@ -887,19 +911,21 @@ pub enum SignerEventType {
     AdminReset = 3,
 }
 impl SignerEventType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            SignerEventType::None => "SIGNER_EVENT_TYPE_NONE",
-            SignerEventType::Add => "SIGNER_EVENT_TYPE_ADD",
-            SignerEventType::Remove => "SIGNER_EVENT_TYPE_REMOVE",
-            SignerEventType::AdminReset => "SIGNER_EVENT_TYPE_ADMIN_RESET",
+            Self::None => "SIGNER_EVENT_TYPE_NONE",
+            Self::Add => "SIGNER_EVENT_TYPE_ADD",
+            Self::Remove => "SIGNER_EVENT_TYPE_REMOVE",
+            Self::AdminReset => "SIGNER_EVENT_TYPE_ADMIN_RESET",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "SIGNER_EVENT_TYPE_NONE" => Some(Self::None),
@@ -919,21 +945,23 @@ pub enum IdRegisterEventType {
     ChangeRecovery = 3,
 }
 impl IdRegisterEventType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            IdRegisterEventType::None => "ID_REGISTER_EVENT_TYPE_NONE",
-            IdRegisterEventType::Register => "ID_REGISTER_EVENT_TYPE_REGISTER",
-            IdRegisterEventType::Transfer => "ID_REGISTER_EVENT_TYPE_TRANSFER",
-            IdRegisterEventType::ChangeRecovery => {
+            Self::None => "ID_REGISTER_EVENT_TYPE_NONE",
+            Self::Register => "ID_REGISTER_EVENT_TYPE_REGISTER",
+            Self::Transfer => "ID_REGISTER_EVENT_TYPE_TRANSFER",
+            Self::ChangeRecovery => {
                 "ID_REGISTER_EVENT_TYPE_CHANGE_RECOVERY"
             }
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "ID_REGISTER_EVENT_TYPE_NONE" => Some(Self::None),
@@ -1027,11 +1055,11 @@ pub struct Proposal {
     #[prost(bytes = "vec", tag = "4")]
     pub proposer: ::prost::alloc::vec::Vec<u8>,
     ///   repeated Transaction transactions = 4;  // Transactions for the shard level proposals (submitted by shard leader)
-    ///   repeated ShardHeader shard_headers = 5; // shard headers for the block level proposal (submitted by the block leader)
+    ///   repeated `ShardHeader` `shard_headers` = 5; // shard headers for the block level proposal (submitted by the block leader)
     #[prost(message, optional, tag = "5")]
     pub value: ::core::option::Option<ShardHash>,
 }
-/// TODO: This probably needs a signature? Should we use ConsensusMessage?
+/// TODO: This probably needs a signature? Should we use `ConsensusMessage`?
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FullProposal {
@@ -1367,17 +1395,19 @@ pub enum VoteType {
     Precommit = 1,
 }
 impl VoteType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            VoteType::Prevote => "PREVOTE",
-            VoteType::Precommit => "PRECOMMIT",
+            Self::Prevote => "PREVOTE",
+            Self::Precommit => "PRECOMMIT",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "PREVOTE" => Some(Self::Prevote),
@@ -1393,17 +1423,19 @@ pub enum BlockEventType {
     MergeMessage = 1,
 }
 impl BlockEventType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            BlockEventType::Heartbeat => "BLOCK_EVENT_TYPE_HEARTBEAT",
-            BlockEventType::MergeMessage => "BLOCK_EVENT_TYPE_MERGE_MESSAGE",
+            Self::Heartbeat => "BLOCK_EVENT_TYPE_HEARTBEAT",
+            Self::MergeMessage => "BLOCK_EVENT_TYPE_MERGE_MESSAGE",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "BLOCK_EVENT_TYPE_HEARTBEAT" => Some(Self::Heartbeat),
@@ -1506,13 +1538,13 @@ pub mod hub_event {
         #[prost(message, tag = "5")]
         RevokeMessageBody(super::RevokeMessageBody),
         ///     Deprecated
-        ///     MergeIdRegistryEventBody merge_id_registry_event_body = 6;
-        ///     MergeNameRegistryEventBody merge_name_registry_event_body = 7;
+        ///     `MergeIdRegistryEventBody` `merge_id_registry_event_body` = 6;
+        ///     `MergeNameRegistryEventBody` `merge_name_registry_event_body` = 7;
         #[prost(message, tag = "8")]
         MergeUsernameProofBody(super::MergeUserNameProofBody),
         ///     Deprecated
-        ///     MergeRentRegistryEventBody merge_rent_registry_event_body = 9;
-        ///     MergeStorageAdminRegistryEventBody merge_storage_admin_registry_event_body = 10;
+        ///     `MergeRentRegistryEventBody` `merge_rent_registry_event_body` = 9;
+        ///     `MergeStorageAdminRegistryEventBody` `merge_storage_admin_registry_event_body` = 10;
         #[prost(message, tag = "11")]
         MergeOnChainEventBody(super::MergeOnChainEventBody),
         #[prost(message, tag = "13")]
@@ -1529,34 +1561,36 @@ pub enum HubEventType {
     PruneMessage = 2,
     RevokeMessage = 3,
     /// Deprecated
-    ///   HUB_EVENT_TYPE_MERGE_ID_REGISTRY_EVENT = 4;
-    ///   HUB_EVENT_TYPE_MERGE_NAME_REGISTRY_EVENT = 5;
+    ///   `HUB_EVENT_TYPE_MERGE_ID_REGISTRY_EVENT` = 4;
+    ///   `HUB_EVENT_TYPE_MERGE_NAME_REGISTRY_EVENT` = 5;
     MergeUsernameProof = 6,
     /// Deprecated
-    ///   HUB_EVENT_TYPE_MERGE_RENT_REGISTRY_EVENT = 7;
-    ///   HUB_EVENT_TYPE_MERGE_STORAGE_ADMIN_REGISTRY_EVENT = 8;
+    ///   `HUB_EVENT_TYPE_MERGE_RENT_REGISTRY_EVENT` = 7;
+    ///   `HUB_EVENT_TYPE_MERGE_STORAGE_ADMIN_REGISTRY_EVENT` = 8;
     MergeOnChainEvent = 9,
     MergeFailure = 10,
     BlockConfirmed = 11,
 }
 impl HubEventType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            HubEventType::None => "HUB_EVENT_TYPE_NONE",
-            HubEventType::MergeMessage => "HUB_EVENT_TYPE_MERGE_MESSAGE",
-            HubEventType::PruneMessage => "HUB_EVENT_TYPE_PRUNE_MESSAGE",
-            HubEventType::RevokeMessage => "HUB_EVENT_TYPE_REVOKE_MESSAGE",
-            HubEventType::MergeUsernameProof => "HUB_EVENT_TYPE_MERGE_USERNAME_PROOF",
-            HubEventType::MergeOnChainEvent => "HUB_EVENT_TYPE_MERGE_ON_CHAIN_EVENT",
-            HubEventType::MergeFailure => "HUB_EVENT_TYPE_MERGE_FAILURE",
-            HubEventType::BlockConfirmed => "HUB_EVENT_TYPE_BLOCK_CONFIRMED",
+            Self::None => "HUB_EVENT_TYPE_NONE",
+            Self::MergeMessage => "HUB_EVENT_TYPE_MERGE_MESSAGE",
+            Self::PruneMessage => "HUB_EVENT_TYPE_PRUNE_MESSAGE",
+            Self::RevokeMessage => "HUB_EVENT_TYPE_REVOKE_MESSAGE",
+            Self::MergeUsernameProof => "HUB_EVENT_TYPE_MERGE_USERNAME_PROOF",
+            Self::MergeOnChainEvent => "HUB_EVENT_TYPE_MERGE_ON_CHAIN_EVENT",
+            Self::MergeFailure => "HUB_EVENT_TYPE_MERGE_FAILURE",
+            Self::BlockConfirmed => "HUB_EVENT_TYPE_BLOCK_CONFIRMED",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "HUB_EVENT_TYPE_NONE" => Some(Self::None),
@@ -1651,7 +1685,7 @@ pub struct SubscribeRequest {
     pub event_types: ::prost::alloc::vec::Vec<i32>,
     #[prost(uint64, optional, tag = "2")]
     pub from_id: ::core::option::Option<u64>,
-    ///   optional uint32 total_shards = 3; // Not required for snapchain
+    ///   optional uint32 `total_shards` = 3; // Not required for snapchain
     #[prost(uint32, optional, tag = "4")]
     pub shard_index: ::core::option::Option<u32>,
 }
@@ -2145,23 +2179,25 @@ pub enum StoreType {
     StorageLends = 7,
 }
 impl StoreType {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] 
+    pub const fn as_str_name(&self) -> &'static str {
         match self {
-            StoreType::None => "STORE_TYPE_NONE",
-            StoreType::Casts => "STORE_TYPE_CASTS",
-            StoreType::Links => "STORE_TYPE_LINKS",
-            StoreType::Reactions => "STORE_TYPE_REACTIONS",
-            StoreType::UserData => "STORE_TYPE_USER_DATA",
-            StoreType::Verifications => "STORE_TYPE_VERIFICATIONS",
-            StoreType::UsernameProofs => "STORE_TYPE_USERNAME_PROOFS",
-            StoreType::StorageLends => "STORE_TYPE_STORAGE_LENDS",
+            Self::None => "STORE_TYPE_NONE",
+            Self::Casts => "STORE_TYPE_CASTS",
+            Self::Links => "STORE_TYPE_LINKS",
+            Self::Reactions => "STORE_TYPE_REACTIONS",
+            Self::UserData => "STORE_TYPE_USER_DATA",
+            Self::Verifications => "STORE_TYPE_VERIFICATIONS",
+            Self::UsernameProofs => "STORE_TYPE_USERNAME_PROOFS",
+            Self::StorageLends => "STORE_TYPE_STORAGE_LENDS",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "STORE_TYPE_NONE" => Some(Self::None),
@@ -2179,7 +2215,7 @@ impl StoreType {
 /// Generated client implementations.
 pub mod hub_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
+    use tonic::codegen::{StdError, Body, Bytes, http, InterceptedService, CompressionEncoding, GrpcMethod};
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
     pub struct HubServiceClient<T> {
@@ -2834,7 +2870,7 @@ pub mod hub_service_client {
                 .insert(GrpcMethod::new("HubService", "GetVerificationsByFid"));
             self.inner.unary(req, path, codec).await
         }
-        /// OnChain Events
+        /// `OnChain` Events
         pub async fn get_on_chain_signer(
             &mut self,
             request: impl tonic::IntoRequest<super::SignerRequest>,
@@ -3255,8 +3291,8 @@ pub mod hub_service_client {
 /// Generated server implementations.
 pub mod hub_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with HubServiceServer.
+    use tonic::codegen::{async_trait, EnabledCompressionEncodings, Arc, InterceptedService, CompressionEncoding, http, Body, StdError, BoxFuture, Context, Poll, empty_body};
+    /// Generated trait containing gRPC methods that should be implemented for use with `HubServiceServer`.
     #[async_trait]
     pub trait HubService: Send + Sync + 'static {
         /// Write API
@@ -3279,7 +3315,7 @@ pub mod hub_service_server {
             tonic::Response<super::ValidationResponse>,
             tonic::Status,
         >;
-        /// Server streaming response type for the GetBlocks method.
+        /// Server streaming response type for the `GetBlocks` method.
         type GetBlocksStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::Block, tonic::Status>,
             >
@@ -3419,7 +3455,7 @@ pub mod hub_service_server {
             tonic::Response<super::MessagesResponse>,
             tonic::Status,
         >;
-        /// OnChain Events
+        /// `OnChain` Events
         async fn get_on_chain_signer(
             &self,
             request: tonic::Request<super::SignerRequest>,
@@ -3578,7 +3614,7 @@ pub mod hub_service_server {
         ///
         /// Default: `4MB`
         #[must_use]
-        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+        pub const fn max_decoding_message_size(mut self, limit: usize) -> Self {
             self.max_decoding_message_size = Some(limit);
             self
         }
@@ -3586,7 +3622,7 @@ pub mod hub_service_server {
         ///
         /// Default: `usize::MAX`
         #[must_use]
-        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+        pub const fn max_encoding_message_size(mut self, limit: usize) -> Self {
             self.max_encoding_message_size = Some(limit);
             self
         }

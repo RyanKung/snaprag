@@ -200,7 +200,7 @@ impl Database {
     /// Record user activity - DEPRECATED
     /// This function is no longer used as `user_activity_timeline` table was removed
     #[deprecated(note = "user_activity_timeline table removed for performance")]
-    pub async fn record_user_activity(
+    pub fn record_user_activity(
         &self,
         _fid: i64,
         _activity_type: String,
@@ -215,7 +215,7 @@ impl Database {
 
     /// Batch insert user activities - DEPRECATED
     #[deprecated(note = "user_activity_timeline table removed for performance")]
-    pub async fn batch_insert_activities(
+    pub fn batch_insert_activities(
         &self,
         _activities: Vec<(i64, String, Option<serde_json::Value>, i64, Option<Vec<u8>>)>,
     ) -> Result<()> {

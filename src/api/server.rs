@@ -92,7 +92,7 @@ pub async fn serve_api(
         info!("  Max entries: {}", config.cache.max_entries);
 
         // Start background cleanup task
-        cache_service.clone().start_cleanup_task().await;
+        cache_service.clone().start_cleanup_task();
         info!("✅ Cache cleanup task started");
     } else {
         info!("⚠️ Cache service disabled in configuration");

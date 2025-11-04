@@ -676,13 +676,13 @@ impl LocalGPUClient {
         ))
     }
 
-    pub async fn generate(&self, _text: &str) -> Result<Vec<f32>> {
+    pub fn generate(&self, _text: &str) -> Result<Vec<f32>> {
         Err(SnapragError::ConfigError(
             "Local GPU support not compiled. Enable 'local-gpu' feature to use local GPU embeddings.".to_string()
         ))
     }
 
-    pub async fn generate_batch(&self, _texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
+    pub fn generate_batch(&self, _texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
         Err(SnapragError::ConfigError(
             "Local GPU support not compiled. Enable 'local-gpu' feature to use local GPU embeddings.".to_string()
         ))

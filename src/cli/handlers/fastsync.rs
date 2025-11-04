@@ -58,7 +58,7 @@ async fn handle_fastsync_enable(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     // Step 2: Apply PostgreSQL optimization
     println!("\n⚡ Step 2: Applying PostgreSQL optimization...");
-    apply_postgresql_optimization(db).await?;
+    apply_postgresql_optimization(db)?;
 
     println!("\n✅ Fast Sync Mode enabled!");
     println!("   🚀 ULTRA TURBO MODE: All non-essential indexes dropped");
@@ -105,7 +105,7 @@ async fn handle_fastsync_disable(snaprag: &SnapRag, force: bool) -> Result<()> {
 
     // Step 3: Restore PostgreSQL settings
     println!("\n⚙️  Step 3: Restoring PostgreSQL settings...");
-    restore_postgresql_settings(db).await?;
+    restore_postgresql_settings(db)?;
 
     // Step 4: Run VACUUM ANALYZE
     println!("\n🧹 Step 4: Running VACUUM ANALYZE...");
@@ -129,7 +129,7 @@ async fn handle_fastsync_status(snaprag: &SnapRag) -> Result<()> {
     // Check index status
     let index_status = check_index_status(db).await?;
     let autovacuum_status = check_autovacuum_status(db).await?;
-    let postgresql_status = check_postgresql_optimization(db).await?;
+    let postgresql_status = check_postgresql_optimization(db)?;
 
     // Determine current mode
     println!("🎯 Current Mode:");
@@ -239,7 +239,7 @@ async fn apply_ultra_turbo_mode(db: &sqlx::PgPool) -> Result<()> {
     Ok(())
 }
 
-async fn apply_postgresql_optimization(db: &sqlx::PgPool) -> Result<()> {
+fn apply_postgresql_optimization(_db: &sqlx::PgPool) -> Result<()> {
     println!("  ℹ️  PostgreSQL memory optimization skipped");
     println!("     (Memory settings should be managed manually by the user)");
     println!("     (Only indexes and autovacuum are optimized)");
@@ -327,7 +327,7 @@ async fn re_enable_autovacuum(db: &sqlx::PgPool) -> Result<()> {
     Ok(())
 }
 
-async fn restore_postgresql_settings(db: &sqlx::PgPool) -> Result<()> {
+fn restore_postgresql_settings(_db: &sqlx::PgPool) -> Result<()> {
     // Note: We don't restore PostgreSQL memory settings as they should be managed by the user
     // The user may have custom configurations that should be preserved
 
@@ -443,7 +443,7 @@ async fn check_autovacuum_status(db: &sqlx::PgPool) -> Result<AutovacuumStatus> 
     Ok(AutovacuumStatus { disabled_tables })
 }
 
-async fn check_postgresql_optimization(db: &sqlx::PgPool) -> Result<PostgresqlStatus> {
+const fn check_postgresql_optimization(_db: &sqlx::PgPool) -> Result<PostgresqlStatus> {
     // Since we no longer modify PostgreSQL memory settings,
     // we just return a default status
     Ok(PostgresqlStatus {
