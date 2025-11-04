@@ -126,7 +126,7 @@ mod tests {
         let config = AppConfig::default();
         let result = create_named_endpoint_service(&config, "nonexistent");
         assert!(result.is_err());
-        
+
         if let Err(e) = result {
             let err_msg = format!("{}", e);
             assert!(err_msg.contains("not found"));

@@ -6,7 +6,8 @@ use axum::extract::Path;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use tracing::error;
 use tracing::info;
 
@@ -326,7 +327,10 @@ pub async fn search_by_mbti_type(
 
     // This would require a database table to store MBTI results
     // For now, return empty results
-    info!("MBTI search for type {} - feature requires database persistence", mbti_upper);
+    info!(
+        "MBTI search for type {} - feature requires database persistence",
+        mbti_upper
+    );
     Ok(Json(ApiResponse::success(vec![])))
 }
 
@@ -545,7 +549,8 @@ mod tests {
 
     #[test]
     fn test_mbti_compatibility_same_type() {
-        use crate::personality::{MbtiDimensions, MbtiProfile};
+        use crate::personality::MbtiDimensions;
+        use crate::personality::MbtiProfile;
 
         let profile1 = MbtiProfile {
             fid: 1,
@@ -574,7 +579,8 @@ mod tests {
 
     #[test]
     fn test_mbti_compatibility_opposite_types() {
-        use crate::personality::{MbtiDimensions, MbtiProfile};
+        use crate::personality::MbtiDimensions;
+        use crate::personality::MbtiProfile;
 
         let profile1 = MbtiProfile {
             fid: 1,

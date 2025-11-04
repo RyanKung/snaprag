@@ -236,18 +236,16 @@ async fn test_user_data_changes_crud() -> Result<()> {
         .await?;
 
     // Verify the change was recorded (use dynamic query)
-    let result: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_data_changes WHERE fid = $1"
-    )
-    .bind(test_fid)
-    .fetch_one(database.pool())
-    .await?;
+    let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_data_changes WHERE fid = $1")
+        .bind(test_fid)
+        .fetch_one(database.pool())
+        .await?;
 
     assert!(result.0 > 0, "Should have recorded the change");
 
     // Get the change details (use dynamic query)
     let change_result: (i16, Option<String>, String) = sqlx::query_as(
-        "SELECT data_type, old_value, new_value FROM user_data_changes WHERE fid = $1"
+        "SELECT data_type, old_value, new_value FROM user_data_changes WHERE fid = $1",
     )
     .bind(test_fid)
     .fetch_one(database.pool())
@@ -331,11 +329,11 @@ async fn test_user_activity_via_casts_and_links() -> Result<()> {
         .await?;
 
     assert!(!activities.is_empty(), "Should have activity records");
-    
+
     // Verify we have both types of activities
     let has_cast = activities.iter().any(|a| a.activity_type == "cast_add");
     let has_link = activities.iter().any(|a| a.activity_type == "link_add");
-    
+
     assert!(has_cast, "Should have cast_add activity");
     assert!(has_link, "Should have link_add activity");
 
@@ -391,12 +389,10 @@ async fn _disabled_test_database_transaction_rollback() -> Result<()> {
     .await?;
 
     // Verify it exists within the transaction (use dynamic query)
-    let result: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_profiles WHERE fid = $1"
-    )
-    .bind(test_fid)
-    .fetch_one(&mut *tx)
-    .await?;
+    let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_profiles WHERE fid = $1")
+        .bind(test_fid)
+        .fetch_one(&mut *tx)
+        .await?;
 
     assert!(result.0 > 0, "Should exist in transaction");
 
@@ -404,12 +400,10 @@ async fn _disabled_test_database_transaction_rollback() -> Result<()> {
     tx.rollback().await?;
 
     // Verify it doesn't exist after rollback (use dynamic query)
-    let final_result: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_profiles WHERE fid = $1"
-    )
-    .bind(test_fid)
-    .fetch_one(database.pool())
-    .await?;
+    let final_result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_profiles WHERE fid = $1")
+        .bind(test_fid)
+        .fetch_one(database.pool())
+        .await?;
 
     assert_eq!(final_result.0, 0, "Should not exist after rollback");
 
@@ -499,12 +493,10 @@ async fn test_database_concurrent_operations() -> Result<()> {
 // Helper functions for testing
 
 async fn verify_user_profile_exists(database: &Database, fid: i64) -> Result<bool> {
-    let result: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_profiles WHERE fid = $1"
-    )
-    .bind(fid)
-    .fetch_one(database.pool())
-    .await?;
+    let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_profiles WHERE fid = $1")
+        .bind(fid)
+        .fetch_one(database.pool())
+        .await?;
 
     Ok(result.0 > 0)
 }
@@ -513,15 +505,16 @@ async fn get_user_profile_data(
     database: &Database,
     fid: i64,
 ) -> Result<Option<(String, String, String)>> {
-    let result: Option<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT username, display_name, bio FROM user_profiles WHERE fid = $1"
-    )
-    .bind(fid)
-    .fetch_optional(database.pool())
-    .await?;
+    let result: Option<(Option<String>, Option<String>, Option<String>)> =
+        sqlx::query_as("SELECT username, display_name, bio FROM user_profiles WHERE fid = $1")
+            .bind(fid)
+            .fetch_optional(database.pool())
+            .await?;
 
     match result {
-        Some((Some(username), Some(display_name), Some(bio))) => Ok(Some((username, display_name, bio))),
+        Some((Some(username), Some(display_name), Some(bio))) => {
+            Ok(Some((username, display_name, bio)))
+        }
         _ => Ok(None),
     }
 }

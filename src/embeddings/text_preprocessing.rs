@@ -388,9 +388,9 @@ mod tests {
         let result1 = truncate_text("hello world", 5);
         assert!(result1.len() <= 5);
         assert!(result1.starts_with("hello") || result1 == "hello");
-        
+
         assert_eq!(truncate_text("hello world", 20), "hello world");
-        
+
         let result2 = truncate_text("hello world test", 10);
         assert!(result2.len() <= 10);
     }
