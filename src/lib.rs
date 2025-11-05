@@ -452,18 +452,18 @@ impl SnapRag {
                         let signal = if force { 9 } else { 15 }; // SIGKILL or SIGTERM
                         tracing::info!("Sending signal {} to process {}", signal, pid);
 
-                        let result = unsafe { libc::kill(pid as libc::pid_t, signal) };
+                        let result = unsafe { libc::kill(pid.cast_signed(), signal) };
 
                         if result == 0 {
                             tracing::info!("✅ Signal sent successfully");
                             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
                             // Verify process is gone
-                            let check = unsafe { libc::kill(pid as libc::pid_t, 0) };
+                            let check = unsafe { libc::kill(pid.cast_signed(), 0) };
                             if check == 0 {
                                 tracing::warn!("Process still running, sending SIGKILL");
                                 unsafe {
-                                    libc::kill(pid as libc::pid_t, 9);
+                                    libc::kill(pid.cast_signed(), 9);
                                 }
                                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                             }
