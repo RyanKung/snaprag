@@ -79,22 +79,28 @@ impl ContextAssembler {
         let mut parts = Vec::new();
 
         if let Some(username) = &profile.username {
-            parts.push(format!("Username: {username}"));
+            let part = format!("Username: {username}");
+            parts.push(part);
         }
         if let Some(display_name) = &profile.display_name {
-            parts.push(format!("Display Name: {display_name}"));
+            let part = format!("Display Name: {display_name}");
+            parts.push(part);
         }
         if let Some(bio) = &profile.bio {
-            parts.push(format!("Bio: {bio}"));
+            let part = format!("Bio: {bio}");
+            parts.push(part);
         }
         if let Some(location) = &profile.location {
-            parts.push(format!("Location: {location}"));
+            let part = format!("Location: {location}");
+            parts.push(part);
         }
         if let Some(twitter) = &profile.twitter_username {
-            parts.push(format!("Twitter: {twitter}"));
+            let part = format!("Twitter: {twitter}");
+            parts.push(part);
         }
         if let Some(github) = &profile.github_username {
-            parts.push(format!("GitHub: {github}"));
+            let part = format!("GitHub: {github}");
+            parts.push(part);
         }
 
         parts.join("\n")

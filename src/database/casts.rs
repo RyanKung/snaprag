@@ -38,27 +38,32 @@ impl Database {
             let mut param_idx = 1;
 
             if let Some(_fid) = query.fid {
-                conditions.push(format!("fid = ${param_idx}"));
+                let condition = format!("fid = ${param_idx}");
+                conditions.push(condition);
                 param_idx += 1;
             }
 
             if let Some(_text_search) = &query.text_search {
-                conditions.push(format!("text ILIKE ${param_idx}"));
+                let condition = format!("text ILIKE ${param_idx}");
+                conditions.push(condition);
                 param_idx += 1;
             }
 
             if let Some(_parent_hash) = &query.parent_hash {
-                conditions.push(format!("parent_hash = ${param_idx}"));
+                let condition = format!("parent_hash = ${param_idx}");
+                conditions.push(condition);
                 param_idx += 1;
             }
 
             if let Some(_start_timestamp) = query.start_timestamp {
-                conditions.push(format!("timestamp >= ${param_idx}"));
+                let condition = format!("timestamp >= ${param_idx}");
+                conditions.push(condition);
                 param_idx += 1;
             }
 
             if let Some(_end_timestamp) = query.end_timestamp {
-                conditions.push(format!("timestamp <= ${param_idx}"));
+                let condition = format!("timestamp <= ${param_idx}");
+                conditions.push(condition);
                 // param_idx would be incremented here if we had more conditions
             }
 
