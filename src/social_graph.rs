@@ -3,6 +3,8 @@
 //! This module analyzes user relationships and interactions to build
 //! a comprehensive social profile for better AI understanding.
 
+#![allow(clippy::cast_precision_loss)] // Acceptable for network analysis and statistics
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;

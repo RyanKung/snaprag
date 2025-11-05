@@ -9,6 +9,8 @@
 //! - T/F: Thinking vs Feeling
 //! - J/P: Judging vs Perceiving
 
+#![allow(clippy::cast_precision_loss)] // Acceptable for statistical/personality score calculations
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
