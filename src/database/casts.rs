@@ -278,11 +278,11 @@ impl Database {
             )
             .bind(message_hash)
             .bind(fid)
-            .bind(*chunk_index as i32)
+            .bind(i32::try_from(*chunk_index).unwrap_or(i32::MAX))
             .bind(chunk_text)
             .bind(strategy)
             .bind(embedding)
-            .bind(chunk_text.len() as i32)
+            .bind(i32::try_from(chunk_text.len()).unwrap_or(i32::MAX))
             .execute(&mut *tx)
             .await?;
         }
@@ -321,8 +321,8 @@ impl Database {
         .bind(text)
         .bind(embedding)
         .bind(aggregation_strategy)
-        .bind(chunk_count as i32)
-        .bind(total_text_length as i32)
+        .bind(i32::try_from(chunk_count).unwrap_or(i32::MAX))
+        .bind(i32::try_from(total_text_length).unwrap_or(i32::MAX))
         .execute(&self.pool)
         .await?;
 

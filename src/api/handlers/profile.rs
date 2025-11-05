@@ -119,6 +119,7 @@ pub async fn list_profiles(
         location: None,
         twitter_username: None,
         github_username: None,
+        #[allow(clippy::cast_possible_wrap)] // Pagination limit is guaranteed to fit in i64
         limit: Some(params.limit as i64),
         offset: None,
         start_timestamp: None,

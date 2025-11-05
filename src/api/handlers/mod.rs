@@ -151,6 +151,7 @@ pub async fn fetch_users_batch(
 
     for fid in req.fids {
         // Check if user already exists
+        #[allow(clippy::cast_possible_wrap)] // FID is guaranteed to be positive and fit in i64
         let existing_profile = state
             .database
             .get_user_profile(fid as i64)
@@ -158,6 +159,7 @@ pub async fn fetch_users_batch(
             .ok()
             .flatten();
         if let Some(profile) = existing_profile {
+            #[allow(clippy::cast_possible_wrap)] // FID is guaranteed to be positive and fit in i64
             let casts_count = state
                 .database
                 .count_casts_by_fid(fid as i64)
@@ -185,6 +187,8 @@ pub async fn fetch_users_batch(
         match loader.fetch_user_profile(fid).await {
             Ok(profile) => {
                 info!("✅ Successfully fetched user profile for FID {}", fid);
+                #[allow(clippy::cast_possible_wrap)]
+                // FID is guaranteed to be positive and fit in i64
                 let casts_count = state
                     .database
                     .count_casts_by_fid(fid as i64)

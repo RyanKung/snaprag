@@ -46,6 +46,7 @@ impl Retriever {
         let query_embedding = self.embedding_service.generate(query).await?;
 
         // Search in database
+        #[allow(clippy::cast_possible_wrap)] // Limit is guaranteed to be positive and reasonable
         let profiles = self
             .database
             .semantic_search_profiles(query_embedding, limit as i64, threshold)
@@ -83,6 +84,7 @@ impl Retriever {
                 location: None,
                 twitter_username: None,
                 github_username: None,
+                #[allow(clippy::cast_possible_wrap)] // Limit is guaranteed to be positive and reasonable
                 limit: Some(limit as i64),
                 offset: None,
                 start_timestamp: None,
@@ -114,6 +116,7 @@ impl Retriever {
         let query_embedding = self.embedding_service.generate(query).await?;
 
         // Perform hybrid search
+        #[allow(clippy::cast_possible_wrap)] // Limit is guaranteed to be positive and reasonable
         let profiles = self
             .database
             .hybrid_search_profiles(Some(query_embedding), Some(query.to_string()), limit as i64)

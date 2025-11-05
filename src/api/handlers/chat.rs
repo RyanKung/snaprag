@@ -185,6 +185,7 @@ pub async fn create_chat_session(
         session.session_id, fid
     );
 
+    #[allow(clippy::cast_possible_wrap)] // FID is guaranteed to be positive and fit in i64
     Ok(Json(ApiResponse::success(CreateChatResponse {
         session_id: session.session_id,
         fid: fid as i64,
@@ -239,6 +240,7 @@ pub async fn send_chat_message(
 
     // Search for relevant casts
     let search_limit = (session.context_limit * 5).max(100);
+    #[allow(clippy::cast_possible_wrap)] // Limit is guaranteed to be positive and reasonable
     let search_results = match state
         .database
         .semantic_search_casts_simple(query_embedding, search_limit as i64, Some(0.3))
@@ -258,6 +260,7 @@ pub async fn send_chat_message(
         .collect();
 
     // Calculate current timestamp
+    #[allow(clippy::cast_possible_wrap)] // Unix timestamp will fit in i64 until year 292277026596
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
