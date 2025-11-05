@@ -121,94 +121,120 @@ impl CacheService {
 
     /// Get cached profile by FID
     pub async fn get_profile(&self, fid: i64) -> Option<ProfileResponse> {
-        let mut cache = self.profile_cache.write().await;
+        let result = {
+            let mut cache = self.profile_cache.write().await;
 
-        if let Some(entry) = cache.get(&fid) {
-            if entry.is_expired() {
-                cache.remove(&fid);
-                self.increment_miss().await;
-                tracing::debug!("Profile cache miss (expired) for FID {}", fid);
-                return None;
+            if let Some(entry) = cache.get(&fid) {
+                if entry.is_expired() {
+                    cache.remove(&fid);
+                    None
+                } else {
+                    Some(entry.data.clone())
+                }
+            } else {
+                None
             }
+        }; // Lock dropped here
 
+        // Update stats after releasing lock
+        if result.is_some() {
             self.increment_hit().await;
             tracing::debug!("Profile cache hit for FID {}", fid);
-            return Some(entry.data.clone());
+        } else {
+            self.increment_miss().await;
+            tracing::debug!("Profile cache miss for FID {}", fid);
         }
 
-        self.increment_miss().await;
-        tracing::debug!("Profile cache miss for FID {}", fid);
-        None
+        result
     }
 
     /// Cache a profile response
     pub async fn set_profile(&self, fid: i64, profile: ProfileResponse) {
-        let mut cache = self.profile_cache.write().await;
+        {
+            let mut cache = self.profile_cache.write().await;
 
-        // Check if we need to evict entries
-        if cache.len() >= self.config.max_entries {
-            self.evict_oldest_entries(&mut cache).await;
-        }
+            // Check if we need to evict entries
+            if cache.len() >= self.config.max_entries {
+                self.evict_oldest_entries(&mut cache).await;
+            }
 
-        let entry = CacheEntry::new(profile, self.config.profile_ttl);
-        cache.insert(fid, entry);
+            let entry = CacheEntry::new(profile, self.config.profile_ttl);
+            cache.insert(fid, entry);
+        } // Lock dropped here
+
         tracing::debug!("Cached profile for FID {}", fid);
     }
 
     /// Get cached social analysis by FID
     pub async fn get_social(&self, fid: i64) -> Option<SocialProfile> {
-        let mut cache = self.social_cache.write().await;
+        let result = {
+            let mut cache = self.social_cache.write().await;
 
-        if let Some(entry) = cache.get(&fid) {
-            if entry.is_expired() {
-                cache.remove(&fid);
-                self.increment_miss().await;
-                tracing::debug!("Social cache miss (expired) for FID {}", fid);
-                return None;
+            if let Some(entry) = cache.get(&fid) {
+                if entry.is_expired() {
+                    cache.remove(&fid);
+                    None
+                } else {
+                    Some(entry.data.clone())
+                }
+            } else {
+                None
             }
+        }; // Lock dropped here
 
+        // Update stats after releasing lock
+        if result.is_some() {
             self.increment_hit().await;
             tracing::debug!("Social cache hit for FID {}", fid);
-            return Some(entry.data.clone());
+        } else {
+            self.increment_miss().await;
+            tracing::debug!("Social cache miss for FID {}", fid);
         }
 
-        self.increment_miss().await;
-        tracing::debug!("Social cache miss for FID {}", fid);
-        None
+        result
     }
 
     /// Cache a social analysis response
     pub async fn set_social(&self, fid: i64, social: SocialProfile) {
-        let mut cache = self.social_cache.write().await;
+        {
+            let mut cache = self.social_cache.write().await;
 
-        // Check if we need to evict entries
-        if cache.len() >= self.config.max_entries {
-            self.evict_oldest_entries(&mut cache).await;
-        }
+            // Check if we need to evict entries
+            if cache.len() >= self.config.max_entries {
+                self.evict_oldest_entries(&mut cache).await;
+            }
 
-        let entry = CacheEntry::new(social, self.config.social_ttl);
-        cache.insert(fid, entry);
+            let entry = CacheEntry::new(social, self.config.social_ttl);
+            cache.insert(fid, entry);
+        } // Lock dropped here
+
         tracing::debug!("Cached social analysis for FID {}", fid);
     }
 
     /// Invalidate cached profile for a FID
     pub async fn invalidate_profile(&self, fid: i64) {
-        let mut cache = self.profile_cache.write().await;
-        cache.remove(&fid);
+        {
+            let mut cache = self.profile_cache.write().await;
+            cache.remove(&fid);
+        } // Lock dropped here
         debug!("Invalidated profile cache for FID {}", fid);
     }
 
     /// Invalidate cached social analysis for a FID
     pub async fn invalidate_social(&self, fid: i64) {
-        let mut cache = self.social_cache.write().await;
-        cache.remove(&fid);
+        {
+            let mut cache = self.social_cache.write().await;
+            cache.remove(&fid);
+        } // Lock dropped here
         debug!("Invalidated social cache for FID {}", fid);
     }
 
     /// Invalidate cached MBTI analysis for a FID
     pub async fn invalidate_mbti(&self, fid: i64) {
-        let mut cache = self.mbti_cache.write().await;
-        cache.remove(&fid);
+        {
+            let mut cache = self.mbti_cache.write().await;
+            cache.remove(&fid);
+        } // Lock dropped here
         debug!("Invalidated MBTI cache for FID {}", fid);
     }
 
