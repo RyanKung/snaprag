@@ -239,6 +239,10 @@ impl Default for X402Config {
 
 impl X402Config {
     /// Load x402 configuration from a TOML file
+    ///
+    /// # Errors
+    /// - File I/O errors (file not found, permission denied)
+    /// - TOML parsing errors (invalid syntax, missing required fields)
     pub fn from_file<P: AsRef<Path>>(path: P) -> crate::Result<Self> {
         let content = std::fs::read_to_string(path).map_err(crate::SnapRagError::Io)?;
         let config: Self = toml::from_str(&content).map_err(crate::SnapRagError::TomlParsing)?;
@@ -266,6 +270,11 @@ pub struct AppConfig {
 
 impl AppConfig {
     /// Load configuration from a TOML file
+    ///
+    /// # Errors
+    /// - File I/O errors (file not found, permission denied, invalid path)
+    /// - TOML parsing errors (invalid syntax, type mismatches, missing required fields)
+    /// - Configuration validation errors (invalid URLs, missing required config sections)
     pub fn from_file<P: AsRef<Path>>(path: P) -> crate::Result<Self> {
         let content = std::fs::read_to_string(path).map_err(crate::SnapRagError::Io)?;
 
@@ -275,6 +284,12 @@ impl AppConfig {
     }
 
     /// Load configuration from default config file path
+    ///
+    /// # Errors
+    /// - No config file found (neither config.toml nor config.example.toml exists)
+    /// - File I/O errors (permission denied, corrupted file)
+    /// - TOML parsing errors (invalid syntax, missing required fields)
+    /// - Optional payment.toml parsing errors (logged as warnings, doesn't fail)
     pub fn load() -> crate::Result<Self> {
         // Try to load from config.toml first, then fall back to config.example.toml
         let mut config = if Path::new("config.toml").exists() {
