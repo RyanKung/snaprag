@@ -34,6 +34,7 @@ async fn parse_user_identifier(
                 crate::SnapRagError::Custom(format!("Username @{username} not found in database"))
             })?;
 
+        #[allow(clippy::cast_sign_loss)] // FID is guaranteed to be positive in database
         Ok(profile.fid as u64)
     } else {
         // Try to parse as FID number
@@ -148,6 +149,7 @@ pub async fn create_chat_session(
     };
 
     // Get user profile
+    #[allow(clippy::cast_possible_wrap)] // FID from session is guaranteed to fit in i64
     let profile = match state.database.get_user_profile(fid as i64).await {
         Ok(Some(p)) => p,
         Ok(None) => {
@@ -160,6 +162,8 @@ pub async fn create_chat_session(
     };
 
     // Count user's casts - optimized query
+    #[allow(clippy::cast_possible_wrap)] // FID from session is guaranteed to fit in i64
+    #[allow(clippy::cast_sign_loss)] // COUNT result is always non-negative
     let casts_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM casts WHERE fid = $1")
         .bind(fid as i64)
         .fetch_one(state.database.pool())
@@ -167,6 +171,7 @@ pub async fn create_chat_session(
         .unwrap_or(0) as usize;
 
     // Create session
+    #[allow(clippy::cast_possible_wrap)] // FID from session is guaranteed to fit in i64
     let session = state.session_manager.create_session(
         fid as i64,
         profile.username.clone(),

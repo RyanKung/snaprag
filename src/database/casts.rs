@@ -179,8 +179,8 @@ impl Database {
             LIMIT $1 OFFSET $2
             ",
         )
-        .bind(limit as i64)
-        .bind(offset as i64)
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+        .bind(i64::try_from(offset).unwrap_or(i64::MAX))
         .fetch_all(&self.pool)
         .await?;
 
@@ -459,7 +459,7 @@ impl Database {
                 .partial_cmp(&a.similarity)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        results.truncate(limit as usize);
+        results.truncate(usize::try_from(limit).unwrap_or(usize::MAX));
 
         Ok(results)
     }
