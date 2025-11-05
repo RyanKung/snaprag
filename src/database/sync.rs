@@ -19,11 +19,11 @@ impl Database {
         let row = sqlx::query_scalar::<_, Option<i64>>(
             "SELECT last_processed_height FROM sync_progress WHERE shard_id = $1",
         )
-        .bind(shard_id as i32)
+        .bind(i32::try_from(shard_id).unwrap_or(i32::MAX))
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.flatten().map_or(0, |h| h as u64))
+        Ok(row.flatten().map_or(0, |h| h.max(0) as u64))
     }
 
     /// Update the last processed height for a shard
@@ -39,8 +39,8 @@ impl Database {
                 updated_at = NOW()
             ",
         )
-        .bind(shard_id as i32)
-        .bind(height as i64)
+        .bind(i32::try_from(shard_id).unwrap_or(i32::MAX))
+        .bind(i64::try_from(height).unwrap_or(i64::MAX))
         .execute(&self.pool)
         .await?;
 
@@ -65,7 +65,7 @@ impl Database {
                 updated_at = NOW()
             ",
         )
-        .bind(shard_id as i32)
+        .bind(i32::try_from(shard_id).unwrap_or(i32::MAX))
         .bind(status)
         .bind(error_message)
         .execute(&self.pool)
@@ -97,11 +97,11 @@ impl Database {
             ",
         )
         .bind(message_hash)
-        .bind(shard_id as i32)
-        .bind(block_height as i64)
-        .bind(transaction_fid as i64)
+        .bind(i32::try_from(shard_id).unwrap_or(i32::MAX))
+        .bind(i64::try_from(block_height).unwrap_or(i64::MAX))
+        .bind(i64::try_from(transaction_fid).unwrap_or(i64::MAX))
         .bind(message_type)
-        .bind(fid as i64)
+        .bind(i64::try_from(fid).unwrap_or(i64::MAX))
         .bind(timestamp)
         .bind(content_hash)
         .execute(&self.pool)
@@ -140,9 +140,9 @@ impl Database {
                 last_updated = NOW()
             ",
         )
-        .bind(shard_id as i32)
-        .bind(total_messages as i64)
-        .bind(total_blocks as i64)
+        .bind(i32::try_from(shard_id).unwrap_or(i32::MAX))
+        .bind(i64::try_from(total_messages).unwrap_or(i64::MAX))
+        .bind(i64::try_from(total_blocks).unwrap_or(i64::MAX))
         .execute(&self.pool)
         .await?;
 
