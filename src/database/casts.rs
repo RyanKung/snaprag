@@ -1,3 +1,5 @@
+#![allow(clippy::cast_possible_truncation)] // Vec lengths and batch sizes won't exceed u32::MAX
+
 use super::Database;
 use crate::models::Cast;
 use crate::models::CastQuery;

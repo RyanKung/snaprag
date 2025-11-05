@@ -3,6 +3,8 @@
 //! This module provides tools to migrate existing single-vector embeddings
 //! to the new multi-vector format while maintaining backward compatibility.
 
+#![allow(clippy::cast_possible_truncation)] // Batch sizes are reasonable and won't exceed limits
+
 use tracing::error;
 use tracing::info;
 use tracing::warn;
