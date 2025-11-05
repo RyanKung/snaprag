@@ -9,6 +9,11 @@ use crate::SnapRagError;
 
 impl Database {
     /// Upsert a user profile (event-sourcing: insert field changes)
+    ///
+    /// # Errors
+    /// - Database connection errors
+    /// - SQL execution errors (constraint violations, transaction failures)
+    /// - Hash generation errors (extremely unlikely)
     pub async fn upsert_user_profile(&self, profile: &UserProfile) -> Result<()> {
         // Insert each non-null field as a separate change event
         use std::collections::hash_map::DefaultHasher;
@@ -116,7 +121,11 @@ impl Database {
             .and_then(|opt| opt.ok_or_else(|| SnapRagError::UserNotFound(request.fid as u64)))
     }
 
-    /// Get user profile by FID  
+    /// Get user profile by FID
+    ///
+    /// # Errors
+    /// - Database connection errors
+    /// - SQL query execution errors
     pub async fn get_user_profile(&self, fid: i64) -> Result<Option<UserProfile>> {
         let profile = sqlx::query_as("SELECT * FROM user_profiles WHERE fid = $1")
             .bind(fid)
@@ -296,6 +305,11 @@ impl Database {
     }
 
     /// List user profiles with filters
+    ///
+    /// # Errors
+    /// - Database connection errors
+    /// - SQL query execution errors
+    /// - Invalid query parameters (malformed search terms, invalid sort fields)
     pub async fn list_user_profiles(&self, query: UserProfileQuery) -> Result<Vec<UserProfile>> {
         // Note: Filters are currently applied in the handler layer
         // This function returns all profiles with basic pagination

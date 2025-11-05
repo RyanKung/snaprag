@@ -5,6 +5,11 @@ use crate::Result;
 
 impl Database {
     /// List links with filters - using window function to get latest event per (fid, `target_fid`)
+    ///
+    /// # Errors
+    /// - Database connection errors
+    /// - SQL query execution errors
+    /// - Invalid query parameters
     pub async fn list_links(&self, query: LinkQuery) -> Result<Vec<Link>> {
         let limit = query.limit.unwrap_or(100);
         let offset = query.offset.unwrap_or(0);
@@ -153,6 +158,10 @@ impl Database {
     }
 
     /// Get followers for a user (only active, using window function)
+    ///
+    /// # Errors
+    /// - Database connection errors
+    /// - SQL query execution errors
     pub async fn get_followers(
         &self,
         target_fid: i64,
