@@ -28,17 +28,15 @@ impl UserNameType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::UsernameTypeNone => "USERNAME_TYPE_NONE",
-            Self::UsernameTypeFname => "USERNAME_TYPE_FNAME",
-            Self::UsernameTypeEnsL1 => "USERNAME_TYPE_ENS_L1",
-            Self::UsernameTypeBasename => "USERNAME_TYPE_BASENAME",
+            UserNameType::UsernameTypeNone => "USERNAME_TYPE_NONE",
+            UserNameType::UsernameTypeFname => "USERNAME_TYPE_FNAME",
+            UserNameType::UsernameTypeEnsL1 => "USERNAME_TYPE_ENS_L1",
+            UserNameType::UsernameTypeBasename => "USERNAME_TYPE_BASENAME",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "USERNAME_TYPE_NONE" => Some(Self::UsernameTypeNone),
@@ -357,15 +355,13 @@ impl HashScheme {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "HASH_SCHEME_NONE",
-            Self::Blake3 => "HASH_SCHEME_BLAKE3",
+            HashScheme::None => "HASH_SCHEME_NONE",
+            HashScheme::Blake3 => "HASH_SCHEME_BLAKE3",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "HASH_SCHEME_NONE" => Some(Self::None),
@@ -389,16 +385,14 @@ impl SignatureScheme {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "SIGNATURE_SCHEME_NONE",
-            Self::Ed25519 => "SIGNATURE_SCHEME_ED25519",
-            Self::Eip712 => "SIGNATURE_SCHEME_EIP712",
+            SignatureScheme::None => "SIGNATURE_SCHEME_NONE",
+            SignatureScheme::Ed25519 => "SIGNATURE_SCHEME_ED25519",
+            SignatureScheme::Eip712 => "SIGNATURE_SCHEME_EIP712",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "SIGNATURE_SCHEME_NONE" => Some(Self::None),
@@ -448,29 +442,27 @@ impl MessageType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "MESSAGE_TYPE_NONE",
-            Self::CastAdd => "MESSAGE_TYPE_CAST_ADD",
-            Self::CastRemove => "MESSAGE_TYPE_CAST_REMOVE",
-            Self::ReactionAdd => "MESSAGE_TYPE_REACTION_ADD",
-            Self::ReactionRemove => "MESSAGE_TYPE_REACTION_REMOVE",
-            Self::LinkAdd => "MESSAGE_TYPE_LINK_ADD",
-            Self::LinkRemove => "MESSAGE_TYPE_LINK_REMOVE",
-            Self::VerificationAddEthAddress => {
+            MessageType::None => "MESSAGE_TYPE_NONE",
+            MessageType::CastAdd => "MESSAGE_TYPE_CAST_ADD",
+            MessageType::CastRemove => "MESSAGE_TYPE_CAST_REMOVE",
+            MessageType::ReactionAdd => "MESSAGE_TYPE_REACTION_ADD",
+            MessageType::ReactionRemove => "MESSAGE_TYPE_REACTION_REMOVE",
+            MessageType::LinkAdd => "MESSAGE_TYPE_LINK_ADD",
+            MessageType::LinkRemove => "MESSAGE_TYPE_LINK_REMOVE",
+            MessageType::VerificationAddEthAddress => {
                 "MESSAGE_TYPE_VERIFICATION_ADD_ETH_ADDRESS"
             }
-            Self::VerificationRemove => "MESSAGE_TYPE_VERIFICATION_REMOVE",
-            Self::UserDataAdd => "MESSAGE_TYPE_USER_DATA_ADD",
-            Self::UsernameProof => "MESSAGE_TYPE_USERNAME_PROOF",
-            Self::FrameAction => "MESSAGE_TYPE_FRAME_ACTION",
-            Self::LinkCompactState => "MESSAGE_TYPE_LINK_COMPACT_STATE",
-            Self::LendStorage => "MESSAGE_TYPE_LEND_STORAGE",
+            MessageType::VerificationRemove => "MESSAGE_TYPE_VERIFICATION_REMOVE",
+            MessageType::UserDataAdd => "MESSAGE_TYPE_USER_DATA_ADD",
+            MessageType::UsernameProof => "MESSAGE_TYPE_USERNAME_PROOF",
+            MessageType::FrameAction => "MESSAGE_TYPE_FRAME_ACTION",
+            MessageType::LinkCompactState => "MESSAGE_TYPE_LINK_COMPACT_STATE",
+            MessageType::LendStorage => "MESSAGE_TYPE_LEND_STORAGE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "MESSAGE_TYPE_NONE" => Some(Self::None),
@@ -510,17 +502,15 @@ impl FarcasterNetwork {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "FARCASTER_NETWORK_NONE",
-            Self::Mainnet => "FARCASTER_NETWORK_MAINNET",
-            Self::Testnet => "FARCASTER_NETWORK_TESTNET",
-            Self::Devnet => "FARCASTER_NETWORK_DEVNET",
+            FarcasterNetwork::None => "FARCASTER_NETWORK_NONE",
+            FarcasterNetwork::Mainnet => "FARCASTER_NETWORK_MAINNET",
+            FarcasterNetwork::Testnet => "FARCASTER_NETWORK_TESTNET",
+            FarcasterNetwork::Devnet => "FARCASTER_NETWORK_DEVNET",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "FARCASTER_NETWORK_NONE" => Some(Self::None),
@@ -566,30 +556,28 @@ impl UserDataType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "USER_DATA_TYPE_NONE",
-            Self::Pfp => "USER_DATA_TYPE_PFP",
-            Self::Display => "USER_DATA_TYPE_DISPLAY",
-            Self::Bio => "USER_DATA_TYPE_BIO",
-            Self::Url => "USER_DATA_TYPE_URL",
-            Self::Username => "USER_DATA_TYPE_USERNAME",
-            Self::Location => "USER_DATA_TYPE_LOCATION",
-            Self::Twitter => "USER_DATA_TYPE_TWITTER",
-            Self::Github => "USER_DATA_TYPE_GITHUB",
-            Self::Banner => "USER_DATA_TYPE_BANNER",
-            Self::UserDataPrimaryAddressEthereum => {
+            UserDataType::None => "USER_DATA_TYPE_NONE",
+            UserDataType::Pfp => "USER_DATA_TYPE_PFP",
+            UserDataType::Display => "USER_DATA_TYPE_DISPLAY",
+            UserDataType::Bio => "USER_DATA_TYPE_BIO",
+            UserDataType::Url => "USER_DATA_TYPE_URL",
+            UserDataType::Username => "USER_DATA_TYPE_USERNAME",
+            UserDataType::Location => "USER_DATA_TYPE_LOCATION",
+            UserDataType::Twitter => "USER_DATA_TYPE_TWITTER",
+            UserDataType::Github => "USER_DATA_TYPE_GITHUB",
+            UserDataType::Banner => "USER_DATA_TYPE_BANNER",
+            UserDataType::UserDataPrimaryAddressEthereum => {
                 "USER_DATA_PRIMARY_ADDRESS_ETHEREUM"
             }
-            Self::UserDataPrimaryAddressSolana => {
+            UserDataType::UserDataPrimaryAddressSolana => {
                 "USER_DATA_PRIMARY_ADDRESS_SOLANA"
             }
-            Self::ProfileToken => "USER_DATA_TYPE_PROFILE_TOKEN",
+            UserDataType::ProfileToken => "USER_DATA_TYPE_PROFILE_TOKEN",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "USER_DATA_TYPE_NONE" => Some(Self::None),
@@ -626,16 +614,14 @@ impl CastType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::Cast => "CAST",
-            Self::LongCast => "LONG_CAST",
-            Self::TenKCast => "TEN_K_CAST",
+            CastType::Cast => "CAST",
+            CastType::LongCast => "LONG_CAST",
+            CastType::TenKCast => "TEN_K_CAST",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "CAST" => Some(Self::Cast),
@@ -660,16 +646,14 @@ impl ReactionType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "REACTION_TYPE_NONE",
-            Self::Like => "REACTION_TYPE_LIKE",
-            Self::Recast => "REACTION_TYPE_RECAST",
+            ReactionType::None => "REACTION_TYPE_NONE",
+            ReactionType::Like => "REACTION_TYPE_LIKE",
+            ReactionType::Recast => "REACTION_TYPE_RECAST",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "REACTION_TYPE_NONE" => Some(Self::None),
@@ -691,15 +675,13 @@ impl Protocol {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::Ethereum => "PROTOCOL_ETHEREUM",
-            Self::Solana => "PROTOCOL_SOLANA",
+            Protocol::Ethereum => "PROTOCOL_ETHEREUM",
+            Protocol::Solana => "PROTOCOL_SOLANA",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "PROTOCOL_ETHEREUM" => Some(Self::Ethereum),
@@ -720,16 +702,14 @@ impl StorageUnitType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::UnitTypeLegacy => "UNIT_TYPE_LEGACY",
-            Self::UnitType2024 => "UNIT_TYPE_2024",
-            Self::UnitType2025 => "UNIT_TYPE_2025",
+            StorageUnitType::UnitTypeLegacy => "UNIT_TYPE_LEGACY",
+            StorageUnitType::UnitType2024 => "UNIT_TYPE_2024",
+            StorageUnitType::UnitType2025 => "UNIT_TYPE_2025",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNIT_TYPE_LEGACY" => Some(Self::UnitTypeLegacy),
@@ -849,19 +829,17 @@ impl OnChainEventType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::EventTypeNone => "EVENT_TYPE_NONE",
-            Self::EventTypeSigner => "EVENT_TYPE_SIGNER",
-            Self::EventTypeSignerMigrated => "EVENT_TYPE_SIGNER_MIGRATED",
-            Self::EventTypeIdRegister => "EVENT_TYPE_ID_REGISTER",
-            Self::EventTypeStorageRent => "EVENT_TYPE_STORAGE_RENT",
-            Self::EventTypeTierPurchase => "EVENT_TYPE_TIER_PURCHASE",
+            OnChainEventType::EventTypeNone => "EVENT_TYPE_NONE",
+            OnChainEventType::EventTypeSigner => "EVENT_TYPE_SIGNER",
+            OnChainEventType::EventTypeSignerMigrated => "EVENT_TYPE_SIGNER_MIGRATED",
+            OnChainEventType::EventTypeIdRegister => "EVENT_TYPE_ID_REGISTER",
+            OnChainEventType::EventTypeStorageRent => "EVENT_TYPE_STORAGE_RENT",
+            OnChainEventType::EventTypeTierPurchase => "EVENT_TYPE_TIER_PURCHASE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "EVENT_TYPE_NONE" => Some(Self::EventTypeNone),
@@ -885,15 +863,13 @@ impl TierType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "None",
-            Self::Pro => "Pro",
+            TierType::None => "None",
+            TierType::Pro => "Pro",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "None" => Some(Self::None),
@@ -915,17 +891,15 @@ impl SignerEventType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "SIGNER_EVENT_TYPE_NONE",
-            Self::Add => "SIGNER_EVENT_TYPE_ADD",
-            Self::Remove => "SIGNER_EVENT_TYPE_REMOVE",
-            Self::AdminReset => "SIGNER_EVENT_TYPE_ADMIN_RESET",
+            SignerEventType::None => "SIGNER_EVENT_TYPE_NONE",
+            SignerEventType::Add => "SIGNER_EVENT_TYPE_ADD",
+            SignerEventType::Remove => "SIGNER_EVENT_TYPE_REMOVE",
+            SignerEventType::AdminReset => "SIGNER_EVENT_TYPE_ADMIN_RESET",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "SIGNER_EVENT_TYPE_NONE" => Some(Self::None),
@@ -949,19 +923,17 @@ impl IdRegisterEventType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "ID_REGISTER_EVENT_TYPE_NONE",
-            Self::Register => "ID_REGISTER_EVENT_TYPE_REGISTER",
-            Self::Transfer => "ID_REGISTER_EVENT_TYPE_TRANSFER",
-            Self::ChangeRecovery => {
+            IdRegisterEventType::None => "ID_REGISTER_EVENT_TYPE_NONE",
+            IdRegisterEventType::Register => "ID_REGISTER_EVENT_TYPE_REGISTER",
+            IdRegisterEventType::Transfer => "ID_REGISTER_EVENT_TYPE_TRANSFER",
+            IdRegisterEventType::ChangeRecovery => {
                 "ID_REGISTER_EVENT_TYPE_CHANGE_RECOVERY"
             }
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "ID_REGISTER_EVENT_TYPE_NONE" => Some(Self::None),
@@ -1399,15 +1371,13 @@ impl VoteType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::Prevote => "PREVOTE",
-            Self::Precommit => "PRECOMMIT",
+            VoteType::Prevote => "PREVOTE",
+            VoteType::Precommit => "PRECOMMIT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "PREVOTE" => Some(Self::Prevote),
@@ -1427,15 +1397,13 @@ impl BlockEventType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::Heartbeat => "BLOCK_EVENT_TYPE_HEARTBEAT",
-            Self::MergeMessage => "BLOCK_EVENT_TYPE_MERGE_MESSAGE",
+            BlockEventType::Heartbeat => "BLOCK_EVENT_TYPE_HEARTBEAT",
+            BlockEventType::MergeMessage => "BLOCK_EVENT_TYPE_MERGE_MESSAGE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "BLOCK_EVENT_TYPE_HEARTBEAT" => Some(Self::Heartbeat),
@@ -1576,21 +1544,19 @@ impl HubEventType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "HUB_EVENT_TYPE_NONE",
-            Self::MergeMessage => "HUB_EVENT_TYPE_MERGE_MESSAGE",
-            Self::PruneMessage => "HUB_EVENT_TYPE_PRUNE_MESSAGE",
-            Self::RevokeMessage => "HUB_EVENT_TYPE_REVOKE_MESSAGE",
-            Self::MergeUsernameProof => "HUB_EVENT_TYPE_MERGE_USERNAME_PROOF",
-            Self::MergeOnChainEvent => "HUB_EVENT_TYPE_MERGE_ON_CHAIN_EVENT",
-            Self::MergeFailure => "HUB_EVENT_TYPE_MERGE_FAILURE",
-            Self::BlockConfirmed => "HUB_EVENT_TYPE_BLOCK_CONFIRMED",
+            HubEventType::None => "HUB_EVENT_TYPE_NONE",
+            HubEventType::MergeMessage => "HUB_EVENT_TYPE_MERGE_MESSAGE",
+            HubEventType::PruneMessage => "HUB_EVENT_TYPE_PRUNE_MESSAGE",
+            HubEventType::RevokeMessage => "HUB_EVENT_TYPE_REVOKE_MESSAGE",
+            HubEventType::MergeUsernameProof => "HUB_EVENT_TYPE_MERGE_USERNAME_PROOF",
+            HubEventType::MergeOnChainEvent => "HUB_EVENT_TYPE_MERGE_ON_CHAIN_EVENT",
+            HubEventType::MergeFailure => "HUB_EVENT_TYPE_MERGE_FAILURE",
+            HubEventType::BlockConfirmed => "HUB_EVENT_TYPE_BLOCK_CONFIRMED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "HUB_EVENT_TYPE_NONE" => Some(Self::None),
@@ -2183,21 +2149,19 @@ impl StoreType {
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    #[must_use] 
-    pub const fn as_str_name(&self) -> &'static str {
+    pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::None => "STORE_TYPE_NONE",
-            Self::Casts => "STORE_TYPE_CASTS",
-            Self::Links => "STORE_TYPE_LINKS",
-            Self::Reactions => "STORE_TYPE_REACTIONS",
-            Self::UserData => "STORE_TYPE_USER_DATA",
-            Self::Verifications => "STORE_TYPE_VERIFICATIONS",
-            Self::UsernameProofs => "STORE_TYPE_USERNAME_PROOFS",
-            Self::StorageLends => "STORE_TYPE_STORAGE_LENDS",
+            StoreType::None => "STORE_TYPE_NONE",
+            StoreType::Casts => "STORE_TYPE_CASTS",
+            StoreType::Links => "STORE_TYPE_LINKS",
+            StoreType::Reactions => "STORE_TYPE_REACTIONS",
+            StoreType::UserData => "STORE_TYPE_USER_DATA",
+            StoreType::Verifications => "STORE_TYPE_VERIFICATIONS",
+            StoreType::UsernameProofs => "STORE_TYPE_USERNAME_PROOFS",
+            StoreType::StorageLends => "STORE_TYPE_STORAGE_LENDS",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
-    #[must_use] 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "STORE_TYPE_NONE" => Some(Self::None),
@@ -2215,7 +2179,7 @@ impl StoreType {
 /// Generated client implementations.
 pub mod hub_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::{StdError, Body, Bytes, http, InterceptedService, CompressionEncoding, GrpcMethod};
+    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
     pub struct HubServiceClient<T> {
@@ -3291,7 +3255,7 @@ pub mod hub_service_client {
 /// Generated server implementations.
 pub mod hub_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::{async_trait, EnabledCompressionEncodings, Arc, InterceptedService, CompressionEncoding, http, Body, StdError, BoxFuture, Context, Poll, empty_body};
+    use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with HubServiceServer.
     #[async_trait]
     pub trait HubService: Send + Sync + 'static {
@@ -3614,7 +3578,7 @@ pub mod hub_service_server {
         ///
         /// Default: `4MB`
         #[must_use]
-        pub const fn max_decoding_message_size(mut self, limit: usize) -> Self {
+        pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
             self.max_decoding_message_size = Some(limit);
             self
         }
@@ -3622,7 +3586,7 @@ pub mod hub_service_server {
         ///
         /// Default: `usize::MAX`
         #[must_use]
-        pub const fn max_encoding_message_size(mut self, limit: usize) -> Self {
+        pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
             self.max_encoding_message_size = Some(limit);
             self
         }
