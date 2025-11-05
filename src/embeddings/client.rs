@@ -37,6 +37,10 @@ pub struct EmbeddingClient {
 
 impl EmbeddingClient {
     /// Create a new embedding client
+    ///
+    /// # Errors
+    /// - HTTP client build errors (invalid configuration)
+    /// - LocalGPU provider requires async initialization (use `new_async()` instead)
     pub fn new(
         provider: EmbeddingProvider,
         model: String,
@@ -114,6 +118,12 @@ impl EmbeddingClient {
     }
 
     /// Generate embedding for a single text
+    ///
+    /// # Errors
+    /// - API request failures (network errors, timeouts, authentication failures)
+    /// - Invalid API responses (malformed JSON, wrong embedding dimensions)
+    /// - LocalGPU client not initialized
+    /// - Provider-specific errors (rate limits, quota exceeded, invalid model)
     pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         match self.provider {
             EmbeddingProvider::OpenAI => self.generate_openai(text).await,
@@ -129,6 +139,12 @@ impl EmbeddingClient {
     }
 
     /// Generate embeddings for multiple texts in batch
+    ///
+    /// # Errors
+    /// - API request failures (network errors, timeouts, authentication failures)
+    /// - Invalid API responses (malformed JSON, dimension mismatches)
+    /// - LocalGPU client not initialized
+    /// - Provider-specific errors (rate limits, quota exceeded, batch size limits)
     pub async fn generate_batch(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
         match self.provider {
             EmbeddingProvider::OpenAI => self.generate_batch_openai(texts).await,

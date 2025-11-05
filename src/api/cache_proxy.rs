@@ -27,6 +27,11 @@ fn cache_key_from_request(req: &Request<Body>) -> String {
 
 /// Cache proxy middleware for GET requests
 ///
+/// # Errors
+/// - Redis connection errors (returns cached response or proxies to upstream)
+/// - Upstream HTTP client build errors
+/// - Response body conversion errors
+///
 /// # Panics
 /// Panics if the response builder fails to create error responses (extremely unlikely)
 pub async fn cache_proxy_middleware(

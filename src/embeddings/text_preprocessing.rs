@@ -14,6 +14,11 @@ use crate::errors::SnapRagError;
 /// - Removing or replacing invalid characters
 /// - Intelligent chunking for long texts
 /// - Basic sanitization
+///
+/// # Errors
+/// - Empty text input
+/// - Text contains only whitespace after preprocessing
+/// - Text normalization failures
 pub fn preprocess_text_for_embedding(text: &str) -> Result<String, SnapRagError> {
     if text.is_empty() {
         return Err(SnapRagError::EmbeddingError(

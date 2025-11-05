@@ -22,6 +22,12 @@ use crate::database::Database;
 use crate::errors::Result;
 
 /// Backfill embeddings for all casts with parallel processing
+///
+/// # Errors
+/// - Database query errors (connection failures, SQL execution errors)
+/// - Embedding generation errors (API failures, rate limits, network issues)
+/// - Database update errors (transaction failures, constraint violations)
+/// - Cast text extraction errors (invalid or empty casts)
 pub async fn backfill_cast_embeddings(
     db: Arc<Database>,
     embedding_service: Arc<EmbeddingService>,

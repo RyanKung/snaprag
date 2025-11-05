@@ -10,6 +10,9 @@ pub struct ApiKeyState {
 
 /// Backend API key authentication middleware
 ///
+/// # Errors
+/// Returns error response with UNAUTHORIZED status if API key is missing or invalid
+///
 /// # Panics
 /// Panics if the response builder fails to create an UNAUTHORIZED response (extremely unlikely)
 pub async fn backend_api_key_middleware(

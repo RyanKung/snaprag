@@ -19,6 +19,11 @@ pub struct EmbeddingService {
 
 impl EmbeddingService {
     /// Create a new embedding service
+    ///
+    /// # Errors
+    /// - Invalid embedding configuration (missing API keys, endpoints, or model name)
+    /// - Unsupported embedding provider
+    /// - Client initialization failures
     pub fn new(config: &crate::config::AppConfig) -> Result<Self> {
         let embedding_config = EmbeddingConfig::from_app_config(config);
         let client = EmbeddingClient::new(
@@ -35,6 +40,10 @@ impl EmbeddingService {
     }
 
     /// Create from custom config
+    ///
+    /// # Errors
+    /// - Invalid provider configuration
+    /// - Client creation failures (invalid endpoint, authentication errors)
     pub fn from_config(config: EmbeddingConfig) -> Result<Self> {
         let client = EmbeddingClient::new(
             config.provider,
@@ -80,6 +89,11 @@ impl EmbeddingService {
     }
 
     /// Generate embedding for a single text
+    ///
+    /// # Errors
+    /// - Text preprocessing errors (invalid UTF-8, empty text after preprocessing)
+    /// - API request failures (network errors, rate limits, authentication failures)
+    /// - Invalid API responses (malformed JSON, wrong dimensions)
     pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         // Preprocess text to handle newlines and invalid characters
         let processed_text = crate::embeddings::preprocess_text_for_embedding(text)?;
@@ -88,6 +102,12 @@ impl EmbeddingService {
     }
 
     /// Generate embeddings for multiple texts in batch
+    ///
+    /// # Errors
+    /// - Text preprocessing errors for any text in the batch
+    /// - API request failures (network errors, rate limits, authentication failures)
+    /// - Invalid API responses (malformed JSON, dimension mismatches)
+    /// - Batch size limit exceeded
     pub async fn generate_batch(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(Vec::new());
