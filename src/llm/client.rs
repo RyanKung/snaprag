@@ -63,6 +63,9 @@ pub struct LlmClient {
 
 impl LlmClient {
     /// Create a new LLM client
+    ///
+    /// # Errors
+    /// - HTTP client creation errors
     pub fn new(
         provider: LlmProvider,
         model: String,
@@ -84,6 +87,11 @@ impl LlmClient {
     }
 
     /// Generate a response from a prompt
+    ///
+    /// # Errors
+    /// - LLM API call errors (network, authentication, rate limits)
+    /// - Invalid response format
+    /// - JSON parsing errors
     pub async fn generate(
         &self,
         prompt: &str,
@@ -98,6 +106,11 @@ impl LlmClient {
     }
 
     /// Generate a streaming response
+    ///
+    /// # Errors
+    /// - LLM API call errors (network, authentication, rate limits)
+    /// - Streaming connection errors
+    /// - Not supported for custom provider
     pub async fn generate_stream(
         &self,
         prompt: &str,
@@ -120,6 +133,12 @@ impl LlmClient {
     }
 
     /// Chat completion with message history
+    ///
+    /// # Errors
+    /// - LLM API call errors (network, authentication, rate limits)
+    /// - Invalid response format
+    /// - JSON parsing errors
+    /// - Not supported for custom provider
     pub async fn chat(
         &self,
         messages: Vec<ChatMessage>,
