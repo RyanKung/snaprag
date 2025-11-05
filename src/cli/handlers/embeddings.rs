@@ -1,5 +1,7 @@
 //! Embedding generation handlers
 
+#![allow(clippy::cast_precision_loss)] // Acceptable for progress displays and statistics
+
 use std::sync::Arc;
 
 use crate::cli::output::print_info;

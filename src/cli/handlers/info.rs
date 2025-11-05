@@ -1,5 +1,7 @@
 //! Information display handlers (stats, dashboard, config)
 
+#![allow(clippy::cast_precision_loss)] // Acceptable for statistical displays
+
 use std::sync::Arc;
 
 use crate::cli::output::print_config;
