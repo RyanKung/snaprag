@@ -168,6 +168,7 @@ impl LazyLoader {
     /// Fetch user profile only
     pub async fn fetch_user_profile(&self, fid: u64) -> Result<UserProfile> {
         // Check if already exists
+        #[allow(clippy::cast_possible_wrap)] // FID values in Farcaster never exceed i64::MAX
         if let Some(existing) = self.database.get_user_profile(fid as i64).await? {
             info!("✓ Profile {} found in database (cached)", fid);
             return Ok(existing);
@@ -188,6 +189,7 @@ impl LazyLoader {
         }
 
         // Build profile from messages
+        #[allow(clippy::cast_possible_wrap)] // FID values in Farcaster never exceed i64::MAX
         let mut profile = UserProfile {
             fid: fid as i64,
             username: None,
@@ -243,6 +245,8 @@ impl LazyLoader {
                     }
 
                     // Update timestamp to latest
+                    #[allow(clippy::cast_possible_wrap)]
+                    // Farcaster timestamps never exceed i64::MAX
                     if data.timestamp as i64 > profile.last_updated_timestamp {
                         profile.last_updated_timestamp = data.timestamp as i64;
                     }
@@ -262,14 +266,14 @@ impl LazyLoader {
         // Check if casts exist in database first
         let existing = self
             .database
-            .get_casts_by_fid(fid as i64, Some(10), Some(0))
+            .get_casts_by_fid(i64::try_from(fid).unwrap_or(i64::MAX), Some(10), Some(0))
             .await?;
         if !existing.is_empty() {
             info!("✓ Casts for FID {} found in database, fetching all...", fid);
             // Has some casts, get all from database
             return self
                 .database
-                .get_casts_by_fid(fid as i64, Some(10000), Some(0))
+                .get_casts_by_fid(i64::try_from(fid).unwrap_or(i64::MAX), Some(10000), Some(0))
                 .await;
         }
 
