@@ -248,22 +248,28 @@ impl CacheService {
 
     /// Clear all cached profiles
     pub async fn clear_profiles(&self) {
-        let mut cache = self.profile_cache.write().await;
-        cache.clear();
+        {
+            let mut cache = self.profile_cache.write().await;
+            cache.clear();
+        } // Lock dropped here
         info!("Cleared all profile cache entries");
     }
 
     /// Clear all cached social analyses
     pub async fn clear_social(&self) {
-        let mut cache = self.social_cache.write().await;
-        cache.clear();
+        {
+            let mut cache = self.social_cache.write().await;
+            cache.clear();
+        } // Lock dropped here
         info!("Cleared all social cache entries");
     }
 
     /// Clear all cached MBTI analyses
     pub async fn clear_mbti(&self) {
-        let mut cache = self.mbti_cache.write().await;
-        cache.clear();
+        {
+            let mut cache = self.mbti_cache.write().await;
+            cache.clear();
+        } // Lock dropped here
         info!("Cleared all MBTI cache entries");
     }
 
@@ -288,51 +294,64 @@ impl CacheService {
 
     /// Get cached MBTI analysis by FID
     pub async fn get_mbti(&self, fid: i64) -> Option<MbtiProfile> {
-        let mut cache = self.mbti_cache.write().await;
+        let result = {
+            let mut cache = self.mbti_cache.write().await;
 
-        if let Some(entry) = cache.get(&fid) {
-            if entry.is_expired() {
-                cache.remove(&fid);
-                self.increment_miss().await;
-                tracing::debug!("MBTI cache miss (expired) for FID {}", fid);
-                return None;
+            if let Some(entry) = cache.get(&fid) {
+                if entry.is_expired() {
+                    cache.remove(&fid);
+                    None
+                } else {
+                    Some(entry.data.clone())
+                }
+            } else {
+                None
             }
+        }; // Lock dropped here
 
+        // Update stats after releasing lock
+        if result.is_some() {
             self.increment_hit().await;
             tracing::debug!("MBTI cache hit for FID {}", fid);
-            return Some(entry.data.clone());
+        } else {
+            self.increment_miss().await;
+            tracing::debug!("MBTI cache miss for FID {}", fid);
         }
 
-        self.increment_miss().await;
-        tracing::debug!("MBTI cache miss for FID {}", fid);
-        None
+        result
     }
 
     /// Cache an MBTI analysis response
     pub async fn set_mbti(&self, fid: i64, mbti: MbtiProfile) {
-        let mut cache = self.mbti_cache.write().await;
+        {
+            let mut cache = self.mbti_cache.write().await;
 
-        // Check if we need to evict entries
-        if cache.len() >= self.config.max_entries {
-            self.evict_oldest_entries(&mut cache).await;
-        }
+            // Check if we need to evict entries
+            if cache.len() >= self.config.max_entries {
+                self.evict_oldest_entries(&mut cache).await;
+            }
 
-        let entry = CacheEntry::new(mbti, self.config.mbti_ttl);
-        cache.insert(fid, entry);
+            let entry = CacheEntry::new(mbti, self.config.mbti_ttl);
+            cache.insert(fid, entry);
+        } // Lock dropped here
+
         tracing::debug!("Cached MBTI analysis for FID {}", fid);
     }
 
     /// Get cache size information
     pub async fn get_cache_info(&self) -> CacheInfo {
-        let profile_cache = self.profile_cache.read().await;
-        let social_cache = self.social_cache.read().await;
-        let mbti_cache = self.mbti_cache.read().await;
+        let (profile_len, social_len, mbti_len) = {
+            let profile_cache = self.profile_cache.read().await;
+            let social_cache = self.social_cache.read().await;
+            let mbti_cache = self.mbti_cache.read().await;
+            (profile_cache.len(), social_cache.len(), mbti_cache.len())
+        }; // Locks dropped here
 
         CacheInfo {
-            profile_entries: profile_cache.len(),
-            social_entries: social_cache.len(),
-            mbti_entries: mbti_cache.len(),
-            total_entries: profile_cache.len() + social_cache.len() + mbti_cache.len(),
+            profile_entries: profile_len,
+            social_entries: social_len,
+            mbti_entries: mbti_len,
+            total_entries: profile_len + social_len + mbti_len,
             max_entries: self.config.max_entries,
         }
     }
