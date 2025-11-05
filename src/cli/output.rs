@@ -1,5 +1,9 @@
 //! CLI output formatting utilities
 //!
+//! Display functions use f64 for percentage and statistical displays
+
+#![allow(clippy::cast_precision_loss)] // Acceptable for display/formatting purposes
+//!
 //! This module provides consistent output formatting for the `SnapRAG` CLI
 
 use crate::models::Cast;
