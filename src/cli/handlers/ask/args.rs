@@ -15,6 +15,7 @@ pub async fn parse_user_identifier(identifier: &str, database: &Database) -> Res
                 crate::SnapRagError::Custom(format!("Username @{username} not found in database"))
             })?;
         println!("   ✅ Found FID: {}", profile.fid);
+        #[allow(clippy::cast_sign_loss)] // FID is guaranteed positive in database
         Ok(profile.fid as u64)
     } else {
         trimmed.parse::<u64>().map_err(|_| {
