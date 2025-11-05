@@ -43,6 +43,7 @@ impl CastRetriever {
         let query_embedding = self.embedding_service.generate(query).await?;
 
         // Search in database
+        #[allow(clippy::cast_possible_wrap)] // limit is user-specified, typically small values
         let results = self
             .database
             .semantic_search_casts(query_embedding, limit as i64, threshold)
@@ -59,6 +60,7 @@ impl CastRetriever {
     pub async fn search_by_fid(&self, fid: i64, limit: usize) -> Result<Vec<crate::models::Cast>> {
         debug!("Searching casts for FID {}", fid);
 
+        #[allow(clippy::cast_possible_wrap)] // limit is user-specified, typically small values
         let casts = self
             .database
             .get_casts_by_fid(fid, Some(limit as i64), Some(0))
@@ -103,6 +105,7 @@ impl CastRetriever {
         );
 
         // Query recent casts with text content
+        #[allow(clippy::cast_possible_wrap)] // limit/offset are user-specified, typically small values
         let casts = sqlx::query_as::<_, crate::models::Cast>(
             "SELECT * FROM casts WHERE text IS NOT NULL AND text != '' ORDER BY timestamp DESC LIMIT $1 OFFSET $2",
         )
@@ -129,7 +132,7 @@ impl CastRetriever {
             )
             .bind(start)
             .bind(end)
-            .bind(limit as i64)
+            .bind(i64::try_from(limit).unwrap_or(i64::MAX))
             .fetch_all(self.database.pool())
             .await?
         } else if let Some(start) = start_timestamp {
@@ -137,7 +140,7 @@ impl CastRetriever {
                 "SELECT * FROM casts WHERE text IS NOT NULL AND timestamp >= $1 ORDER BY timestamp DESC LIMIT $2",
             )
             .bind(start)
-            .bind(limit as i64)
+            .bind(i64::try_from(limit).unwrap_or(i64::MAX))
             .fetch_all(self.database.pool())
             .await?
         } else if let Some(end) = end_timestamp {
@@ -145,7 +148,7 @@ impl CastRetriever {
                 "SELECT * FROM casts WHERE text IS NOT NULL AND timestamp <= $1 ORDER BY timestamp DESC LIMIT $2",
             )
             .bind(end)
-            .bind(limit as i64)
+            .bind(i64::try_from(limit).unwrap_or(i64::MAX))
             .fetch_all(self.database.pool())
             .await?
         } else {
@@ -214,7 +217,7 @@ impl CastRetriever {
         .bind(&query_embedding)
         .bind(fid)
         .bind(threshold_val)
-        .bind(limit as i64)
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
         .fetch_all(self.database.pool())
         .await?;
 
@@ -285,7 +288,7 @@ impl CastRetriever {
             ",
         )
         .bind(format!("%{query}%"))
-        .bind(limit as i64)
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
         .fetch_all(self.database.pool())
         .await?;
 
