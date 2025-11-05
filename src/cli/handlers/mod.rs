@@ -1,4 +1,10 @@
-//! CLI command handlers module
+//! CLI command handlers
+//!
+//! Note: Type conversions (usize/u64 -> i64) in CLI handlers are safe because:
+//! - User input values (limits, FIDs, etc.) are reasonable and won't exceed i64::MAX
+//! - Farcaster FIDs and block heights never reach i64::MAX in practice
+
+#![allow(clippy::cast_possible_wrap)] // Safe for CLI user inputs and Farcaster values module
 //!
 //! This module is organized by functional domains:
 //! - init: Database initialization and reset
