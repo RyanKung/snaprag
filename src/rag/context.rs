@@ -178,6 +178,10 @@ impl CastContextAssembler {
     }
 
     /// Assemble context with author information
+    ///
+    /// # Errors
+    /// - Database query errors when fetching author profiles
+    /// - Profile retrieval errors for cast authors
     pub async fn assemble_with_authors(
         &self,
         results: &[crate::models::CastSearchResult],

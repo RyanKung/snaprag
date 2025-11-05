@@ -29,6 +29,11 @@ impl Retriever {
     }
 
     /// Semantic search using vector embeddings
+    ///
+    /// # Errors
+    /// - Embedding generation errors (API failures, preprocessing errors)
+    /// - Database query errors (connection failures, vector search errors)
+    /// - Invalid threshold value (not in range 0.0-1.0)
     pub async fn semantic_search(
         &self,
         query: &str,
@@ -61,6 +66,10 @@ impl Retriever {
     }
 
     /// Keyword search using text matching
+    ///
+    /// # Errors
+    /// - Database query errors (connection failures, SQL execution errors)
+    /// - Invalid search patterns (malformed queries)
     pub async fn keyword_search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
         debug!("Performing keyword search: {}", query);
 

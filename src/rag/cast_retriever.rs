@@ -26,6 +26,11 @@ impl CastRetriever {
     }
 
     /// Semantic search for casts
+    ///
+    /// # Errors
+    /// - Embedding generation errors (API failures, preprocessing errors)
+    /// - Database query errors (connection failures, vector search errors)
+    /// - Invalid threshold value (not in range 0.0-1.0)
     pub async fn semantic_search(
         &self,
         query: &str,
@@ -48,6 +53,9 @@ impl CastRetriever {
     }
 
     /// Search casts by FID
+    ///
+    /// # Errors
+    /// - Database query errors (connection failures, SQL execution errors)
     pub async fn search_by_fid(&self, fid: i64, limit: usize) -> Result<Vec<crate::models::Cast>> {
         debug!("Searching casts for FID {}", fid);
 
@@ -60,6 +68,10 @@ impl CastRetriever {
     }
 
     /// Get cast thread
+    ///
+    /// # Errors
+    /// - Database query errors (connection failures, SQL execution errors)
+    /// - Invalid message hash (malformed hash)
     pub async fn get_thread(
         &self,
         message_hash: Vec<u8>,
@@ -76,6 +88,10 @@ impl CastRetriever {
     }
 
     /// Search recent casts across all users
+    ///
+    /// # Errors
+    /// - Database query errors (connection failures, SQL execution errors)
+    /// - Invalid limit or offset values
     pub async fn search_recent(
         &self,
         limit: usize,

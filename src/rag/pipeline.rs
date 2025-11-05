@@ -25,6 +25,11 @@ pub struct RagService {
 
 impl RagService {
     /// Create a new RAG service
+    ///
+    /// # Errors
+    /// - Database connection errors
+    /// - Embedding service configuration errors (invalid API keys, endpoints)
+    /// - LLM service configuration errors (missing or invalid LLM config)
     pub async fn new(config: &AppConfig) -> Result<Self> {
         let database = Arc::new(Database::from_config(config).await?);
         let embedding_service = Arc::new(EmbeddingService::new(config)?);
@@ -57,6 +62,12 @@ impl RagService {
     }
 
     /// Perform a complete RAG query
+    ///
+    /// # Errors
+    /// - Document retrieval errors (embedding generation, database queries)
+    /// - Context assembly errors (text processing, formatting failures)
+    /// - LLM generation errors (API failures, rate limits, invalid responses)
+    /// - Network errors (timeouts, connection failures)
     pub async fn query(&self, query: &str) -> Result<RagResponse> {
         self.query_with_options(RagQuery {
             question: query.to_string(),
@@ -69,6 +80,13 @@ impl RagService {
     }
 
     /// Perform RAG query with custom options
+    ///
+    /// # Errors
+    /// - Document retrieval errors (embedding generation, database queries, invalid retrieval method)
+    /// - Context assembly errors (text processing, token limit exceeded)
+    /// - LLM generation errors (API failures, rate limits, invalid temperature/max_tokens)
+    /// - Network errors (timeouts, connection failures)
+    /// - Invalid query parameters (negative limits, invalid temperature range)
     pub async fn query_with_options(&self, query: RagQuery) -> Result<RagResponse> {
         info!("Processing RAG query: {}", query.question);
 
