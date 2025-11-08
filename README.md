@@ -87,6 +87,7 @@ SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for
 ## 📋 Table of Contents
 
 - [Quick Start](#-quick-start)
+- [**Docker Deployment**](#-docker-deployment) 🐳 NEW
 - [Features](#-features)
 - [**Library Usage**](#-using-as-a-library) ⭐ NEW
 - [CLI Commands](#️-available-cli-commands)
@@ -165,6 +166,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 **See examples in [examples/](./examples/) directory!**
+
+## 🐳 Docker Deployment
+
+The easiest way to deploy SnapRAG with all dependencies (PostgreSQL + Redis):
+
+```bash
+# Quick start script
+./scripts/docker-quick-start.sh
+
+# Or manually
+docker-compose up -d
+```
+
+**Services included:**
+- SnapRAG API (port 3000)
+- PostgreSQL with pgvector (port 5432)
+- Redis cache (port 6379)
+
+📚 **[Complete Docker Documentation →](./DOCKER_DEPLOYMENT.md)**
+
+Features:
+- ✅ One-command deployment
+- ✅ All dependencies included
+- ✅ Production-ready configuration
+- ✅ Easy scaling and updates
+- ✅ Multi-architecture support (amd64/arm64)
 
 ## ✨ Features
 

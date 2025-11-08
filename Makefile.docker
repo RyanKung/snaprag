@@ -1,0 +1,129 @@
+# ============================================================================
+# SnapRAG Docker Makefile
+# ============================================================================
+
+.PHONY: help docker-build docker-push docker-run docker-stop docker-logs \
+        docker-clean docker-compose-up docker-compose-down docker-shell
+
+# Docker image configuration
+IMAGE_NAME ?= snaprag
+IMAGE_TAG ?= latest
+REGISTRY ?= ghcr.io/yourusername
+
+# Help target
+help:
+	@echo "SnapRAG Docker Commands:"
+	@echo ""
+	@echo "  make docker-build         - Build Docker image"
+	@echo "  make docker-run           - Run Docker container"
+	@echo "  make docker-stop          - Stop Docker container"
+	@echo "  make docker-logs          - View container logs"
+	@echo "  make docker-shell         - Open shell in container"
+	@echo "  make docker-clean         - Remove containers and images"
+	@echo ""
+	@echo "  make docker-compose-up    - Start all services with docker-compose"
+	@echo "  make docker-compose-down  - Stop all services"
+	@echo "  make docker-compose-logs  - View all service logs"
+	@echo ""
+	@echo "  make docker-push          - Push image to registry"
+
+# Build Docker image
+docker-build:
+	@echo "Building Docker image: $(IMAGE_NAME):$(IMAGE_TAG)..."
+	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	@echo "✅ Build complete!"
+
+# Run single container (requires external PostgreSQL)
+docker-run:
+	@echo "Running SnapRAG container..."
+	docker run -d \
+		--name snaprag \
+		-p 3000:3000 \
+		-v $(PWD)/config.toml:/app/config.toml:ro \
+		-v $(PWD)/logs:/app/logs \
+		$(IMAGE_NAME):$(IMAGE_TAG) api
+	@echo "✅ Container started! Access at http://localhost:3000"
+
+# Stop container
+docker-stop:
+	@echo "Stopping SnapRAG container..."
+	docker stop snaprag || true
+	docker rm snaprag || true
+	@echo "✅ Container stopped"
+
+# View logs
+docker-logs:
+	docker logs -f snaprag
+
+# Open shell in running container
+docker-shell:
+	docker exec -it snaprag /bin/bash
+
+# Clean up containers and images
+docker-clean: docker-stop
+	@echo "Cleaning up Docker resources..."
+	docker rmi $(IMAGE_NAME):$(IMAGE_TAG) || true
+	@echo "✅ Cleanup complete"
+
+# Docker Compose commands
+docker-compose-up:
+	@echo "Starting all services with docker-compose..."
+	@if [ ! -f config.toml ]; then \
+		echo "⚠️  config.toml not found. Creating from example..."; \
+		cp config.example.toml config.toml; \
+		echo "⚠️  Please edit config.toml with your settings"; \
+	fi
+	docker-compose up -d
+	@echo "✅ All services started!"
+	@echo ""
+	@echo "Services:"
+	@echo "  - PostgreSQL: localhost:5432"
+	@echo "  - Redis: localhost:6379"
+	@echo "  - SnapRAG API: http://localhost:3000"
+	@echo ""
+	@echo "View logs: make docker-compose-logs"
+
+docker-compose-down:
+	@echo "Stopping all services..."
+	docker-compose down
+	@echo "✅ All services stopped"
+
+docker-compose-logs:
+	docker-compose logs -f
+
+docker-compose-rebuild:
+	@echo "Rebuilding and restarting services..."
+	docker-compose down
+	docker-compose build --no-cache
+	docker-compose up -d
+	@echo "✅ Services rebuilt and restarted"
+
+# Development mode
+docker-compose-dev:
+	@echo "Starting development environment..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# Initialize database
+docker-init-db:
+	@echo "Initializing database..."
+	docker-compose exec snaprag snaprag reset --force
+	docker-compose exec snaprag snaprag migrate
+	@echo "✅ Database initialized"
+
+# Push to registry
+docker-push: docker-build
+	@echo "Pushing to registry: $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)..."
+	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	@echo "✅ Push complete!"
+
+# Multi-arch build (requires buildx)
+docker-buildx:
+	@echo "Building multi-architecture image..."
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		-t $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG) \
+		--push \
+		.
+	@echo "✅ Multi-arch build complete!"
+
