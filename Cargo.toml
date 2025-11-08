@@ -58,7 +58,7 @@ tokio-util = "0.7"
 rayon = "1.8"  # Parallel processing for CPU-intensive tasks
 num_cpus = "1.0"  # CPU core detection for multi-process optimization
 home = "0.5.11"  # Compatible version for older Rust
-redis = { version = "0.25", features = ["tokio-comp"] }
+redis = { version = "0.27", features = ["tokio-comp"] }
 textwrap = "0.16"  # Text wrapping for CLI output
 stop-words = "0.8"  # Stop words for multiple languages
 lazy_static = "1.4"  # For static AFINN lexicon
@@ -76,10 +76,14 @@ hf-hub = { version = "0.3", features = ["tokio"], optional = true }
 # rust-x402 = "0.1"  # Production from crates.io
 rust-x402 = { git = "https://github.com/RyanKung/rust-x402", features =["axum"], optional = true, version='0.2.0' }
 
+# MBTI personality classification with ML
+psycial = { git = "https://github.com/RyanKung/psycial", optional = true }
+
 [features]
 default = []
 payment = ["rust-x402"]
 local-gpu = ["candle-core", "candle-nn", "candle-transformers", "tokenizers", "hf-hub"]
+ml-mbti = ["psycial"]
 
 # Platform-specific GPU features
 # These override the base candle-core dependency with platform-specific features

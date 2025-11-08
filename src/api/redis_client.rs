@@ -62,7 +62,7 @@ impl RedisClient {
             .set(&k, json)
             .ignore()
             .expire(&k, ttl.as_secs() as i64)
-            .query_async::<_, ()>(&mut conn)
+            .query_async::<()>(&mut conn)
             .await
             .map_err(|e| crate::SnapRagError::Custom(format!("Redis SET/EXPIRE error: {e}")))?;
         Ok(())
