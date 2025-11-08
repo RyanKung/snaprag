@@ -115,3 +115,14 @@ facilitator_url = "https://x402.org/facilitator"
 # RPC endpoint for blockchain verification (optional)
 # If not set, will use default RPC for the selected network
 # rpc_url = "https://sepolia.base.org"
+
+# MBTI personality analysis configuration
+[mbti]
+# Analysis method: "rulebased", "machinelearning", or "ensemble"
+# - rulebased: Uses behavioral patterns and social graph analysis (default, no extra dependencies)
+# - machinelearning: Uses BERT + MLP neural networks (requires ml-mbti feature and trained models)
+# - ensemble: Combines both methods for best accuracy (requires ml-mbti feature)
+method = "rulebased"
+
+# Use LLM for enhanced analysis (when available)
+use_llm = false

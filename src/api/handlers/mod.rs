@@ -46,6 +46,7 @@ pub use stats::*;
 /// Shared application state
 #[derive(Clone)]
 pub struct AppState {
+    pub config: Arc<crate::AppConfig>,
     pub database: Arc<Database>,
     pub embedding_service: Arc<EmbeddingService>,
     pub llm_service: Option<Arc<LlmService>>,

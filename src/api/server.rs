@@ -99,6 +99,7 @@ pub async fn serve_api(
     }
 
     let state = AppState {
+        config: Arc::new(config.clone()),
         database,
         embedding_service,
         llm_service,

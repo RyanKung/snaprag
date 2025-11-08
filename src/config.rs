@@ -250,6 +250,38 @@ impl X402Config {
     }
 }
 
+/// MBTI analysis method
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[derive(Default)]
+pub enum MbtiMethod {
+    /// Rule-based analysis using behavioral indicators
+    #[default]
+    RuleBased,
+    /// Machine learning using BERT + MLP neural networks (requires ml-mbti feature)
+    MachineLearning,
+    /// Ensemble combining both methods for best accuracy
+    Ensemble,
+}
+
+
+/// MBTI personality analysis configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
+pub struct MbtiConfig {
+    /// Analysis method to use
+    #[serde(default)]
+    pub method: MbtiMethod,
+    /// Use LLM for enhanced analysis (when available)
+    #[serde(default = "default_use_llm")]
+    pub use_llm: bool,
+}
+
+const fn default_use_llm() -> bool {
+    false
+}
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
@@ -266,6 +298,8 @@ pub struct AppConfig {
     pub redis: Option<RedisConfig>,
     #[serde(default)]
     pub cache_server: CacheServerConfig,
+    #[serde(default)]
+    pub mbti: MbtiConfig,
 }
 
 impl AppConfig {
@@ -536,6 +570,7 @@ impl Default for AppConfig {
             x402: X402Config::default(),
             redis: None,
             cache_server: CacheServerConfig::default(),
+            mbti: MbtiConfig::default(),
         }
     }
 }

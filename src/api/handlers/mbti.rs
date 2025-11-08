@@ -13,6 +13,7 @@ use tracing::info;
 
 use crate::api::handlers::AppState;
 use crate::api::types::ApiResponse;
+use crate::config::MbtiMethod;
 use crate::personality::MbtiAnalyzer;
 
 /// Get MBTI personality analysis for a user (GET /api/mbti/:fid)
@@ -67,18 +68,62 @@ pub async fn get_mbti_analysis(
         }
     };
 
-    // Try to get social profile from cache
-    let social_profile = state.cache_service.get_social(fid).await;
+    // Get analysis method from config
+    let method = state.config.mbti.method;
 
-    // Initialize MBTI analyzer (with or without LLM)
-    let analyzer = if let Some(llm_service) = &state.llm_service {
-        MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
+    // Try to get social profile from cache (if needed by method)
+    let social_profile = if matches!(method, MbtiMethod::RuleBased | MbtiMethod::Ensemble) {
+        state.cache_service.get_social(fid).await
     } else {
-        MbtiAnalyzer::new(state.database.clone())
+        None
     };
 
-    // Analyze MBTI personality
-    match analyzer.analyze_mbti(fid, social_profile.as_ref()).await {
+    // Analyze MBTI personality based on configured method
+    let analysis_result = match method {
+        MbtiMethod::RuleBased => {
+            // Rule-based analysis (with or without LLM)
+            let analyzer = if state.config.mbti.use_llm {
+                if let Some(llm_service) = &state.llm_service {
+                    MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
+                } else {
+                    MbtiAnalyzer::new(state.database.clone())
+                }
+            } else {
+                MbtiAnalyzer::new(state.database.clone())
+            };
+            analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+        }
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::MachineLearning => {
+            // ML-based analysis
+            let ml_predictor = crate::personality_ml::MlMbtiPredictor::new(state.database.clone())?;
+            ml_predictor.predict_mbti(fid).await
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::MachineLearning => {
+            // Fall back to rule-based if ML feature not enabled
+            let analyzer = MbtiAnalyzer::new(state.database.clone());
+            analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+        }
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::Ensemble => {
+            // Ensemble analysis (both methods)
+            let ensemble =
+                crate::personality_ml::EnsembleMbtiPredictor::new(state.database.clone())?;
+            ensemble
+                .predict_ensemble(fid, social_profile.as_ref())
+                .await
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::Ensemble => {
+            // Fall back to rule-based if ML feature not enabled
+            let analyzer = MbtiAnalyzer::new(state.database.clone());
+            analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+        }
+    };
+
+    // Process result
+    match analysis_result {
         Ok(mbti_profile) => {
             // Cache the MBTI analysis
             state
@@ -158,21 +203,63 @@ pub async fn get_mbti_analysis_by_username(
         return Ok(Json(ApiResponse::success(mbti_data)));
     }
 
-    // Try to get social profile from cache
-    let social_profile = state.cache_service.get_social(profile.fid).await;
+    // Get analysis method from config
+    let method = state.config.mbti.method;
 
-    // Initialize MBTI analyzer
-    let analyzer = if let Some(llm_service) = &state.llm_service {
-        MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
+    // Try to get social profile from cache (if needed by method)
+    let social_profile = if matches!(method, MbtiMethod::RuleBased | MbtiMethod::Ensemble) {
+        state.cache_service.get_social(profile.fid).await
     } else {
-        MbtiAnalyzer::new(state.database.clone())
+        None
     };
 
-    // Analyze using the FID from the profile
-    match analyzer
-        .analyze_mbti(profile.fid, social_profile.as_ref())
-        .await
-    {
+    // Analyze MBTI personality based on configured method
+    let analysis_result = match method {
+        MbtiMethod::RuleBased => {
+            let analyzer = if state.config.mbti.use_llm {
+                if let Some(llm_service) = &state.llm_service {
+                    MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
+                } else {
+                    MbtiAnalyzer::new(state.database.clone())
+                }
+            } else {
+                MbtiAnalyzer::new(state.database.clone())
+            };
+            analyzer
+                .analyze_mbti(profile.fid, social_profile.as_ref())
+                .await
+        }
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::MachineLearning => {
+            let ml_predictor = crate::personality_ml::MlMbtiPredictor::new(state.database.clone())?;
+            ml_predictor.predict_mbti(profile.fid).await
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::MachineLearning => {
+            let analyzer = MbtiAnalyzer::new(state.database.clone());
+            analyzer
+                .analyze_mbti(profile.fid, social_profile.as_ref())
+                .await
+        }
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::Ensemble => {
+            let ensemble =
+                crate::personality_ml::EnsembleMbtiPredictor::new(state.database.clone())?;
+            ensemble
+                .predict_ensemble(profile.fid, social_profile.as_ref())
+                .await
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::Ensemble => {
+            let analyzer = MbtiAnalyzer::new(state.database.clone());
+            analyzer
+                .analyze_mbti(profile.fid, social_profile.as_ref())
+                .await
+        }
+    };
+
+    // Process result
+    match analysis_result {
         Ok(mbti_profile) => {
             // Cache the result
             state
@@ -212,11 +299,7 @@ pub async fn batch_mbti_analysis(
     info!("POST /api/mbti/batch - {} FIDs", req.fids.len());
 
     let mut results = Vec::new();
-    let analyzer = if let Some(llm_service) = &state.llm_service {
-        MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
-    } else {
-        MbtiAnalyzer::new(state.database.clone())
-    };
+    let method = state.config.mbti.method;
 
     for fid in req.fids {
         // Check cache first
@@ -229,11 +312,58 @@ pub async fn batch_mbti_analysis(
             continue;
         }
 
-        // Get social profile if available
-        let social_profile = state.cache_service.get_social(fid).await;
+        // Get social profile if needed by method
+        let social_profile = if matches!(method, MbtiMethod::RuleBased | MbtiMethod::Ensemble) {
+            state.cache_service.get_social(fid).await
+        } else {
+            None
+        };
 
-        // Analyze MBTI
-        match analyzer.analyze_mbti(fid, social_profile.as_ref()).await {
+        // Analyze MBTI based on configured method
+        let analysis_result = match method {
+            MbtiMethod::RuleBased => {
+                let analyzer = if state.config.mbti.use_llm {
+                    if let Some(llm_service) = &state.llm_service {
+                        MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
+                    } else {
+                        MbtiAnalyzer::new(state.database.clone())
+                    }
+                } else {
+                    MbtiAnalyzer::new(state.database.clone())
+                };
+                analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+            }
+            #[cfg(feature = "ml-mbti")]
+            MbtiMethod::MachineLearning => {
+                match crate::personality_ml::MlMbtiPredictor::new(state.database.clone()) {
+                    Ok(ml_predictor) => ml_predictor.predict_mbti(fid).await,
+                    Err(e) => Err(e),
+                }
+            }
+            #[cfg(not(feature = "ml-mbti"))]
+            MbtiMethod::MachineLearning => {
+                let analyzer = MbtiAnalyzer::new(state.database.clone());
+                analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+            }
+            #[cfg(feature = "ml-mbti")]
+            MbtiMethod::Ensemble => {
+                match crate::personality_ml::EnsembleMbtiPredictor::new(state.database.clone()) {
+                    Ok(ensemble) => {
+                        ensemble
+                            .predict_ensemble(fid, social_profile.as_ref())
+                            .await
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            #[cfg(not(feature = "ml-mbti"))]
+            MbtiMethod::Ensemble => {
+                let analyzer = MbtiAnalyzer::new(state.database.clone());
+                analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+            }
+        };
+
+        match analysis_result {
             Ok(mbti_profile) => {
                 // Cache result
                 state
@@ -335,14 +465,10 @@ pub async fn get_mbti_compatibility(
 ) -> Result<Json<ApiResponse<CompatibilityResponse>>, StatusCode> {
     info!("GET /api/mbti/compatibility/{}/{}", fid1, fid2);
 
-    let analyzer = if let Some(llm_service) = &state.llm_service {
-        MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
-    } else {
-        MbtiAnalyzer::new(state.database.clone())
-    };
+    let method = state.config.mbti.method;
 
     // Get MBTI profiles for both users
-    let mbti1 = match analyzer.analyze_mbti(fid1, None).await {
+    let mbti1 = match get_mbti_profile(&state, fid1, method).await {
         Ok(profile) => profile,
         Err(e) => {
             return Ok(Json(ApiResponse::error(format!(
@@ -351,7 +477,7 @@ pub async fn get_mbti_compatibility(
         }
     };
 
-    let mbti2 = match analyzer.analyze_mbti(fid2, None).await {
+    let mbti2 = match get_mbti_profile(&state, fid2, method).await {
         Ok(profile) => profile,
         Err(e) => {
             return Ok(Json(ApiResponse::error(format!(
@@ -439,6 +565,57 @@ pub struct CompatibilityResponse {
 }
 
 // ====== Helper Functions ======
+
+/// Get MBTI profile for a user using the configured method
+async fn get_mbti_profile(
+    state: &AppState,
+    fid: i64,
+    method: MbtiMethod,
+) -> Result<crate::personality::MbtiProfile, crate::SnapRagError> {
+    let social_profile = if matches!(method, MbtiMethod::RuleBased | MbtiMethod::Ensemble) {
+        state.cache_service.get_social(fid).await
+    } else {
+        None
+    };
+
+    match method {
+        MbtiMethod::RuleBased => {
+            let analyzer = if state.config.mbti.use_llm {
+                if let Some(llm_service) = &state.llm_service {
+                    MbtiAnalyzer::with_llm(state.database.clone(), llm_service.clone())
+                } else {
+                    MbtiAnalyzer::new(state.database.clone())
+                }
+            } else {
+                MbtiAnalyzer::new(state.database.clone())
+            };
+            analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+        }
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::MachineLearning => {
+            let ml_predictor = crate::personality_ml::MlMbtiPredictor::new(state.database.clone())?;
+            ml_predictor.predict_mbti(fid).await
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::MachineLearning => {
+            let analyzer = MbtiAnalyzer::new(state.database.clone());
+            analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+        }
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::Ensemble => {
+            let ensemble =
+                crate::personality_ml::EnsembleMbtiPredictor::new(state.database.clone())?;
+            ensemble
+                .predict_ensemble(fid, social_profile.as_ref())
+                .await
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::Ensemble => {
+            let analyzer = MbtiAnalyzer::new(state.database.clone());
+            analyzer.analyze_mbti(fid, social_profile.as_ref()).await
+        }
+    }
+}
 
 /// Compatibility calculation result
 struct CompatibilityAnalysis {

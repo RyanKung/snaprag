@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::cli::output::print_info;
 use crate::cli::output::print_success;
 use crate::cli::output::print_warning;
+use crate::config::MbtiMethod;
 use crate::database::Database;
 use crate::llm::LlmService;
 use crate::personality::MbtiAnalyzer;
@@ -42,48 +43,98 @@ pub async fn handle_mbti_analysis(
         .map_or_else(|| format!("FID {fid}"), |u| format!("@{u}"));
     let display_name = profile.display_name.as_deref().unwrap_or("Unknown");
 
+    // Determine analysis method
+    let method = config.mbti.method;
+    let method_name = match method {
+        MbtiMethod::RuleBased => "Rule-based",
+        MbtiMethod::MachineLearning => "Machine Learning (BERT + MLP)",
+        MbtiMethod::Ensemble => "Ensemble (Rule-based + ML)",
+    };
+
     print_info(&format!(
         "🧠 Analyzing MBTI personality for {display_name} ({username})..."
     ));
+    print_info(&format!("📊 Method: {method_name}"));
     println!();
 
-    // Initialize MBTI analyzer
-    let analyzer = if use_llm {
-        match LlmService::new(config) {
-            Ok(llm_service) => {
-                print_info("🤖 Using LLM for enhanced analysis...");
-                MbtiAnalyzer::with_llm(database.clone(), Arc::new(llm_service))
+    // Get social profile for context (optional, used by rule-based and ensemble)
+    let social_profile =
+        if verbose || matches!(method, MbtiMethod::RuleBased | MbtiMethod::Ensemble) {
+            let social_analyzer =
+                SocialGraphAnalyzer::with_snapchain(database.clone(), snapchain_client);
+            match social_analyzer.analyze_user(fid as i64).await {
+                Ok(profile) => Some(profile),
+                Err(e) => {
+                    print_warning(&format!("Could not load social profile: {e}"));
+                    None
+                }
             }
-            Err(e) => {
-                print_warning(&format!(
-                    "⚠️  LLM service not available: {e}. Using rule-based analysis."
-                ));
+        } else {
+            None
+        };
+
+    // Perform analysis based on configured method
+    let mbti_profile = match method {
+        MbtiMethod::RuleBased => {
+            // Rule-based analysis
+            let analyzer = if use_llm || config.mbti.use_llm {
+                match LlmService::new(config) {
+                    Ok(llm_service) => {
+                        print_info("🤖 Using LLM for enhanced analysis...");
+                        MbtiAnalyzer::with_llm(database.clone(), Arc::new(llm_service))
+                    }
+                    Err(e) => {
+                        print_warning(&format!(
+                            "⚠️  LLM service not available: {e}. Using rule-based analysis."
+                        ));
+                        MbtiAnalyzer::new(database.clone())
+                    }
+                }
+            } else {
                 MbtiAnalyzer::new(database.clone())
-            }
-        }
-    } else {
-        MbtiAnalyzer::new(database.clone())
-    };
+            };
 
-    // Get social profile for context (optional)
-    let social_profile = if verbose {
-        let social_analyzer =
-            SocialGraphAnalyzer::with_snapchain(database.clone(), snapchain_client);
-        match social_analyzer.analyze_user(fid as i64).await {
-            Ok(profile) => Some(profile),
-            Err(e) => {
-                print_warning(&format!("Could not load social profile: {e}"));
-                None
-            }
+            analyzer
+                .analyze_mbti(fid as i64, social_profile.as_ref())
+                .await?
         }
-    } else {
-        None
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::MachineLearning => {
+            // ML-based analysis
+            print_info("🤖 Using machine learning model (BERT + Multi-Task MLP)...");
+            let ml_predictor = crate::personality_ml::MlMbtiPredictor::new(database.clone())?;
+            ml_predictor.predict_mbti(fid as i64).await?
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::MachineLearning => {
+            print_warning("⚠️  ML-MBTI feature not enabled. Falling back to rule-based analysis.");
+            print_warning("   To enable: cargo build --features ml-mbti");
+            let analyzer = MbtiAnalyzer::new(database.clone());
+            analyzer
+                .analyze_mbti(fid as i64, social_profile.as_ref())
+                .await?
+        }
+        #[cfg(feature = "ml-mbti")]
+        MbtiMethod::Ensemble => {
+            // Ensemble analysis (both methods)
+            print_info("🔄 Using ensemble method (combining rule-based + ML)...");
+            let ensemble = crate::personality_ml::EnsembleMbtiPredictor::new(database.clone())?;
+            ensemble
+                .predict_ensemble(fid as i64, social_profile.as_ref())
+                .await?
+        }
+        #[cfg(not(feature = "ml-mbti"))]
+        MbtiMethod::Ensemble => {
+            print_warning(
+                "⚠️  ML-MBTI feature not enabled for ensemble. Falling back to rule-based analysis.",
+            );
+            print_warning("   To enable: cargo build --features ml-mbti");
+            let analyzer = MbtiAnalyzer::new(database.clone());
+            analyzer
+                .analyze_mbti(fid as i64, social_profile.as_ref())
+                .await?
+        }
     };
-
-    // Analyze MBTI
-    let mbti_profile = analyzer
-        .analyze_mbti(fid as i64, social_profile.as_ref())
-        .await?;
 
     // Display results - compact format
     let confidence_indicator = if mbti_profile.confidence >= 0.8 {
