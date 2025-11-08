@@ -12,12 +12,14 @@ fn main() {
     let verbose = env::var("VERBOSE_BUILD").unwrap_or_else(|_| "0".to_string()) == "1";
 
     // Check if we should use offline mode
-    let use_offline = env::var("SQLX_OFFLINE").unwrap_or_else(|_| "false".to_string()) == "true";
+    // Default to "true" (offline mode) to allow building without database connection
+    // This is safe because the project uses runtime queries (query()) instead of compile-time queries (query!())
+    let use_offline = env::var("SQLX_OFFLINE").unwrap_or_else(|_| "true".to_string()) == "true";
 
     if use_offline {
         println!("cargo:rustc-env=SQLX_OFFLINE=true");
         if verbose {
-            println!("cargo:warning=Using SQLX_OFFLINE mode - make sure .sqlx/ directory exists with prepared queries");
+            println!("cargo:warning=Using SQLX_OFFLINE mode - build does not require database connection");
         }
     } else {
         // Try to use database connection for live query validation
@@ -26,38 +28,35 @@ fn main() {
         }
     }
 
-    // Check if DATABASE_URL is already set
-    match env::var("DATABASE_URL") {
-        Ok(_) => {
-            println!("cargo:warning=Using provided DATABASE_URL for SQLx compilation");
-            println!("cargo:rerun-if-env-changed=DATABASE_URL");
-        }
-        Err(_) => {
-            // Try to read database URL from config.toml
-            match read_database_url_from_config() {
-                Ok(database_url) => {
-                    println!("cargo:rustc-env=DATABASE_URL={database_url}");
-
-                    // Also set it for the current process so sqlx can use it
-                    env::set_var("DATABASE_URL", &database_url);
-
-                    if verbose {
-                        println!(
-                            "cargo:warning=Using database URL from config.toml for SQLx compilation"
-                        );
-                        println!(
-                            "cargo:warning=Runtime database connection is configured via config.toml"
-                        );
-                    }
+    // Set DATABASE_URL for SQLx (only used if SQLX_OFFLINE=false)
+    // This is optional since we use offline mode by default
+    if !use_offline {
+        match env::var("DATABASE_URL") {
+            Ok(_) => {
+                if verbose {
+                    println!("cargo:warning=Using provided DATABASE_URL for SQLx compilation");
                 }
-                Err(e) => {
-                    println!("cargo:warning=Failed to read config.toml: {e}");
-                    println!("cargo:warning=Please set DATABASE_URL environment variable or ensure config.toml exists");
-
-                    // Fallback to a generic URL for compilation (won't work for actual queries)
-                    let fallback_url = "postgresql://user:pass@localhost/db";
-                    println!("cargo:rustc-env=DATABASE_URL={fallback_url}");
-                    env::set_var("DATABASE_URL", fallback_url);
+                println!("cargo:rerun-if-env-changed=DATABASE_URL");
+            }
+            Err(_) => {
+                // Try to read database URL from config.toml
+                match read_database_url_from_config() {
+                    Ok(database_url) => {
+                        println!("cargo:rustc-env=DATABASE_URL={database_url}");
+                        env::set_var("DATABASE_URL", &database_url);
+                        if verbose {
+                            println!("cargo:warning=Using database URL from config.toml for SQLx compilation");
+                        }
+                    }
+                    Err(e) => {
+                        if verbose {
+                            println!("cargo:warning=Failed to read config.toml: {e}");
+                        }
+                        // Fallback to a generic URL for compilation
+                        let fallback_url = "postgresql://user:pass@localhost/db";
+                        println!("cargo:rustc-env=DATABASE_URL={fallback_url}");
+                        env::set_var("DATABASE_URL", fallback_url);
+                    }
                 }
             }
         }

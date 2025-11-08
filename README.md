@@ -104,27 +104,32 @@ SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for
 
 ## 🚀 Quick Start
 
+> **Note:** SnapRAG can be built **without a database connection**! The build process uses SQLx offline mode by default, so you can compile the project before setting up your database. This makes it easy to get started quickly.
+
 ### As CLI Tool
 
 ```bash
 # 1. Clone and setup
 git clone <repository-url> && cd snaprag
 
-# 2. Create configuration file
+# 2. Build the project (no database required!)
+cargo build
+
+# 3. Create configuration file
 cp config.example.toml config.toml
 
-# 3. Edit config.toml with your database connection details
+# 4. Edit config.toml with your database connection details
 # Update the database.url field with your actual database connection string
 
-# 4. Check your configuration
+# 5. Check your configuration
 make check-config  # Verify config.toml is valid
 
-# 5. Ensure required extensions are enabled on your database
+# 6. Ensure required extensions are enabled on your database
 # Connect to your database and run:
 # CREATE EXTENSION IF NOT EXISTS vector;
 # CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-# 6. Run database migrations and application
+# 7. Run database migrations and application
 make migrate     # Run database migrations
 make run         # Run the application
 ```
@@ -383,20 +388,22 @@ Based on our analysis of the snapchain network, here's the distribution of user 
 git clone <repository-url>
 cd snaprag
 
-# 2. Create and configure config.toml
+# 2. Build the project (no database required!)
+cargo build
+
+# 3. Create and configure config.toml
 cp config.example.toml config.toml
 # Edit config.toml and update the database.url field
 
-# 3. Ensure required extensions are enabled on your remote database
+# 4. Ensure required extensions are enabled on your remote database
 # Connect to your database and run:
 # CREATE EXTENSION IF NOT EXISTS vector;
 # CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-# 4. Run database migrations
+# 5. Run database migrations
 make migrate
 
-# 5. Build and run the application
-cargo build
+# 6. Run the application
 cargo run
 ```
 
@@ -429,7 +436,10 @@ cargo run
 If you need to set up PostgreSQL locally for development:
 
 ```bash
-# 1. Install PostgreSQL and required extensions
+# 1. Build the project first (no database required!)
+cargo build
+
+# 2. Install PostgreSQL and required extensions
 # On Ubuntu/Debian:
 sudo apt-get install postgresql-15 postgresql-15-pgvector postgresql-15-pgtrgm
 
@@ -440,26 +450,25 @@ brew install postgresql@15 pgvector
 sudo yum install postgresql15-server postgresql15-contrib
 # Then compile pgvector from source
 
-# 2. Create database and user
+# 3. Create database and user
 sudo -u postgres psql
 CREATE DATABASE snaprag;
 CREATE USER snaprag WITH PASSWORD 'snaprag123';
 GRANT ALL PRIVILEGES ON DATABASE snaprag TO snaprag;
 \q
 
-# 3. Connect to database and enable required extensions
+# 4. Connect to database and enable required extensions
 psql -U snaprag -d snaprag -h localhost
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 \q
 
-# 4. Create and configure config.toml
+# 5. Create and configure config.toml
 cp config.example.toml config.toml
 # Edit config.toml and update database.url to: postgresql://snaprag:snaprag123@localhost/snaprag
 
-# 5. Run migrations and build
+# 6. Run migrations and start the application
 make migrate
-cargo build
 cargo run
 ```
 
