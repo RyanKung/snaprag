@@ -57,8 +57,14 @@ COPY --from=builder /app/target/release/snaprag /usr/local/bin/snaprag
 COPY --from=builder /app/data ./data
 COPY --from=builder /app/migrations ./migrations
 
-# Copy example config (will be overridden by volume mount in production)
+# Copy example configuration (reference only)
 COPY config.example.toml /app/config.example.toml
+
+# IMPORTANT: config.toml is NOT included in the image!
+# You MUST mount it from the host:
+#   docker run -v ./config.toml:/app/config.toml:ro snaprag
+# Or set via environment variable:
+#   docker run -e CONFIG_FILE=/path/to/config.toml snaprag
 
 # Switch to non-root user
 USER snaprag

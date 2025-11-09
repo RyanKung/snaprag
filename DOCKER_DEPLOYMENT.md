@@ -1,80 +1,63 @@
 # 🐳 SnapRAG Docker Deployment Guide
 
-This guide explains how to deploy SnapRAG using Docker and Docker Compose.
+Simple Docker deployment for SnapRAG. Connects to your existing PostgreSQL and Redis.
 
 ## 📋 Prerequisites
 
 - Docker 20.10+
-- Docker Compose 2.0+
-- 4GB RAM minimum
-- 20GB disk space (for database and embeddings)
+- PostgreSQL 15+ with pgvector extension (running separately)
+- Redis 7+ (optional, for caching)
+- 2GB RAM minimum for SnapRAG container
+- config.toml file configured for your environment
 
 ## 🚀 Quick Start
 
-### Option 1: Docker Compose (Recommended)
-
-The easiest way to run SnapRAG with all dependencies:
-
 ```bash
-# 1. Create configuration file
-cp config.example.toml config.toml
+# 1. Create config.toml
+make -f Makefile.docker setup-config
 
-# 2. Edit config.toml with your settings
-# Update database URL to: postgresql://snaprag:snaprag_password@postgres:5432/snaprag
-# Update Redis URL to: redis://redis:6379
+# 2. Edit config.toml with your database and Redis URLs
+vim config.toml
 
-# 3. Start all services
-docker-compose up -d
+# 3. Build image
+make -f Makefile.docker docker-build
 
-# 4. Check status
-docker-compose ps
+# 4. Test image
+make -f Makefile.docker docker-test
 
-# 5. View logs
-docker-compose logs -f snaprag
+# 5. Run container
+make -f Makefile.docker docker-run
 ```
 
-Services will be available at:
-- **SnapRAG API**: http://localhost:3000
-- **PostgreSQL**: localhost:5432
-- **Redis**: localhost:6379
-
-### Option 2: Standalone Docker Container
-
-If you have existing PostgreSQL and Redis:
-
-```bash
-# Build image
-docker build -t snaprag:latest .
-
-# Run container
-docker run -d \
-  --name snaprag \
-  -p 3000:3000 \
-  -v $(pwd)/config.toml:/app/config.toml:ro \
-  -v $(pwd)/logs:/app/logs \
-  snaprag:latest api
-```
+Access API at: http://localhost:3000
 
 ## 📦 What's Included
 
-### Docker Compose Services
+The Docker image contains:
+- ✅ SnapRAG binary (compiled from source)
+- ✅ AFINN lexicon and data files
+- ✅ Database migrations
+- ✅ config.example.toml (reference only)
 
-1. **PostgreSQL** (ankane/pgvector)
-   - Database with pgvector extension
-   - Port: 5432
-   - Data persisted in Docker volume
-
-2. **Redis** (redis:7-alpine)
-   - Caching layer
-   - Port: 6379
-   - Data persisted in Docker volume
-
-3. **SnapRAG** (custom build)
-   - Main application
-   - Port: 3000
-   - Logs in `./logs/`
+**NOT included (by design):**
+- ❌ config.toml - must be mounted from host
+- ❌ PostgreSQL - use external database
+- ❌ Redis - use external Redis instance
 
 ## 🔧 Configuration
+
+### config.toml Location
+
+**IMPORTANT:** `config.toml` is **NOT** included in the image. You must mount it:
+
+```bash
+docker run -v ./config.toml:/app/config.toml:ro snaprag
+```
+
+This provides:
+- **Security**: No secrets baked into image
+- **Flexibility**: Update config without rebuilding
+- **Best Practice**: 12-Factor App compliance
 
 ### Database Configuration
 
@@ -82,140 +65,115 @@ Update `config.toml`:
 
 ```toml
 [database]
-url = "postgresql://snaprag:snaprag_password@postgres:5432/snaprag"
-max_connections = 100
-min_connections = 10
+# Use host.docker.internal to access services on host machine
+url = "postgresql://snaprag:password@host.docker.internal:5432/snaprag"
+
+# Or use external server
+url = "postgresql://user:pass@db.example.com:5432/snaprag"
 ```
 
-### Redis Configuration
+### Redis Configuration (Optional)
 
 ```toml
 [cache]
 enabled = true
-redis_url = "redis://redis:6379"
+redis_url = "redis://host.docker.internal:6379"
 ```
 
-### Snapchain Configuration
+## 🛠️ Makefile Commands
 
-```toml
-[sync]
-snapchain_http_endpoint = "http://your-snapchain-node:3381"
-snapchain_grpc_endpoint = "http://your-snapchain-node:3383"
-```
+All operations via Makefile.docker:
 
-## 🛠️ Using Make Commands
-
-We provide a `Makefile.docker` with convenient commands:
+### Setup & Build
 
 ```bash
+# Create config.toml from example
+make -f Makefile.docker setup-config
+
 # Build Docker image
 make -f Makefile.docker docker-build
 
-# Start all services
-make -f Makefile.docker docker-compose-up
-
-# View logs
-make -f Makefile.docker docker-compose-logs
-
-# Stop all services
-make -f Makefile.docker docker-compose-down
-
-# Rebuild everything
-make -f Makefile.docker docker-compose-rebuild
-
-# Development mode (with source mounting)
-make -f Makefile.docker docker-compose-dev
-
-# See all commands
-make -f Makefile.docker help
+# Test the image
+make -f Makefile.docker docker-test
 ```
 
-## 📊 Database Initialization
-
-After starting services for the first time:
+### Run Containers
 
 ```bash
-# Initialize database schema
-docker-compose exec snaprag snaprag reset --force
-docker-compose exec snaprag snaprag migrate
+# Run API server
+make -f Makefile.docker docker-run
 
-# Or use the make command
-make -f Makefile.docker docker-init-db
+# Run sync process
+make -f Makefile.docker docker-run-sync
+
+# Stop containers
+make -f Makefile.docker docker-stop
+```
+
+### Manage
+
+```bash
+# View logs
+make -f Makefile.docker docker-logs
+
+# Check status
+make -f Makefile.docker docker-status
+
+# Open shell
+make -f Makefile.docker docker-shell
+
+# Clean up
+make -f Makefile.docker docker-clean
+```
+
+### Registry Operations
+
+```bash
+# Push to registry
+make -f Makefile.docker docker-push REGISTRY=ghcr.io/yourname
+
+# Multi-arch build
+make -f Makefile.docker docker-buildx REGISTRY=ghcr.io/yourname
 ```
 
 ## 🔍 Common Operations
 
-### View Logs
+### Run Commands in Container
 
 ```bash
-# All services
-docker-compose logs -f
+# Check version
+docker exec snaprag snaprag --version
 
-# Specific service
-docker-compose logs -f snaprag
-docker-compose logs -f postgres
-```
+# Show configuration
+docker exec snaprag snaprag config
 
-### Execute Commands in Container
+# List FIDs
+docker exec snaprag snaprag list fid --limit 10
 
-```bash
-# Run snaprag commands
-docker-compose exec snaprag snaprag --help
-docker-compose exec snaprag snaprag sync status
-docker-compose exec snaprag snaprag list fid --limit 10
-
-# Open shell
-docker-compose exec snaprag /bin/bash
-```
-
-### Restart Services
-
-```bash
-# Restart all
-docker-compose restart
-
-# Restart specific service
-docker-compose restart snaprag
+# Sync status
+docker exec snaprag snaprag sync status
 ```
 
 ### Update Configuration
 
 ```bash
-# 1. Edit config.toml
+# 1. Edit config.toml on host
 vim config.toml
 
-# 2. Restart snaprag service
-docker-compose restart snaprag
+# 2. Restart container
+docker restart snaprag
+
+# No rebuild needed!
 ```
 
-## 🔄 Data Persistence
-
-All data is stored in Docker volumes:
-
-- `postgres_data`: PostgreSQL database
-- `redis_data`: Redis cache
-- `./logs`: Application logs (bind mount)
-
-### Backup Data
+### Access Logs
 
 ```bash
-# Backup PostgreSQL
-docker-compose exec -T postgres pg_dump -U snaprag snaprag > backup.sql
+# Container logs
+docker logs -f snaprag
 
-# Backup Redis
-docker-compose exec redis redis-cli SAVE
-docker cp snaprag-redis:/data/dump.rdb redis-backup.rdb
-```
-
-### Restore Data
-
-```bash
-# Restore PostgreSQL
-docker-compose exec -T postgres psql -U snaprag snaprag < backup.sql
-
-# Restore Redis
-docker cp redis-backup.rdb snaprag-redis:/data/dump.rdb
-docker-compose restart redis
+# Application logs (if mounted)
+tail -f logs/snaprag.log
 ```
 
 ## 🐛 Troubleshooting
@@ -224,192 +182,245 @@ docker-compose restart redis
 
 ```bash
 # Check logs
-docker-compose logs snaprag
+docker logs snaprag
 
-# Check health status
-docker-compose ps
+# Verify config.toml exists
+ls -la config.toml
 
-# Rebuild from scratch
-docker-compose down -v
-docker-compose build --no-cache
-docker-compose up -d
+# Test with shell
+docker run -it --rm \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  snaprag:latest /bin/bash
 ```
 
 ### Database Connection Issues
 
 ```bash
-# Check PostgreSQL is ready
-docker-compose exec postgres pg_isready -U snaprag
+# Test database connectivity from container
+docker run --rm \
+  --add-host=host.docker.internal:host-gateway \
+  snaprag:latest \
+  /bin/bash -c "apt-get update && apt-get install -y postgresql-client && psql $DATABASE_URL -c 'SELECT 1'"
 
-# Check database exists
-docker-compose exec postgres psql -U snaprag -l
-
-# Recreate database
-docker-compose down
-docker volume rm snaprag_postgres_data
-docker-compose up -d
+# Or use config.toml
+docker run --rm \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  snaprag:latest config
 ```
 
-### Performance Issues
+### Can't Access Host Services
 
-```bash
-# Check resource usage
-docker stats
+Use `host.docker.internal` in config.toml:
 
-# Increase PostgreSQL resources in docker-compose.yml:
-services:
-  postgres:
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
+```toml
+[database]
+url = "postgresql://user:pass@host.docker.internal:5432/snaprag"
+
+[sync]
+snapchain_http_endpoint = "http://host.docker.internal:3381"
+snapchain_grpc_endpoint = "http://host.docker.internal:3383"
 ```
+
+On Linux, add `--add-host=host.docker.internal:host-gateway` to docker run.
 
 ## 🚢 Production Deployment
 
+### Build Production Image
+
+```bash
+# Build with specific tag
+make -f Makefile.docker docker-build IMAGE_TAG=v0.1.0
+
+# Tag as latest
+docker tag snaprag:v0.1.0 snaprag:latest
+```
+
+### Run with Systemd
+
+Create `/etc/systemd/system/snaprag.service`:
+
+```ini
+[Unit]
+Description=SnapRAG Container
+After=docker.service postgresql.service redis.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker stop snaprag
+ExecStartPre=-/usr/bin/docker rm snaprag
+ExecStart=/usr/bin/docker run --rm \
+  --name snaprag \
+  -p 3000:3000 \
+  -v /opt/snaprag/config.toml:/app/config.toml:ro \
+  -v /opt/snaprag/logs:/app/logs \
+  --add-host=host.docker.internal:host-gateway \
+  snaprag:latest api
+ExecStop=/usr/bin/docker stop snaprag
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable snaprag
+sudo systemctl start snaprag
+sudo systemctl status snaprag
+```
+
 ### Environment Variables
 
-Set in `docker-compose.yml`:
+Pass config via environment variables:
 
-```yaml
-services:
-  snaprag:
-    environment:
-      - RUST_LOG=info
-      - RUST_BACKTRACE=1
-      - DATABASE_URL=postgresql://user:pass@postgres:5432/snaprag
+```bash
+docker run -d \
+  --name snaprag \
+  -p 3000:3000 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
+  -e RUST_LOG=info \
+  snaprag:latest api
 ```
 
 ### Security Considerations
 
-1. **Change Default Passwords**:
-   ```yaml
-   environment:
-     POSTGRES_PASSWORD: your-secure-password
+1. **Don't include secrets in image**
+   - ✅ Mount config.toml at runtime
+   - ✅ Use environment variables
+   - ✅ Use Docker secrets in swarm mode
+
+2. **Run as non-root**
+   - ✅ Image already uses `snaprag` user (UID 1000)
+
+3. **Limit resources**
+   ```bash
+   docker run -d \
+     --name snaprag \
+     --memory=2g \
+     --cpus=2 \
+     -v ./config.toml:/app/config.toml:ro \
+     snaprag:latest api
    ```
 
-2. **Use Secrets**:
-   ```yaml
-   secrets:
-     - db_password
-   ```
-
-3. **Limit Port Exposure**:
-   ```yaml
-   # Remove ports if not needed externally
-   ports:
-     - "127.0.0.1:5432:5432"  # Only local access
-   ```
-
-4. **Enable TLS**:
-   - Configure PostgreSQL with SSL
-   - Use Redis with TLS
-   - Put behind reverse proxy (nginx/traefik)
-
-### Resource Limits
-
-```yaml
-services:
-  snaprag:
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-        reservations:
-          cpus: '1'
-          memory: 2G
-```
-
-### Health Checks
-
-All services have health checks configured. Check status:
-
-```bash
-docker-compose ps
-```
+4. **Use read-only config**
+   - Always mount config with `:ro` flag
 
 ## 🌐 Multi-Architecture Build
 
-Build for multiple platforms:
+Build for both amd64 and arm64:
 
 ```bash
 # Setup buildx
 docker buildx create --name multiarch --use
 
 # Build and push
-make -f Makefile.docker docker-buildx REGISTRY=ghcr.io/yourusername
+make -f Makefile.docker docker-buildx REGISTRY=ghcr.io/yourname
 ```
 
-## 📝 Environment-Specific Configs
+## 🔗 Integration Examples
 
-### Development
-
-```bash
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-```
-
-### Production
-
-Create `docker-compose.prod.yml` with production settings:
+### With Kubernetes
 
 ```yaml
-version: '3.8'
-services:
-  snaprag:
-    restart: always
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snaprag
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: snaprag
+        image: snaprag:latest
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.toml
+          subPath: config.toml
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: config
+        configMap:
+          name: snaprag-config
+      - name: logs
+        emptyDir: {}
 ```
 
-Run:
+### With Docker Swarm
+
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Create config secret
+docker secret create snaprag-config config.toml
+
+# Deploy
+docker service create \
+  --name snaprag \
+  --replicas 3 \
+  --publish 3000:3000 \
+  --secret source=snaprag-config,target=/app/config.toml \
+  snaprag:latest api
 ```
 
-## 🔗 Integration with Other Services
-
-### Behind Nginx Reverse Proxy
+### Behind Nginx
 
 ```nginx
+upstream snaprag {
+    server localhost:3000;
+}
+
 server {
     listen 80;
-    server_name snaprag.example.com;
+    server_name api.example.com;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://snaprag;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
 
-### Kubernetes Deployment
+## 📊 Resource Usage
 
-Convert docker-compose to Kubernetes:
+Expected resource usage:
 
-```bash
-# Install kompose
-curl -L https://github.com/kubernetes/kompose/releases/download/v1.26.0/kompose-linux-amd64 -o kompose
-
-# Convert
-./kompose convert -f docker-compose.yml
-```
+- **Memory**: 500MB - 2GB (depends on database size and cache)
+- **CPU**: 1-2 cores (more during sync)
+- **Disk**: ~100MB for image, varies for logs
+- **Network**: Depends on sync load
 
 ## 📚 Additional Resources
 
-- [Docker Documentation](https://docs.docker.com/)
-- [Docker Compose Reference](https://docs.docker.com/compose/compose-file/)
+- [Dockerfile Reference](https://docs.docker.com/engine/reference/builder/)
+- [Docker Run Reference](https://docs.docker.com/engine/reference/run/)
 - [SnapRAG Documentation](./README.md)
 
-## ❓ Support
+## ❓ FAQ
 
-For issues or questions:
-- GitHub Issues: https://github.com/your-org/snaprag/issues
-- Docker Hub: https://hub.docker.com/r/your-org/snaprag
+**Q: Why isn't PostgreSQL included?**  
+A: SnapRAG requires persistent database storage. It's better to manage PostgreSQL separately for data safety and scaling.
 
+**Q: Can I use Docker Compose?**  
+A: Not provided by default. For simplicity, we focus on single-container deployment. You can create your own compose file if needed.
+
+**Q: How do I update config.toml?**  
+A: Edit the file on your host, then restart: `docker restart snaprag`
+
+**Q: How do I access the host's PostgreSQL from container?**  
+A: Use `host.docker.internal` in your config.toml database URL.
+
+**Q: Can I run multiple instances?**  
+A: Yes! Just use different names and ports:
+```bash
+docker run -d --name snaprag-1 -p 3001:3000 ...
+docker run -d --name snaprag-2 -p 3002:3000 ...
+```

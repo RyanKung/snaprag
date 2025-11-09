@@ -169,29 +169,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 🐳 Docker Deployment
 
-The easiest way to deploy SnapRAG with all dependencies (PostgreSQL + Redis):
+Deploy SnapRAG as a Docker container. Connects to your existing PostgreSQL and Redis.
 
 ```bash
-# Quick start script
-./scripts/docker-quick-start.sh
+# Quick start (all in one)
+make -f Makefile.docker docker-quick-start
 
-# Or manually
-docker-compose up -d
+# Or step by step
+make -f Makefile.docker setup-config   # Create config.toml
+make -f Makefile.docker docker-build   # Build image
+make -f Makefile.docker docker-run     # Run container
 ```
-
-**Services included:**
-- SnapRAG API (port 3000)
-- PostgreSQL with pgvector (port 5432)
-- Redis cache (port 6379)
 
 📚 **[Complete Docker Documentation →](./DOCKER_DEPLOYMENT.md)**
 
-Features:
-- ✅ One-command deployment
-- ✅ All dependencies included
-- ✅ Production-ready configuration
-- ✅ Easy scaling and updates
-- ✅ Multi-architecture support (amd64/arm64)
+**Design Philosophy:**
+- ✅ **Single-container deployment** - Simple and fast
+- ✅ **Config always external** - Security best practice (no secrets in image)
+- ✅ **Connects to external services** - Use your existing PostgreSQL/Redis
+- ✅ **Production-ready** - Non-root user, health checks, logging
+
+**Key Commands:**
+```bash
+make -f Makefile.docker help          # Show all commands
+make -f Makefile.docker docker-build  # Build image
+make -f Makefile.docker docker-run    # Run API server
+make -f Makefile.docker docker-logs   # View logs
+make -f Makefile.docker docker-stop   # Stop container
+```
+
+**Requirements:**
+- PostgreSQL 15+ with pgvector (running separately)
+- Redis 7+ (optional, for caching)
+- config.toml configured with your database URL
 
 ## ✨ Features
 

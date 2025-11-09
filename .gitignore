@@ -42,6 +42,10 @@ log/
 *.sqlite
 *.sqlite3
 
+# Docker local storage directories
+data/postgres/
+data/redis/
+
 # Temporary files
 *.tmp
 *.temp
