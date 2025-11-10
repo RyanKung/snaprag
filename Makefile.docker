@@ -160,14 +160,15 @@ docker-clean: docker-stop
 
 # Login to Docker registry
 docker-login:
-	@echo "🔐 Please login to Docker registry in your terminal:"
-	@echo ""
-	@echo "  docker login"
-	@echo ""
-	@echo "Or with username:"
-	@echo "  docker login -u yourusername"
-	@echo ""
-	@echo "After login, you can push images with 'make docker-push'"
+	@echo "🔐 Logging into Docker registry..."
+	@docker login
+	@echo "✅ Login successful!"
+
+# Login to DockerHub specifically
+docker-login-dockerhub:
+	@echo "🔐 Logging into DockerHub..."
+	@docker login docker.io
+	@echo "✅ DockerHub login successful!"
 
 # Check if already logged in
 docker-check-login:
@@ -176,7 +177,7 @@ docker-check-login:
 		echo "✅ Already logged in"; \
 		docker info | grep Username; \
 	else \
-		echo "❌ Not logged in. Run: docker login"; \
+		echo "❌ Not logged in. Run: make docker-login"; \
 	fi
 
 # Push to registry
