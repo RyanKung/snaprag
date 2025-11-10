@@ -11,7 +11,11 @@
 # Docker image configuration
 IMAGE_NAME ?= snaprag
 IMAGE_TAG ?= latest
-REGISTRY ?= ghcr.io/yourusername
+# DockerHub registry (format: username/image-name or organization/image-name)
+# For DockerHub: REGISTRY=yourusername
+# For GitHub: REGISTRY=ghcr.io/yourusername
+# For private: REGISTRY=registry.example.com
+REGISTRY ?= ryankung
 
 # Default PostgreSQL and Redis URLs (override with environment variables)
 DATABASE_URL ?= postgresql://snaprag:password@host.docker.internal:5432/snaprag
@@ -39,15 +43,23 @@ help:
 	@echo "  make docker-clean         - Remove containers and images"
 	@echo ""
 	@echo "Registry:"
-	@echo "  make docker-push          - Push image to registry"
-	@echo "  make docker-buildx        - Multi-arch build (amd64/arm64)"
+	@echo "  make docker-login         - Login to Docker registry"
+	@echo "  make docker-push          - Push single tag to registry"
+	@echo "  make docker-push-all      - Push latest + version tag"
+	@echo "  make docker-buildx        - Multi-arch build and push (amd64/arm64)"
 	@echo ""
 	@echo "Environment Variables:"
 	@echo "  IMAGE_NAME    - Image name (default: snaprag)"
 	@echo "  IMAGE_TAG     - Image tag (default: latest)"
-	@echo "  REGISTRY      - Registry URL (default: ghcr.io/yourusername)"
-	@echo "  DATABASE_URL  - PostgreSQL connection string"
-	@echo "  REDIS_URL     - Redis connection string"
+	@echo "  REGISTRY      - Registry prefix (default: ryankung)"
+	@echo "                  Examples:"
+	@echo "                    DockerHub:  ryankung"
+	@echo "                    GitHub:     ghcr.io/ryankung"
+	@echo "                    Private:    registry.example.com/myorg"
+	@echo ""
+	@echo "Quick Examples:"
+	@echo "  make docker-push REGISTRY=yourusername IMAGE_TAG=v0.1.0"
+	@echo "  make docker-buildx REGISTRY=yourusername  # Multi-arch"
 
 # Setup config from example
 setup-config:
@@ -146,23 +158,61 @@ docker-clean: docker-stop
 	@docker rmi $(IMAGE_NAME):$(IMAGE_TAG) 2>/dev/null || true
 	@echo "✅ Cleanup complete"
 
+# Login to Docker registry
+docker-login:
+	@echo "🔐 Logging into Docker registry..."
+	@docker login
+	@echo "✅ Login successful!"
+
+# Login to DockerHub specifically
+docker-login-dockerhub:
+	@echo "🔐 Logging into DockerHub..."
+	@docker login docker.io
+	@echo "✅ DockerHub login successful!"
+
 # Push to registry
 docker-push: docker-build
 	@echo "📤 Pushing to registry: $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)..."
 	@docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
 	@docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
 	@echo "✅ Push complete!"
+	@echo ""
+	@echo "Image available at:"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)"
+
+# Push multiple tags (latest + version)
+docker-push-all: docker-build
+	@echo "📤 Pushing multiple tags..."
+	@docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):latest
+	@docker push $(REGISTRY)/$(IMAGE_NAME):latest
+	@if [ "$(IMAGE_TAG)" != "latest" ]; then \
+		docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG); \
+		docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG); \
+	fi
+	@echo "✅ All tags pushed!"
+	@echo ""
+	@echo "Images available at:"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):latest"
+	@if [ "$(IMAGE_TAG)" != "latest" ]; then \
+		echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)"; \
+	fi
 
 # Multi-arch build (requires buildx)
 docker-buildx:
 	@echo "🏗️  Building multi-architecture image..."
+	@docker buildx create --name snaprag-builder --use 2>/dev/null || docker buildx use snaprag-builder
 	@docker buildx build \
 		--platform linux/amd64,linux/arm64 \
 		-t $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG) \
+		-t $(REGISTRY)/$(IMAGE_NAME):latest \
 		--push \
 		.
 	@echo "✅ Multi-arch build complete!"
 	@echo "   Platforms: linux/amd64, linux/arm64"
+	@echo ""
+	@echo "Images available at:"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):latest"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)"
 
 # Quick start - setup and run
 docker-quick-start: setup-config docker-build docker-run

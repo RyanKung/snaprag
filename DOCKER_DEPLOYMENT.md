@@ -12,6 +12,30 @@ Simple Docker deployment for SnapRAG. Connects to your existing PostgreSQL and R
 
 ## 🚀 Quick Start
 
+### Option 1: Use Pre-built Image (Recommended)
+
+Pull and run from DockerHub - no build required!
+
+```bash
+# 1. Create config.toml
+cp config.example.toml config.toml
+vim config.toml  # Update database URL to host.docker.internal:5432
+
+# 2. Run container
+docker run -d \
+  --name snaprag \
+  -p 3000:3000 \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  -v $(pwd)/logs:/app/logs \
+  --add-host=host.docker.internal:host-gateway \
+  ryankung/snaprag:latest api
+
+# 3. Access API
+curl http://localhost:3000/health
+```
+
+### Option 2: Build from Source
+
 ```bash
 # 1. Create config.toml
 make -f Makefile.docker setup-config
@@ -222,6 +246,95 @@ snapchain_grpc_endpoint = "http://host.docker.internal:3383"
 ```
 
 On Linux, add `--add-host=host.docker.internal:host-gateway` to docker run.
+
+## 📤 Publishing to DockerHub
+
+### Why Publish to DockerHub?
+
+✅ **User Convenience** - Users can `docker pull` instantly  
+✅ **Faster Deployment** - No build time (~2 min → 10 sec)  
+✅ **CI/CD Integration** - Automated builds and releases  
+✅ **Version Management** - Clear tagging strategy  
+✅ **Project Visibility** - Increased adoption  
+
+### Setup DockerHub
+
+```bash
+# 1. Create account at https://hub.docker.com
+
+# 2. Login
+make -f Makefile.docker docker-login
+
+# Or specifically for DockerHub
+docker login docker.io
+```
+
+### Push Single Architecture
+
+```bash
+# Build and push (current architecture only)
+make -f Makefile.docker docker-push REGISTRY=yourusername IMAGE_TAG=v0.1.0
+
+# Push as latest
+make -f Makefile.docker docker-push REGISTRY=yourusername IMAGE_TAG=latest
+```
+
+### Push Multi-Architecture (Recommended)
+
+Build for both amd64 (Intel/AMD) and arm64 (Apple Silicon):
+
+```bash
+# Setup buildx (one time)
+docker buildx create --name multiarch --use
+
+# Build and push both architectures
+make -f Makefile.docker docker-buildx REGISTRY=yourusername
+
+# This creates:
+#   yourusername/snaprag:latest (amd64 + arm64)
+```
+
+### Tagging Strategy
+
+```bash
+# Development
+make -f Makefile.docker docker-push REGISTRY=yourusername IMAGE_TAG=dev
+
+# Release candidate
+make -f Makefile.docker docker-push REGISTRY=yourusername IMAGE_TAG=v0.1.0-rc1
+
+# Stable release  
+make -f Makefile.docker docker-push-all REGISTRY=yourusername IMAGE_TAG=v0.1.0
+# This pushes both: yourusername/snaprag:v0.1.0 and yourusername/snaprag:latest
+```
+
+### Using Published Image
+
+Users can then run:
+
+```bash
+# Pull latest
+docker pull yourusername/snaprag:latest
+
+# Pull specific version
+docker pull yourusername/snaprag:v0.1.0
+
+# Run directly
+docker run -d \
+  -p 3000:3000 \
+  -v ./config.toml:/app/config.toml:ro \
+  --add-host=host.docker.internal:host-gateway \
+  yourusername/snaprag:latest api
+```
+
+### Update README
+
+Add badge to README.md:
+
+```markdown
+[![Docker Hub](https://img.shields.io/docker/v/yourusername/snaprag?label=docker)](https://hub.docker.com/r/yourusername/snaprag)
+[![Docker Pulls](https://img.shields.io/docker/pulls/yourusername/snaprag)](https://hub.docker.com/r/yourusername/snaprag)
+```
 
 ## 🚢 Production Deployment
 

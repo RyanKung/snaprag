@@ -169,7 +169,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 🐳 Docker Deployment
 
-Deploy SnapRAG as a Docker container. Connects to your existing PostgreSQL and Redis.
+### Option 1: Use Pre-built Image from DockerHub (Fastest)
+
+```bash
+# 1. Create config.toml
+cp config.example.toml config.toml
+vim config.toml  # Update database URL
+
+# 2. Run container
+docker run -d \
+  --name snaprag \
+  -p 3000:3000 \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  -v $(pwd)/logs:/app/logs \
+  --add-host=host.docker.internal:host-gateway \
+  ryankung/snaprag:latest api
+
+# Access at http://localhost:3000
+```
+
+### Option 2: Build from Source
 
 ```bash
 # Quick start (all in one)
