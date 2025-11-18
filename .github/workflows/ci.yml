@@ -127,7 +127,11 @@ jobs:
         run: cargo build --verbose --features payment
       
       - name: Run unit tests
-        run: cargo test --lib --features payment -- --skip integration --skip real_data
+        run: |
+          timeout 300 cargo test --lib --features payment -- --skip integration --skip real_data || {
+            echo "Test execution failed or timed out"
+            exit 1
+          }
       
       - name: Run doc tests
         run: cargo test --doc --features payment
