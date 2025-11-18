@@ -99,14 +99,17 @@ jobs:
       
       - name: Run unit tests
         run: |
-          cargo test --lib \
+          timeout 300 cargo test --lib \
             --features payment \
             -- \
             --skip integration \
             --skip database_tests \
             --skip real_data \
             --skip deterministic_blocks \
-            --skip grpc_shard
+            --skip grpc_shard || {
+            echo "Test execution failed or timed out"
+            exit 1
+          }
       
       - name: Run doc tests
         run: cargo test --doc --features payment
