@@ -166,6 +166,58 @@ fn compile_protobufs() {
     generate_grpc_client();
 }
 
+/// Format generated files using rustfmt
+fn format_generated_files(out_dir: &str, verbose: bool) {
+    use std::process::Command;
+    
+    let generated_files = [
+        "message.rs",
+        "onchain_event.rs",
+        "request_response.rs",
+        "replication.rs",
+        "node_state.rs",
+        "sync_trie.rs",
+        "username_proof.rs",
+        "blocks.rs",
+        "hub_event.rs",
+        "admin_rpc.rs",
+        "gossip.rs",
+        "_.rs",
+    ];
+    
+    for file_name in &generated_files {
+        let file_path = format!("{out_dir}/{file_name}");
+        if fs::metadata(&file_path).is_ok() {
+            // Try to format the file using rustfmt
+            // Note: This requires rustfmt to be available, which it should be in normal builds
+            let output = Command::new("rustfmt")
+                .arg("--edition")
+                .arg("2021")
+                .arg(&file_path)
+                .output();
+            
+            match output {
+                Ok(result) => {
+                    if !result.status.success() {
+                        if verbose {
+                            let stderr = String::from_utf8_lossy(&result.stderr);
+                            println!("cargo:warning=Failed to format {file_name}: {stderr}");
+                        }
+                    } else if verbose {
+                        println!("cargo:warning=Formatted {file_name}");
+                    }
+                }
+                Err(_) => {
+                    // rustfmt not available, skip formatting
+                    if verbose {
+                        println!("cargo:warning=rustfmt not available, skipping format for {file_name}");
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Add #[allow] attributes to generated protobuf files to suppress warnings
 fn add_allow_attributes_to_generated_files(out_dir: &str, verbose: bool) {
     // Comprehensive allow attributes for generated code to suppress all warnings
