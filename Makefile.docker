@@ -1,0 +1,240 @@
+# ============================================================================
+# SnapRAG Docker Makefile
+# ============================================================================
+# Build and manage SnapRAG Docker image
+# Connects to external PostgreSQL and Redis (not included)
+# ============================================================================
+
+.PHONY: help docker-build docker-push docker-run docker-stop docker-logs \
+        docker-clean docker-shell docker-test setup-config
+
+# Docker image configuration
+IMAGE_NAME ?= snaprag
+IMAGE_TAG ?= latest
+# DockerHub registry (format: username/image-name or organization/image-name)
+# For DockerHub: REGISTRY=yourusername
+# For GitHub: REGISTRY=ghcr.io/yourusername
+# For private: REGISTRY=registry.example.com
+REGISTRY ?= ryankung
+
+# Default PostgreSQL and Redis URLs (override with environment variables)
+DATABASE_URL ?= postgresql://snaprag:password@host.docker.internal:5432/snaprag
+REDIS_URL ?= redis://host.docker.internal:6379
+
+# Help target
+help:
+	@echo "SnapRAG Docker Commands:"
+	@echo ""
+	@echo "Setup:"
+	@echo "  make setup-config         - Create config.toml from example"
+	@echo ""
+	@echo "Build & Test:"
+	@echo "  make docker-build         - Build Docker image"
+	@echo "  make docker-test          - Test the built image"
+	@echo ""
+	@echo "Run:"
+	@echo "  make docker-run           - Run SnapRAG container (API mode)"
+	@echo "  make docker-run-sync      - Run sync process"
+	@echo "  make docker-stop          - Stop and remove container"
+	@echo ""
+	@echo "Manage:"
+	@echo "  make docker-logs          - View container logs"
+	@echo "  make docker-shell         - Open shell in container"
+	@echo "  make docker-clean         - Remove containers and images"
+	@echo ""
+	@echo "Registry:"
+	@echo "  make docker-login         - Login to Docker registry"
+	@echo "  make docker-push          - Push single tag to registry"
+	@echo "  make docker-push-all      - Push latest + version tag"
+	@echo "  make docker-buildx        - Multi-arch build and push (amd64/arm64)"
+	@echo ""
+	@echo "Environment Variables:"
+	@echo "  IMAGE_NAME    - Image name (default: snaprag)"
+	@echo "  IMAGE_TAG     - Image tag (default: latest)"
+	@echo "  REGISTRY      - Registry prefix (default: ryankung)"
+	@echo "                  Examples:"
+	@echo "                    DockerHub:  ryankung"
+	@echo "                    GitHub:     ghcr.io/ryankung"
+	@echo "                    Private:    registry.example.com/myorg"
+	@echo ""
+	@echo "Quick Examples:"
+	@echo "  make docker-push REGISTRY=yourusername IMAGE_TAG=v0.1.0"
+	@echo "  make docker-buildx REGISTRY=yourusername  # Multi-arch"
+
+# Setup config from example
+setup-config:
+	@if [ -f config.toml ]; then \
+		echo "⚠️  config.toml already exists"; \
+	else \
+		echo "📝 Creating config.toml from example..."; \
+		cp config.example.toml config.toml; \
+		echo "✅ config.toml created"; \
+		echo ""; \
+		echo "⚠️  IMPORTANT: Edit config.toml with your settings:"; \
+		echo "   - Update database URL"; \
+		echo "   - Update snapchain endpoints"; \
+		echo "   - Update embedding endpoints"; \
+	fi
+
+# Build Docker image
+docker-build:
+	@echo "🏗️  Building Docker image: $(IMAGE_NAME):$(IMAGE_TAG)..."
+	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	@echo "✅ Build complete!"
+	@echo ""
+	@docker images $(IMAGE_NAME):$(IMAGE_TAG)
+
+# Test the built image
+docker-test:
+	@echo "🧪 Testing Docker image..."
+	@echo "1. Testing --version..."
+	@docker run --rm $(IMAGE_NAME):$(IMAGE_TAG) --version
+	@echo "✅ Version check passed"
+	@echo ""
+	@echo "2. Testing --help..."
+	@docker run --rm $(IMAGE_NAME):$(IMAGE_TAG) --help | head -10
+	@echo "✅ Help command passed"
+	@echo ""
+	@echo "✅ All tests passed!"
+
+# Run container in API mode
+docker-run:
+	@if [ ! -f config.toml ]; then \
+		echo "❌ config.toml not found. Run 'make setup-config' first"; \
+		exit 1; \
+	fi
+	@echo "🚀 Starting SnapRAG container (API mode)..."
+	@mkdir -p logs
+	docker run -d \
+		--name snaprag \
+		-p 3000:3000 \
+		-v $(PWD)/config.toml:/app/config.toml:ro \
+		-v $(PWD)/logs:/app/logs \
+		--add-host=host.docker.internal:host-gateway \
+		$(IMAGE_NAME):$(IMAGE_TAG) api
+	@echo "✅ Container started!"
+	@echo ""
+	@echo "API available at: http://localhost:3000"
+	@echo "View logs: make docker-logs"
+
+# Run container in sync mode
+docker-run-sync:
+	@if [ ! -f config.toml ]; then \
+		echo "❌ config.toml not found. Run 'make setup-config' first"; \
+		exit 1; \
+	fi
+	@echo "🚀 Starting SnapRAG container (Sync mode)..."
+	@mkdir -p logs
+	docker run -d \
+		--name snaprag-sync \
+		-v $(PWD)/config.toml:/app/config.toml:ro \
+		-v $(PWD)/logs:/app/logs \
+		-v $(PWD)/sync_state.json:/app/sync_state.json \
+		--add-host=host.docker.internal:host-gateway \
+		$(IMAGE_NAME):$(IMAGE_TAG) sync all
+	@echo "✅ Sync container started!"
+	@echo "View logs: docker logs -f snaprag-sync"
+
+# Stop and remove container
+docker-stop:
+	@echo "🛑 Stopping SnapRAG containers..."
+	@docker stop snaprag 2>/dev/null || true
+	@docker stop snaprag-sync 2>/dev/null || true
+	@docker rm snaprag 2>/dev/null || true
+	@docker rm snaprag-sync 2>/dev/null || true
+	@echo "✅ Containers stopped and removed"
+
+# View logs
+docker-logs:
+	@docker logs -f snaprag
+
+# Open shell in running container
+docker-shell:
+	@docker exec -it snaprag /bin/bash
+
+# Clean up containers and images
+docker-clean: docker-stop
+	@echo "🧹 Cleaning up Docker resources..."
+	@docker rmi $(IMAGE_NAME):$(IMAGE_TAG) 2>/dev/null || true
+	@echo "✅ Cleanup complete"
+
+# Login to Docker registry
+docker-login:
+	@echo "🔐 Logging into Docker registry..."
+	@docker login
+	@echo "✅ Login successful!"
+
+# Login to DockerHub specifically
+docker-login-dockerhub:
+	@echo "🔐 Logging into DockerHub..."
+	@docker login docker.io
+	@echo "✅ DockerHub login successful!"
+
+# Check if already logged in
+docker-check-login:
+	@echo "🔍 Checking Docker login status..."
+	@if docker info 2>/dev/null | grep -q "Username"; then \
+		echo "✅ Already logged in"; \
+		docker info | grep Username; \
+	else \
+		echo "❌ Not logged in. Run: make docker-login"; \
+	fi
+
+# Push to registry
+docker-push: docker-build
+	@echo "📤 Pushing to registry: $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)..."
+	@docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	@docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	@echo "✅ Push complete!"
+	@echo ""
+	@echo "Image available at:"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)"
+
+# Push multiple tags (latest + version)
+docker-push-all: docker-build
+	@echo "📤 Pushing multiple tags..."
+	@docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):latest
+	@docker push $(REGISTRY)/$(IMAGE_NAME):latest
+	@if [ "$(IMAGE_TAG)" != "latest" ]; then \
+		docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG); \
+		docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG); \
+	fi
+	@echo "✅ All tags pushed!"
+	@echo ""
+	@echo "Images available at:"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):latest"
+	@if [ "$(IMAGE_TAG)" != "latest" ]; then \
+		echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)"; \
+	fi
+
+# Multi-arch build (requires buildx)
+docker-buildx:
+	@echo "🏗️  Building multi-architecture image..."
+	@docker buildx create --name snaprag-builder --use 2>/dev/null || docker buildx use snaprag-builder
+	@docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		-t $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG) \
+		-t $(REGISTRY)/$(IMAGE_NAME):latest \
+		--push \
+		.
+	@echo "✅ Multi-arch build complete!"
+	@echo "   Platforms: linux/amd64, linux/arm64"
+	@echo ""
+	@echo "Images available at:"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):latest"
+	@echo "  docker pull $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)"
+
+# Quick start - setup and run
+docker-quick-start: setup-config docker-build docker-run
+	@echo ""
+	@echo "🎉 SnapRAG is running!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Ensure PostgreSQL is running and accessible"
+	@echo "  2. Run migrations: docker exec snaprag snaprag migrate"
+	@echo "  3. Access API: http://localhost:3000"
+
+# Show container status
+docker-status:
+	@echo "📊 Container Status:"
+	@docker ps -a --filter "name=snaprag" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

@@ -30,6 +30,7 @@ use crate::social_graph::SocialGraphAnalyzer;
 // Re-export sub-modules
 pub mod chat;
 pub mod mbti;
+pub mod metrics;
 pub mod profile;
 pub mod rag;
 pub mod search;
@@ -38,6 +39,7 @@ pub mod stats;
 // Re-export handlers
 pub use chat::*;
 pub use mbti::*;
+pub use metrics::*;
 pub use profile::*;
 pub use rag::*;
 pub use search::*;
