@@ -335,5 +335,5 @@ pub fn init_metrics() -> Result<Arc<Metrics>, prometheus::Error> {
 
 /// Get metrics instance
 pub fn get_metrics() -> Option<Arc<Metrics>> {
-    METRICS.lock().unwrap().as_ref().map(|m| Arc::clone(m))
+    METRICS.lock().unwrap().as_ref().map(Arc::clone)
 }
