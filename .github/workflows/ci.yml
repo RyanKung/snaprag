@@ -63,6 +63,7 @@ jobs:
       
       - name: Run clippy
         run: cargo clippy --lib --features payment -- -D warnings
+        # Note: Examples are excluded as they may require optional dependencies
 
   # Build and test
   test:
