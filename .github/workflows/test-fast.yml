@@ -46,6 +46,7 @@ jobs:
           timeout 300 cargo test --lib \
             --features payment \
             -- \
+            --test-threads=1 \
             unit_tests::unit_tests \
             text_preprocessing::tests \
             service_factory::tests \
