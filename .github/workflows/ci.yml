@@ -127,7 +127,6 @@ jobs:
           }
           COREUTILS_BIN="$(brew --prefix coreutils)/libexec/gnubin"
           echo "$COREUTILS_BIN" >> $GITHUB_PATH
-          export PATH="$COREUTILS_BIN:$PATH"
       
       - name: Build
         run: cargo build --verbose --features payment
@@ -143,15 +142,14 @@ jobs:
       - name: Run unit tests (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          # Export PATH to ensure gtimeout is available
-          export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
-          # Verify gtimeout is available
-          if ! command -v gtimeout &> /dev/null; then
-            echo "ERROR: gtimeout not found in PATH"
-            echo "PATH: $PATH"
+          # Use full path to gtimeout to avoid PATH issues
+          GTIMEOUT_CMD="$(brew --prefix coreutils)/libexec/gnubin/gtimeout"
+          if [ ! -f "$GTIMEOUT_CMD" ]; then
+            echo "ERROR: gtimeout not found at $GTIMEOUT_CMD"
+            echo "Checking brew prefix: $(brew --prefix coreutils)"
             exit 1
           fi
-          gtimeout 300 cargo test --lib --features payment -- --skip integration --skip real_data --test-threads=1 || {
+          "$GTIMEOUT_CMD" 300 cargo test --lib --features payment -- --skip integration --skip real_data --test-threads=1 || {
             echo "Test execution failed or timed out"
             exit 1
           }
