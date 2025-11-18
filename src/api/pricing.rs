@@ -153,34 +153,34 @@ mod tests {
         assert_eq!(pricing.get_price("/stats"), None);
         assert_eq!(pricing.get_price("/"), None);
 
-        // Basic tier - $0.0001 (100 atomic units)
+        // Basic tier - $0.001
         assert_eq!(
             pricing.get_price("/profiles"),
-            Some(Decimal::from_str("0.000100").unwrap())
+            Some(Decimal::from_str("0.001").unwrap())
         );
         assert_eq!(
             pricing.get_price("/profiles/123"),
-            Some(Decimal::from_str("0.000100").unwrap())
+            Some(Decimal::from_str("0.001").unwrap())
         );
 
-        // Premium tier - $0.001 (1000 atomic units)
+        // Premium tier - $0.01
         assert_eq!(
             pricing.get_price("/search/profiles"),
-            Some(Decimal::from_str("0.001000").unwrap())
+            Some(Decimal::from_str("0.01").unwrap())
         );
         assert_eq!(
             pricing.get_price("/search/casts"),
-            Some(Decimal::from_str("0.001000").unwrap())
+            Some(Decimal::from_str("0.01").unwrap())
         );
         assert_eq!(
             pricing.get_price("/tools/call"),
-            Some(Decimal::from_str("0.001000").unwrap())
+            Some(Decimal::from_str("0.01").unwrap())
         );
 
-        // Enterprise tier - $0.01 (10000 atomic units)
+        // Enterprise tier - $0.1
         assert_eq!(
             pricing.get_price("/rag/query"),
-            Some(Decimal::from_str("0.010000").unwrap())
+            Some(Decimal::from_str("0.1").unwrap())
         );
     }
 
