@@ -166,64 +166,12 @@ fn compile_protobufs() {
     generate_grpc_client();
 }
 
-/// Format generated files using rustfmt
-fn format_generated_files(out_dir: &str, verbose: bool) {
-    use std::process::Command;
-
-    let generated_files = [
-        "message.rs",
-        "onchain_event.rs",
-        "request_response.rs",
-        "replication.rs",
-        "node_state.rs",
-        "sync_trie.rs",
-        "username_proof.rs",
-        "blocks.rs",
-        "hub_event.rs",
-        "admin_rpc.rs",
-        "gossip.rs",
-        "_.rs",
-    ];
-
-    for file_name in &generated_files {
-        let file_path = format!("{out_dir}/{file_name}");
-        if fs::metadata(&file_path).is_ok() {
-            // Try to format the file using rustfmt
-            // Note: This requires rustfmt to be available, which it should be in normal builds
-            let output = Command::new("rustfmt")
-                .arg("--edition")
-                .arg("2021")
-                .arg(&file_path)
-                .output();
-
-            match output {
-                Ok(result) => {
-                    if !result.status.success() {
-                        if verbose {
-                            let stderr = String::from_utf8_lossy(&result.stderr);
-                            println!("cargo:warning=Failed to format {file_name}: {stderr}");
-                        }
-                    } else if verbose {
-                        println!("cargo:warning=Formatted {file_name}");
-                    }
-                }
-                Err(_) => {
-                    // rustfmt not available, skip formatting
-                    if verbose {
-                        println!(
-                            "cargo:warning=rustfmt not available, skipping format for {file_name}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-}
-
 /// Add #[allow] attributes to generated protobuf files to suppress warnings
 fn add_allow_attributes_to_generated_files(out_dir: &str, verbose: bool) {
     // Comprehensive allow attributes for generated code to suppress all warnings
+    // Also skip rustfmt formatting for generated code
     let allow_attributes = "\
+#![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::all)]
 #![allow(clippy::pedantic)]
 #![allow(clippy::nursery)]
@@ -257,20 +205,24 @@ fn add_allow_attributes_to_generated_files(out_dir: &str, verbose: bool) {
             // Remove old box_pointers allow attribute if it exists
             content = content.replace("#![allow(box_pointers)]\n", "");
 
-            // Check if the file already has our allow attributes
-            if content.contains("#![allow(unused_lifetimes)]") {
-                // File already has allow attributes, just remove box_pointers if present
+            // Check if the file already has our allow attributes and rustfmt::skip
+            let has_rustfmt_skip = content.contains("#![cfg_attr(rustfmt, rustfmt::skip)]");
+            let has_allow_attributes = content.contains("#![allow(unused_lifetimes)]");
+
+            if has_rustfmt_skip && has_allow_attributes {
+                // File already has all attributes, just remove box_pointers if present
                 if content.contains("#![allow(box_pointers)]") {
                     let modified_content = content.replace("#![allow(box_pointers)]\n", "");
                     if let Err(e) = fs::write(&file_path, modified_content) {
                         println!(
                             "cargo:warning=Failed to remove box_pointers from {file_name}: {e}"
                         );
-                    } else {
+                    } else if verbose {
                         println!("cargo:warning=Removed box_pointers from {file_name}");
                     }
                 }
             } else {
+                // Need to add attributes
                 let modified_content = format!("{allow_attributes}\n{content}");
                 if let Err(e) = fs::write(&file_path, modified_content) {
                     if verbose {
@@ -279,7 +231,9 @@ fn add_allow_attributes_to_generated_files(out_dir: &str, verbose: bool) {
                         );
                     }
                 } else if verbose {
-                    println!("cargo:warning=Added allow attributes to {file_name}");
+                    println!(
+                        "cargo:warning=Added allow attributes and rustfmt::skip to {file_name}"
+                    );
                 }
             }
         }
@@ -302,7 +256,18 @@ fn generate_grpc_client() {
                     println!("cargo:warning=Successfully generated gRPC client code");
                 }
 
-                // Add allow attributes to gRPC generated files
+                // Copy rpc.rs to _.rs for mod.rs compatibility
+                let rpc_file = format!("{out_dir}/rpc.rs");
+                let underscore_file = format!("{out_dir}/_.rs");
+                if fs::metadata(&rpc_file).is_ok() {
+                    if let Err(e) = fs::copy(&rpc_file, &underscore_file) {
+                        println!("cargo:warning=Failed to copy rpc.rs to _.rs: {e}");
+                    } else if verbose {
+                        println!("cargo:warning=Copied rpc.rs to _.rs");
+                    }
+                }
+
+                // Add allow attributes to gRPC generated files (including _.rs)
                 add_allow_attributes_to_grpc_files(out_dir, verbose);
 
                 // Add grpc_client module to mod.rs
@@ -337,7 +302,9 @@ fn add_grpc_client_to_mod_rs(out_dir: &str, verbose: bool) {
 /// Add #[allow] attributes to gRPC generated files
 fn add_allow_attributes_to_grpc_files(out_dir: &str, verbose: bool) {
     // Comprehensive allow attributes for generated gRPC code to suppress all warnings
+    // Note: rustfmt::skip is usually already added by tonic-build, but we ensure it's there
     let allow_attributes = "\
+#![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::all)]
 #![allow(clippy::pedantic)]
 #![allow(clippy::nursery)]
@@ -349,8 +316,8 @@ fn add_allow_attributes_to_grpc_files(out_dir: &str, verbose: bool) {
 #![allow(warnings)]
 ";
 
-    // List of gRPC generated files
-    let grpc_files = ["rpc.rs"];
+    // List of gRPC generated files (rpc.rs is copied to _.rs)
+    let grpc_files = ["rpc.rs", "_.rs"];
 
     for file_name in &grpc_files {
         let file_path = format!("{out_dir}/{file_name}");
@@ -358,20 +325,24 @@ fn add_allow_attributes_to_grpc_files(out_dir: &str, verbose: bool) {
             // Remove old box_pointers allow attribute if it exists
             content = content.replace("#![allow(box_pointers)]\n", "");
 
-            // Check if the file already has our allow attributes
-            if content.contains("#![allow(unused_lifetimes)]") {
-                // File already has allow attributes, just remove box_pointers if present
+            // Check if the file already has our allow attributes and rustfmt::skip
+            let has_rustfmt_skip = content.contains("#![cfg_attr(rustfmt, rustfmt::skip)]");
+            let has_allow_attributes = content.contains("#![allow(unused_lifetimes)]");
+
+            if has_rustfmt_skip && has_allow_attributes {
+                // File already has all attributes, just remove box_pointers if present
                 if content.contains("#![allow(box_pointers)]") {
                     let modified_content = content.replace("#![allow(box_pointers)]\n", "");
                     if let Err(e) = fs::write(&file_path, modified_content) {
                         println!(
                             "cargo:warning=Failed to remove box_pointers from {file_name}: {e}"
                         );
-                    } else {
+                    } else if verbose {
                         println!("cargo:warning=Removed box_pointers from {file_name}");
                     }
                 }
             } else {
+                // Need to add attributes
                 let modified_content = format!("{allow_attributes}\n{content}");
                 if let Err(e) = fs::write(&file_path, modified_content) {
                     if verbose {
@@ -380,7 +351,9 @@ fn add_allow_attributes_to_grpc_files(out_dir: &str, verbose: bool) {
                         );
                     }
                 } else if verbose {
-                    println!("cargo:warning=Added allow attributes to {file_name}");
+                    println!(
+                        "cargo:warning=Added allow attributes and rustfmt::skip to {file_name}"
+                    );
                 }
             }
         }
