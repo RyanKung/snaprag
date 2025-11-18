@@ -139,31 +139,44 @@ fn compile_protobufs() {
         return;
     }
 
-    // Compile all proto files at once using protobuf-codegen for messages
-    match protobuf_codegen::Codegen::new()
-        .pure()
-        .out_dir(out_dir)
-        .inputs(existing_proto_files.iter().copied())
-        .include("proto")
-        .run()
-    {
-        Ok(()) => {
-            if verbose {
-                let count = existing_proto_files.len();
-                println!("cargo:warning=Successfully compiled {count} protobuf files");
-            }
+    // First generate gRPC client code using tonic-build (must be before protobuf-codegen)
+    // This generates rpc.rs with gRPC client code
+    generate_grpc_client();
 
-            // Add #[allow] attributes to generated files to suppress warnings
-            add_allow_attributes_to_generated_files(out_dir, verbose);
-        }
-        Err(e) => {
-            println!("cargo:warning=Failed to compile protobuf files: {e}");
-            println!("cargo:warning=Continuing build without protobuf support");
+    // Then compile protobuf files using protobuf-codegen for messages
+    // Exclude rpc.proto since tonic-build already generated it
+    let protobuf_files: Vec<&str> = existing_proto_files
+        .into_iter()
+        .filter(|f| **f != "proto/rpc.proto")
+        .copied()
+        .collect();
+
+    if !protobuf_files.is_empty() {
+        match protobuf_codegen::Codegen::new()
+            .pure()
+            .out_dir(out_dir)
+            .inputs(protobuf_files.iter().copied())
+            .include("proto")
+            .run()
+        {
+            Ok(()) => {
+                if verbose {
+                    let count = protobuf_files.len();
+                    println!("cargo:warning=Successfully compiled {count} protobuf files");
+                }
+
+                // Add #[allow] attributes to generated files to suppress warnings
+                add_allow_attributes_to_generated_files(out_dir, verbose);
+            }
+            Err(e) => {
+                println!("cargo:warning=Failed to compile protobuf files: {e}");
+                println!("cargo:warning=Continuing build without protobuf support");
+            }
         }
     }
-
-    // Generate gRPC client code using tonic-build
-    generate_grpc_client();
+    
+    // Ensure grpc_client module is declared in mod.rs (after protobuf-codegen may have regenerated it)
+    add_grpc_client_to_mod_rs(out_dir, verbose);
 }
 
 /// Add #[allow] attributes to generated protobuf files to suppress warnings

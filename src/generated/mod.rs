@@ -9,7 +9,6 @@ pub mod node_state;
 pub mod onchain_event;
 pub mod replication;
 pub mod request_response;
-pub mod rpc;
 pub mod sync_trie;
 pub mod username_proof;
 
