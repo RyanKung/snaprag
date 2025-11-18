@@ -142,13 +142,33 @@ jobs:
       - name: Run unit tests (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          # Use full path to gtimeout to avoid PATH issues
-          GTIMEOUT_CMD="$(brew --prefix coreutils)/libexec/gnubin/gtimeout"
+          # Find gtimeout - it might be in different locations depending on brew installation
+          BREW_PREFIX=$(brew --prefix coreutils)
+          GTIMEOUT_CMD="$BREW_PREFIX/libexec/gnubin/gtimeout"
+          
+          # Try alternative locations
           if [ ! -f "$GTIMEOUT_CMD" ]; then
-            echo "ERROR: gtimeout not found at $GTIMEOUT_CMD"
-            echo "Checking brew prefix: $(brew --prefix coreutils)"
+            GTIMEOUT_CMD="$BREW_PREFIX/bin/gtimeout"
+          fi
+          if [ ! -f "$GTIMEOUT_CMD" ]; then
+            GTIMEOUT_CMD="/opt/homebrew/opt/coreutils/libexec/gnubin/gtimeout"
+          fi
+          if [ ! -f "$GTIMEOUT_CMD" ]; then
+            GTIMEOUT_CMD="/usr/local/opt/coreutils/libexec/gnubin/gtimeout"
+          fi
+          
+          if [ ! -f "$GTIMEOUT_CMD" ]; then
+            echo "ERROR: gtimeout not found"
+            echo "Brew prefix: $BREW_PREFIX"
+            echo "Tried: $BREW_PREFIX/libexec/gnubin/gtimeout"
+            echo "Tried: $BREW_PREFIX/bin/gtimeout"
+            echo "Tried: /opt/homebrew/opt/coreutils/libexec/gnubin/gtimeout"
+            echo "Tried: /usr/local/opt/coreutils/libexec/gnubin/gtimeout"
+            find "$BREW_PREFIX" -name "gtimeout" 2>/dev/null || echo "No gtimeout found in $BREW_PREFIX"
             exit 1
           fi
+          
+          echo "Using gtimeout at: $GTIMEOUT_CMD"
           "$GTIMEOUT_CMD" 300 cargo test --lib --features payment -- --skip integration --skip real_data --test-threads=1 || {
             echo "Test execution failed or timed out"
             exit 1
@@ -230,9 +250,27 @@ jobs:
             echo "ERROR: cargo-audit version check failed"
             exit 1
           }
-          cargo-audit --ignore RUSTSEC-2023-0071 || {
-            echo "ERROR: Security audit found vulnerabilities (excluding RUSTSEC-2023-0071)"
-            exit 1
+          # cargo-audit 0.22.0 is installed as cargo-audit but used as 'cargo audit'
+          # Check output and filter known issues
+          AUDIT_OUTPUT=$(cargo audit 2>&1) || {
+            # Check if it's only the known issue RUSTSEC-2023-0071
+            if echo "$AUDIT_OUTPUT" | grep -q "RUSTSEC-2023-0071"; then
+              # Check if there are other vulnerabilities besides RUSTSEC-2023-0071
+              OTHER_VULNS=$(echo "$AUDIT_OUTPUT" | grep "RUSTSEC" | grep -v "RUSTSEC-2023-0071" || true)
+              if [ -z "$OTHER_VULNS" ]; then
+                echo "WARNING: Only known issue RUSTSEC-2023-0071 found (build-time only, not a runtime risk)"
+                echo "This is a known limitation of sqlx 0.8.x - MySQL code path is never executed at runtime"
+                exit 0
+              else
+                echo "ERROR: Security audit found new vulnerabilities:"
+                echo "$AUDIT_OUTPUT"
+                exit 1
+              fi
+            else
+              echo "ERROR: Security audit found vulnerabilities:"
+              echo "$AUDIT_OUTPUT"
+              exit 1
+            fi
           }
 
   # Check documentation
