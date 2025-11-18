@@ -125,7 +125,9 @@ jobs:
             echo "Failed to install system dependencies"
             exit 1
           }
-          echo "$(brew --prefix coreutils)/libexec/gnubin" >> $GITHUB_PATH
+          COREUTILS_BIN="$(brew --prefix coreutils)/libexec/gnubin"
+          echo "$COREUTILS_BIN" >> $GITHUB_PATH
+          export PATH="$COREUTILS_BIN:$PATH"
       
       - name: Build
         run: cargo build --verbose --features payment
@@ -141,10 +143,15 @@ jobs:
       - name: Run unit tests (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          # Use gtimeout from coreutils (added to PATH in previous step)
-          # Fallback to full path if PATH didn't work
-          TIMEOUT_CMD=$(which gtimeout || echo "$(brew --prefix coreutils)/libexec/gnubin/gtimeout")
-          $TIMEOUT_CMD 300 cargo test --lib --features payment -- --skip integration --skip real_data --test-threads=1 || {
+          # Export PATH to ensure gtimeout is available
+          export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
+          # Verify gtimeout is available
+          if ! command -v gtimeout &> /dev/null; then
+            echo "ERROR: gtimeout not found in PATH"
+            echo "PATH: $PATH"
+            exit 1
+          fi
+          gtimeout 300 cargo test --lib --features payment -- --skip integration --skip real_data --test-threads=1 || {
             echo "Test execution failed or timed out"
             exit 1
           }
@@ -192,13 +199,14 @@ jobs:
       - name: Install cargo-audit
         run: |
           if ! command -v cargo-audit &> /dev/null; then
+            echo "Installing cargo-audit..."
             cargo install cargo-audit --locked || {
               echo "Failed to install cargo-audit"
               exit 1
             }
           else
             echo "cargo-audit already installed"
-            cargo-audit --version
+            cargo-audit --version || exit 1
           fi
       
       - name: Run security audit
@@ -214,12 +222,18 @@ jobs:
         # Resolution plan: Upgrade to sqlx 0.9 stable when released (currently in alpha)
         # Tracking: https://github.com/launchbadge/sqlx/issues/3276
         run: |
-          cargo audit --version || {
-            echo "cargo-audit not found in PATH"
+          # Verify cargo-audit is available
+          if ! command -v cargo-audit &> /dev/null; then
+            echo "ERROR: cargo-audit not found in PATH"
+            echo "PATH: $PATH"
+            exit 1
+          fi
+          cargo-audit --version || {
+            echo "ERROR: cargo-audit version check failed"
             exit 1
           }
-          cargo audit --ignore RUSTSEC-2023-0071 || {
-            echo "Security audit found vulnerabilities (excluding RUSTSEC-2023-0071)"
+          cargo-audit --ignore RUSTSEC-2023-0071 || {
+            echo "ERROR: Security audit found vulnerabilities (excluding RUSTSEC-2023-0071)"
             exit 1
           }
 
