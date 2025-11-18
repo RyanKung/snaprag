@@ -264,10 +264,8 @@ pub enum MbtiMethod {
     Ensemble,
 }
 
-
 /// MBTI personality analysis configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MbtiConfig {
     /// Analysis method to use
     #[serde(default)]
@@ -280,7 +278,6 @@ pub struct MbtiConfig {
 const fn default_use_llm() -> bool {
     false
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {

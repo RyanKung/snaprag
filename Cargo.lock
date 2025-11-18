@@ -4895,6 +4895,7 @@ dependencies = [
  "num_cpus",
  "pgvector",
  "prost",
+ "prost-types",
  "protobuf 3.7.2",
  "protobuf-codegen",
  "psycial",
