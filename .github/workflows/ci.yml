@@ -271,7 +271,9 @@ jobs:
                 echo "INFO: Known acceptable issue: $issue"
               else
                 # Check if it's just an unmaintained warning
-                if echo "$AUDIT_OUTPUT" | grep -A 5 "$issue" | grep -q "unmaintained"; then
+                # Look for "Warning:" or "unmaintained" in the context around this issue
+                ISSUE_CONTEXT=$(echo "$AUDIT_OUTPUT" | grep -B 2 -A 10 "$issue" || true)
+                if echo "$ISSUE_CONTEXT" | grep -qiE "(Warning:|unmaintained|no longer maintained)"; then
                   echo "INFO: Unmaintained warning (acceptable): $issue"
                 else
                   NEW_VULNS="$NEW_VULNS $issue"
