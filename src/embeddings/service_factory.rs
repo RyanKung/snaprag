@@ -87,9 +87,14 @@ mod tests {
         assert!(result.is_ok());
         let service_result = result.unwrap();
         assert!(!service_result.endpoint_info.is_empty());
-        // endpoint_info contains provider and endpoint, not necessarily "default"
-        // Just verify it's not empty and contains some meaningful info
-        assert!(service_result.endpoint_info.len() > 0);
+        // endpoint_info format: "provider (endpoint)"
+        // Default config has provider="ollama" and endpoint="http://localhost:11434"
+        // So endpoint_info should be "ollama (http://localhost:11434)"
+        assert!(service_result.endpoint_info.contains("ollama"));
+        assert!(service_result.endpoint_info.contains("localhost:11434"));
+        // Verify format contains parentheses (provider (endpoint))
+        assert!(service_result.endpoint_info.contains('('));
+        assert!(service_result.endpoint_info.contains(')'));
     }
 
     #[cfg(feature = "local-gpu")]
