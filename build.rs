@@ -169,7 +169,7 @@ fn compile_protobufs() {
 /// Format generated files using rustfmt
 fn format_generated_files(out_dir: &str, verbose: bool) {
     use std::process::Command;
-    
+
     let generated_files = [
         "message.rs",
         "onchain_event.rs",
@@ -184,7 +184,7 @@ fn format_generated_files(out_dir: &str, verbose: bool) {
         "gossip.rs",
         "_.rs",
     ];
-    
+
     for file_name in &generated_files {
         let file_path = format!("{out_dir}/{file_name}");
         if fs::metadata(&file_path).is_ok() {
@@ -195,7 +195,7 @@ fn format_generated_files(out_dir: &str, verbose: bool) {
                 .arg("2021")
                 .arg(&file_path)
                 .output();
-            
+
             match output {
                 Ok(result) => {
                     if !result.status.success() {
@@ -210,7 +210,9 @@ fn format_generated_files(out_dir: &str, verbose: bool) {
                 Err(_) => {
                     // rustfmt not available, skip formatting
                     if verbose {
-                        println!("cargo:warning=rustfmt not available, skipping format for {file_name}");
+                        println!(
+                            "cargo:warning=rustfmt not available, skipping format for {file_name}"
+                        );
                     }
                 }
             }
