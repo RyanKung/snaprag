@@ -189,14 +189,17 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       
-      - name: Cache cargo-audit
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-audit
-          key: ${{ runner.os }}-cargo-audit
-      
       - name: Install cargo-audit
-        run: cargo install --force cargo-audit || true
+        run: |
+          if ! command -v cargo-audit &> /dev/null; then
+            cargo install cargo-audit --locked || {
+              echo "Failed to install cargo-audit"
+              exit 1
+            }
+          else
+            echo "cargo-audit already installed"
+            cargo-audit --version
+          fi
       
       - name: Run security audit
         # RUSTSEC-2023-0071: rsa 0.9.8 Marvin Attack vulnerability
@@ -210,7 +213,15 @@ jobs:
         # 
         # Resolution plan: Upgrade to sqlx 0.9 stable when released (currently in alpha)
         # Tracking: https://github.com/launchbadge/sqlx/issues/3276
-        run: cargo audit --ignore RUSTSEC-2023-0071
+        run: |
+          cargo audit --version || {
+            echo "cargo-audit not found in PATH"
+            exit 1
+          }
+          cargo audit --ignore RUSTSEC-2023-0071 || {
+            echo "Security audit found vulnerabilities (excluding RUSTSEC-2023-0071)"
+            exit 1
+          }
 
   # Check documentation
   docs:
