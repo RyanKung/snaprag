@@ -177,64 +177,48 @@ pub struct EmbeddingConfig {
 }
 
 impl EmbeddingConfig {
-    /// Create from app config using default LLM endpoint
+    /// Create from app config (uses embeddings section, falls back to LLM endpoint)
     #[must_use]
     pub fn from_app_config(config: &crate::config::AppConfig) -> Self {
-        // Determine provider based on llm_key or endpoint
-        // Priority: llm_key > endpoint domain
-        let provider = if config.llm_key() == "ollama" {
-            EmbeddingProvider::Ollama
-        } else if config.llm_endpoint().contains("api.openai.com") {
-            EmbeddingProvider::OpenAI
-        } else if config.llm_endpoint().contains("localhost")
-            || !config.llm_endpoint().contains("openai")
-        {
-            // Local or non-OpenAI endpoint, assume Ollama
-            EmbeddingProvider::Ollama
+        // Try embeddings config first, fall back to LLM config for backward compatibility
+        if !config.embedding_endpoint().is_empty() {
+            Self::from_embeddings_config(config)
         } else {
-            // Default to OpenAI if endpoint looks like OpenAI
-            EmbeddingProvider::OpenAI
-        };
-
-        Self {
-            provider,
-            model: config.embedding_model().to_string(),
-            dimension: config.embedding_dimension(),
-            endpoint: config.llm_endpoint().to_string(),
-            api_key: if provider == EmbeddingProvider::OpenAI {
-                Some(config.llm_key().to_string())
+            // Fallback: use LLM endpoint for backward compatibility
+            let provider = if config.llm_key() == "ollama" {
+                EmbeddingProvider::Ollama
+            } else if config.llm_endpoint().contains("api.openai.com") {
+                EmbeddingProvider::OpenAI
             } else {
-                None
-            },
+                EmbeddingProvider::Ollama
+            };
+
+            Self {
+                provider,
+                model: config.embedding_model().to_string(),
+                dimension: config.embedding_dimension(),
+                endpoint: config.llm_endpoint().to_string(),
+                api_key: if provider == EmbeddingProvider::OpenAI {
+                    Some(config.llm_key().to_string())
+                } else {
+                    None
+                },
+            }
         }
     }
 
-    /// Create from a specific endpoint configuration
+    /// Create from embeddings configuration section
     #[must_use]
-    pub fn from_endpoint(
-        config: &crate::config::AppConfig,
-        endpoint_config: &crate::config::EmbeddingEndpoint,
-    ) -> Self {
-        let provider = match endpoint_config.provider.to_lowercase().as_str() {
+    pub fn from_embeddings_config(config: &crate::config::AppConfig) -> Self {
+        let provider = match config.embedding_provider().to_lowercase().as_str() {
             "openai" => EmbeddingProvider::OpenAI,
             "ollama" => EmbeddingProvider::Ollama,
             #[cfg(feature = "local-gpu")]
             "local_gpu" => EmbeddingProvider::LocalGPU,
             _ => {
                 // Auto-detect based on endpoint
-                if endpoint_config.endpoint.contains("api.openai.com") {
+                if config.embedding_endpoint().contains("api.openai.com") {
                     EmbeddingProvider::OpenAI
-                } else if endpoint_config.endpoint.contains("localhost")
-                    || endpoint_config.endpoint.contains("127.0.0.1")
-                {
-                    #[cfg(feature = "local-gpu")]
-                    {
-                        EmbeddingProvider::LocalGPU
-                    }
-                    #[cfg(not(feature = "local-gpu"))]
-                    {
-                        EmbeddingProvider::Ollama
-                    }
                 } else {
                     EmbeddingProvider::Ollama
                 }
@@ -243,10 +227,10 @@ impl EmbeddingConfig {
 
         Self {
             provider,
-            model: endpoint_config.model.clone(),
+            model: config.embedding_model().to_string(),
             dimension: config.embedding_dimension(),
-            endpoint: endpoint_config.endpoint.clone(),
-            api_key: endpoint_config.api_key.clone(),
+            endpoint: config.embedding_endpoint().to_string(),
+            api_key: config.embedding_api_key().map(|s| s.to_string()),
         }
     }
 }

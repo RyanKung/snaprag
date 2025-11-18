@@ -148,26 +148,39 @@ mod tests {
     fn test_pricing_config() {
         let pricing = PricingConfig::default();
 
-        // Free endpoints
-        assert_eq!(pricing.get_price("/api/health"), None);
-        assert_eq!(pricing.get_price("/api/stats"), None);
+        // Free endpoints (paths without /api prefix)
+        assert_eq!(pricing.get_price("/health"), None);
+        assert_eq!(pricing.get_price("/stats"), None);
+        assert_eq!(pricing.get_price("/"), None);
 
-        // Basic tier
+        // Basic tier - $0.0001 (100 atomic units)
         assert_eq!(
-            pricing.get_price("/api/profiles"),
-            Some(Decimal::from_str("0.001").unwrap())
+            pricing.get_price("/profiles"),
+            Some(Decimal::from_str("0.000100").unwrap())
+        );
+        assert_eq!(
+            pricing.get_price("/profiles/123"),
+            Some(Decimal::from_str("0.000100").unwrap())
         );
 
-        // Premium tier
+        // Premium tier - $0.001 (1000 atomic units)
         assert_eq!(
-            pricing.get_price("/api/search/profiles"),
-            Some(Decimal::from_str("0.01").unwrap())
+            pricing.get_price("/search/profiles"),
+            Some(Decimal::from_str("0.001000").unwrap())
+        );
+        assert_eq!(
+            pricing.get_price("/search/casts"),
+            Some(Decimal::from_str("0.001000").unwrap())
+        );
+        assert_eq!(
+            pricing.get_price("/tools/call"),
+            Some(Decimal::from_str("0.001000").unwrap())
         );
 
-        // Enterprise tier
+        // Enterprise tier - $0.01 (10000 atomic units)
         assert_eq!(
-            pricing.get_price("/api/rag/query"),
-            Some(Decimal::from_str("0.1").unwrap())
+            pricing.get_price("/rag/query"),
+            Some(Decimal::from_str("0.010000").unwrap())
         );
     }
 
@@ -175,8 +188,16 @@ mod tests {
     fn test_path_matching() {
         let pricing = PricingConfig::default();
 
-        assert!(pricing.matches_pattern("/api/profiles/:fid", "/api/profiles/123"));
-        assert!(pricing.matches_pattern("/api/health", "/api/health"));
-        assert!(!pricing.matches_pattern("/api/profiles", "/api/search"));
+        // Test pattern matching with :param placeholders
+        assert!(pricing.matches_pattern("/profiles/:fid", "/profiles/123"));
+
+        // Test exact matches
+        assert!(pricing.matches_pattern("/health", "/health"));
+
+        // Test non-matches
+        assert!(!pricing.matches_pattern("/profiles", "/search"));
+
+        // Test prefix matching
+        assert!(pricing.matches_pattern("/search/profiles", "/search/profiles/query"));
     }
 }

@@ -206,7 +206,6 @@ async fn main() -> Result<()> {
                 force,
                 batch_size,
                 limit,
-                endpoint,
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
                 #[cfg(feature = "local-gpu")]
@@ -220,7 +219,6 @@ async fn main() -> Result<()> {
                     force,
                     batch_size,
                     limit,
-                    endpoint,
                     #[cfg(feature = "local-gpu")]
                     local_gpu,
                     #[cfg(feature = "local-gpu")]
@@ -238,7 +236,6 @@ async fn main() -> Result<()> {
             }
             EmbeddingsCommands::TestCast {
                 message_hash,
-                endpoint,
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
                 #[cfg(feature = "local-gpu")]
@@ -247,7 +244,6 @@ async fn main() -> Result<()> {
                 snaprag::cli::handle_embeddings_test_cast(
                     &config,
                     message_hash,
-                    endpoint,
                     #[cfg(feature = "local-gpu")]
                     local_gpu,
                     #[cfg(feature = "local-gpu")]
@@ -266,7 +262,6 @@ async fn main() -> Result<()> {
                     force,
                     batch_size,
                     limit,
-                    endpoint,
                     #[cfg(feature = "local-gpu")]
                     local_gpu,
                     #[cfg(feature = "local-gpu")]
@@ -277,7 +272,6 @@ async fn main() -> Result<()> {
                     snaprag::cli::handle_cast_embeddings_backfill(
                         &config,
                         limit,
-                        endpoint,
                         #[cfg(feature = "local-gpu")]
                         local_gpu,
                         #[cfg(feature = "local-gpu")]
@@ -344,7 +338,6 @@ async fn main() -> Result<()> {
                 force,
                 batch_size,
                 limit,
-                endpoint,
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
                 #[cfg(feature = "local-gpu")]
@@ -355,7 +348,6 @@ async fn main() -> Result<()> {
                 snaprag::cli::handle_cast_embeddings_backfill(
                     &config,
                     limit,
-                    endpoint,
                     #[cfg(feature = "local-gpu")]
                     local_gpu,
                     #[cfg(feature = "local-gpu")]
@@ -404,7 +396,6 @@ async fn main() -> Result<()> {
                 with_casts,
                 max_casts,
                 generate_embeddings,
-                embedding_endpoint,
             } => {
                 snaprag::cli::handle_fetch_user(
                     &config,
@@ -412,7 +403,6 @@ async fn main() -> Result<()> {
                     with_casts,
                     max_casts,
                     generate_embeddings,
-                    embedding_endpoint,
                 )
                 .await?;
             }
@@ -420,31 +410,17 @@ async fn main() -> Result<()> {
                 fids,
                 with_casts,
                 generate_embeddings,
-                embedding_endpoint,
             } => {
-                snaprag::cli::handle_fetch_users(
-                    &config,
-                    fids,
-                    with_casts,
-                    generate_embeddings,
-                    embedding_endpoint,
-                )
-                .await?;
+                snaprag::cli::handle_fetch_users(&config, fids, with_casts, generate_embeddings)
+                    .await?;
             }
             FetchCommands::Popular {
                 limit,
                 with_casts,
                 generate_embeddings,
-                embedding_endpoint,
             } => {
-                snaprag::cli::handle_fetch_popular(
-                    &config,
-                    limit,
-                    with_casts,
-                    generate_embeddings,
-                    embedding_endpoint,
-                )
-                .await?;
+                snaprag::cli::handle_fetch_popular(&config, limit, with_casts, generate_embeddings)
+                    .await?;
             }
         },
         Commands::Serve(serve_command) => match serve_command {
