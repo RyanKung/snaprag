@@ -111,6 +111,7 @@ jobs:
             echo "Test execution failed or timed out"
             exit 1
           }
+        # Note: This job only runs on ubuntu-latest, so timeout command is available
       
       - name: Run doc tests
         run: cargo test --doc --features payment

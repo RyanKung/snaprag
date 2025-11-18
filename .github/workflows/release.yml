@@ -44,7 +44,10 @@ jobs:
       - name: Install system dependencies (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          brew install protobuf
+          brew install protobuf || {
+            echo "Failed to install system dependencies"
+            exit 1
+          }
       
       - name: Cache cargo
         uses: actions/cache@v4
@@ -59,7 +62,16 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }} --features payment
       
       - name: Run tests in release mode
-        run: cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data
+        run: |
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # macOS doesn't have timeout by default, but release tests are fast
+            cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data --test-threads=1
+          else
+            timeout 300 cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data --test-threads=1 || {
+              echo "Test execution failed or timed out"
+              exit 1
+            }
+          fi
       
       - name: Strip binary (Linux)
         if: matrix.os == 'ubuntu-latest'
