@@ -1,7 +1,7 @@
 //! Embedding service factory for creating configured embedding services
 //!
 //! This module consolidates the duplicate logic for creating embedding services
-//! with different configurations (local GPU, named endpoints, or default).
+//! with different configurations (local GPU or default).
 
 use std::sync::Arc;
 
@@ -19,7 +19,6 @@ pub struct EmbeddingServiceResult {
 ///
 /// # Arguments
 /// * `config` - Application configuration
-/// * `endpoint_name` - Optional named endpoint from config
 /// * `local_gpu` - Whether to use local GPU (requires `local-gpu` feature)
 /// * `gpu_device` - Optional GPU device ID (requires `local-gpu` feature)
 ///
@@ -27,17 +26,12 @@ pub struct EmbeddingServiceResult {
 /// A tuple of (service, `endpoint_info`) where `endpoint_info` is a human-readable description
 pub async fn create_embedding_service(
     config: &AppConfig,
-    endpoint_name: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
     #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
 ) -> Result<EmbeddingServiceResult> {
     #[cfg(feature = "local-gpu")]
     if local_gpu {
         return create_local_gpu_service(config, gpu_device).await;
-    }
-
-    if let Some(ref ep_name) = endpoint_name {
-        return create_named_endpoint_service(config, ep_name);
     }
 
     create_default_service(config)
@@ -68,42 +62,17 @@ async fn create_local_gpu_service(
     })
 }
 
-/// Create an embedding service using a named endpoint from config
-fn create_named_endpoint_service(
-    config: &AppConfig,
-    endpoint_name: &str,
-) -> Result<EmbeddingServiceResult> {
-    let endpoint_config = config
-        .get_embedding_endpoint(endpoint_name)
-        .ok_or_else(|| {
-            crate::SnapRagError::Custom(format!(
-                "Endpoint '{}' not found in config. Available endpoints: {:?}",
-                endpoint_name,
-                config
-                    .embedding_endpoints()
-                    .iter()
-                    .map(|e| &e.name)
-                    .collect::<Vec<_>>()
-            ))
-        })?;
-
-    let embedding_config =
-        crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config);
-    let service = Arc::new(EmbeddingService::from_config(embedding_config)?);
-
-    Ok(EmbeddingServiceResult {
-        service,
-        endpoint_info: format!("{} ({})", endpoint_config.name, endpoint_config.endpoint),
-    })
-}
-
-/// Create an embedding service using the default LLM endpoint
+/// Create an embedding service using the configured endpoint
 fn create_default_service(config: &AppConfig) -> Result<EmbeddingServiceResult> {
     let service = Arc::new(EmbeddingService::new(config)?);
 
     Ok(EmbeddingServiceResult {
         service,
-        endpoint_info: format!("default ({})", config.llm_endpoint()),
+        endpoint_info: format!(
+            "{} ({})",
+            config.embedding_provider(),
+            config.embedding_endpoint()
+        ),
     })
 }
 
@@ -119,18 +88,6 @@ mod tests {
         let service_result = result.unwrap();
         assert!(!service_result.endpoint_info.is_empty());
         assert!(service_result.endpoint_info.contains("default"));
-    }
-
-    #[test]
-    fn test_create_named_endpoint_service_not_found() {
-        let config = AppConfig::default();
-        let result = create_named_endpoint_service(&config, "nonexistent");
-        assert!(result.is_err());
-
-        if let Err(e) = result {
-            let err_msg = format!("{e}");
-            assert!(err_msg.contains("not found"));
-        }
     }
 
     #[cfg(feature = "local-gpu")]

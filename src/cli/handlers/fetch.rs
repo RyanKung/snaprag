@@ -20,7 +20,6 @@ pub async fn handle_fetch_user(
     with_casts: bool,
     max_casts: usize,
     generate_embeddings: bool,
-    embedding_endpoint: Option<String>,
 ) -> Result<()> {
     use crate::sync::client::SnapchainClient;
     use crate::sync::lazy_loader::LazyLoader;
@@ -116,24 +115,8 @@ pub async fn handle_fetch_user(
                         casts_without_embeddings.len()
                     ));
 
-                    let embedding_service = if let Some(ref endpoint_name) = embedding_endpoint {
-                        let endpoint_config = config
-                            .get_embedding_endpoint(endpoint_name)
-                            .ok_or_else(|| {
-                                crate::SnapRagError::Custom(format!(
-                                    "Endpoint '{endpoint_name}' not found"
-                                ))
-                            })?;
-                        let embedding_config = crate::embeddings::EmbeddingConfig::from_endpoint(
-                            config,
-                            endpoint_config,
-                        );
-                        Arc::new(crate::embeddings::EmbeddingService::from_config(
-                            embedding_config,
-                        )?)
-                    } else {
-                        Arc::new(crate::embeddings::EmbeddingService::new(config)?)
-                    };
+                    let embedding_service =
+                        Arc::new(crate::embeddings::EmbeddingService::new(config)?);
 
                     let mut success = 0;
                     let mut skipped = 0;
@@ -217,7 +200,6 @@ pub async fn handle_fetch_users(
     fids_str: String,
     with_casts: bool,
     generate_embeddings: bool,
-    embedding_endpoint: Option<String>,
 ) -> Result<()> {
     use crate::sync::client::SnapchainClient;
     use crate::sync::lazy_loader::LazyLoader;
@@ -313,7 +295,6 @@ pub async fn handle_fetch_popular(
     limit: usize,
     with_casts: bool,
     generate_embeddings: bool,
-    embedding_endpoint: Option<String>,
 ) -> Result<()> {
     use crate::sync::client::SnapchainClient;
     use crate::sync::lazy_loader::LazyLoader;

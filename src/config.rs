@@ -28,26 +28,19 @@ pub struct LoggingConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EmbeddingEndpoint {
-    pub name: String,
-    pub endpoint: String,
-    pub api_key: Option<String>,
-    pub model: String,
-    pub provider: String, // "openai", "ollama", or "local_gpu"
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingsConfig {
     pub dimension: usize,
     pub model: String,
+    pub endpoint: String,
+    pub provider: String, // "openai", "ollama", or "local_gpu"
+    #[serde(default)]
+    pub api_key: Option<String>,
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
     #[serde(default = "default_parallel_tasks")]
     pub parallel_tasks: usize,
     #[serde(default = "default_cpu_threads")]
     pub cpu_threads: usize,
-    #[serde(default)]
-    pub endpoints: Vec<EmbeddingEndpoint>,
 }
 
 const fn default_batch_size() -> usize {
@@ -411,16 +404,22 @@ impl AppConfig {
         self.embeddings.cpu_threads
     }
 
-    /// Get embedding endpoints
+    /// Get embedding endpoint URL
     #[must_use]
-    pub const fn embedding_endpoints(&self) -> &Vec<EmbeddingEndpoint> {
-        &self.embeddings.endpoints
+    pub fn embedding_endpoint(&self) -> &str {
+        &self.embeddings.endpoint
     }
 
-    /// Get embedding endpoint by name
+    /// Get embedding provider
     #[must_use]
-    pub fn get_embedding_endpoint(&self, name: &str) -> Option<&EmbeddingEndpoint> {
-        self.embeddings.endpoints.iter().find(|e| e.name == name)
+    pub fn embedding_provider(&self) -> &str {
+        &self.embeddings.provider
+    }
+
+    /// Get embedding API key (if configured)
+    #[must_use]
+    pub fn embedding_api_key(&self) -> Option<&str> {
+        self.embeddings.api_key.as_deref()
     }
 
     /// Check if vector indexes are enabled
@@ -531,10 +530,12 @@ impl Default for AppConfig {
             embeddings: EmbeddingsConfig {
                 dimension: 1536,
                 model: "text-embedding-ada-002".to_string(),
+                endpoint: "http://localhost:11434".to_string(),
+                provider: "ollama".to_string(),
+                api_key: None,
                 batch_size: 100,
                 parallel_tasks: 5,
                 cpu_threads: 0, // Auto-detect
-                endpoints: vec![],
             },
             performance: PerformanceConfig {
                 enable_vector_indexes: true,

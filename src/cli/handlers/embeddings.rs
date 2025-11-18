@@ -13,7 +13,6 @@ use crate::SnapRag;
 pub async fn handle_cast_embeddings_backfill(
     config: &AppConfig,
     limit: Option<usize>,
-    endpoint_name: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
     #[cfg(feature = "local-gpu")] multiprocess: bool,
     #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
@@ -28,7 +27,7 @@ pub async fn handle_cast_embeddings_backfill(
 
     print_info("🚀 Starting cast embeddings backfill...");
 
-    // Create services with optional endpoint override
+    // Create services
     let database = Arc::new(Database::from_config(config).await?);
 
     let (embedding_service, endpoint_info) = {
@@ -46,60 +45,30 @@ pub async fn handle_cast_embeddings_backfill(
             let service =
                 Arc::new(EmbeddingService::from_config_async(embedding_config, gpu_device).await?);
             (service, "local-gpu (BAAI/bge-small-en-v1.5)".to_string())
-        } else if let Some(ref ep_name) = endpoint_name {
-            // Use specified endpoint from config
-            let endpoint_config = config.get_embedding_endpoint(ep_name).ok_or_else(|| {
-                crate::SnapRagError::Custom(format!(
-                    "Endpoint '{}' not found in config. Available endpoints: {:?}",
-                    ep_name,
-                    config
-                        .embedding_endpoints()
-                        .iter()
-                        .map(|e| &e.name)
-                        .collect::<Vec<_>>()
-                ))
-            })?;
-
-            let embedding_config =
-                crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config);
-            let service = Arc::new(EmbeddingService::from_config(embedding_config)?);
-
+        } else {
+            // Use configured endpoint
+            let service = Arc::new(EmbeddingService::new(config)?);
             (
                 service,
-                format!("{} ({})", endpoint_config.name, endpoint_config.endpoint),
+                format!(
+                    "{} ({})",
+                    config.embedding_provider(),
+                    config.embedding_endpoint()
+                ),
             )
-        } else {
-            // Use default LLM endpoint
-            let service = Arc::new(EmbeddingService::new(config)?);
-            (service, format!("default ({})", config.llm_endpoint()))
         }
         #[cfg(not(feature = "local-gpu"))]
-        if let Some(ref ep_name) = endpoint_name {
-            // Use specified endpoint from config
-            let endpoint_config = config.get_embedding_endpoint(ep_name).ok_or_else(|| {
-                crate::SnapRagError::Custom(format!(
-                    "Endpoint '{}' not found in config. Available endpoints: {:?}",
-                    ep_name,
-                    config
-                        .embedding_endpoints()
-                        .iter()
-                        .map(|e| &e.name)
-                        .collect::<Vec<_>>()
-                ))
-            })?;
-
-            let embedding_config =
-                crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config);
-            let service = Arc::new(EmbeddingService::from_config(embedding_config)?);
-
+        {
+            // Use configured endpoint
+            let service = Arc::new(EmbeddingService::new(config)?);
             (
                 service,
-                format!("{} ({})", endpoint_config.name, endpoint_config.endpoint),
+                format!(
+                    "{} ({})",
+                    config.embedding_provider(),
+                    config.embedding_endpoint()
+                ),
             )
-        } else {
-            // Use default LLM endpoint
-            let service = Arc::new(EmbeddingService::new(config)?);
-            (service, format!("default ({})", config.llm_endpoint()))
         }
     };
 
@@ -167,7 +136,6 @@ pub async fn handle_embeddings_backfill(
     force: bool,
     batch_size: usize,
     limit: Option<usize>,
-    endpoint: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
     #[cfg(feature = "local-gpu")] multiprocess: bool,
     #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
@@ -187,7 +155,6 @@ pub async fn handle_embeddings_backfill(
             handle_cast_embeddings_backfill(
                 config,
                 limit,
-                endpoint,
                 #[cfg(feature = "local-gpu")]
                 local_gpu,
                 #[cfg(feature = "local-gpu")]
@@ -582,7 +549,6 @@ pub async fn handle_cast_embeddings_reset(config: &AppConfig, force: bool) -> Re
 pub async fn handle_embeddings_test_cast(
     config: &AppConfig,
     message_hash: String,
-    endpoint: Option<String>,
     #[cfg(feature = "local-gpu")] local_gpu: bool,
     #[cfg(feature = "local-gpu")] gpu_device: Option<usize>,
 ) -> Result<()> {
@@ -604,23 +570,8 @@ pub async fn handle_embeddings_test_cast(
     // Initialize database
     let database = Arc::new(Database::from_config(config).await?);
 
-    // Initialize embedding service
-    let embedding_config = if let Some(endpoint_name) = endpoint {
-        // Use specific endpoint from config
-        let endpoint_config = config
-            .embedding_endpoints()
-            .iter()
-            .find(|ep| ep.name == endpoint_name)
-            .ok_or_else(|| {
-                crate::SnapRagError::Custom(format!(
-                    "Embedding endpoint '{endpoint_name}' not found in config"
-                ))
-            })?;
-        crate::embeddings::EmbeddingConfig::from_endpoint(config, endpoint_config)
-    } else {
-        // Use default configuration
-        crate::embeddings::EmbeddingConfig::from_app_config(config)
-    };
+    // Initialize embedding service using configured endpoint
+    let embedding_config = crate::embeddings::EmbeddingConfig::from_app_config(config);
 
     #[cfg(feature = "local-gpu")]
     let embedding_service = if local_gpu {
