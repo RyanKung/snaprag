@@ -451,9 +451,7 @@ impl MessageType {
             MessageType::ReactionRemove => "MESSAGE_TYPE_REACTION_REMOVE",
             MessageType::LinkAdd => "MESSAGE_TYPE_LINK_ADD",
             MessageType::LinkRemove => "MESSAGE_TYPE_LINK_REMOVE",
-            MessageType::VerificationAddEthAddress => {
-                "MESSAGE_TYPE_VERIFICATION_ADD_ETH_ADDRESS"
-            }
+            MessageType::VerificationAddEthAddress => "MESSAGE_TYPE_VERIFICATION_ADD_ETH_ADDRESS",
             MessageType::VerificationRemove => "MESSAGE_TYPE_VERIFICATION_REMOVE",
             MessageType::UserDataAdd => "MESSAGE_TYPE_USER_DATA_ADD",
             MessageType::UsernameProof => "MESSAGE_TYPE_USERNAME_PROOF",
@@ -472,9 +470,7 @@ impl MessageType {
             "MESSAGE_TYPE_REACTION_REMOVE" => Some(Self::ReactionRemove),
             "MESSAGE_TYPE_LINK_ADD" => Some(Self::LinkAdd),
             "MESSAGE_TYPE_LINK_REMOVE" => Some(Self::LinkRemove),
-            "MESSAGE_TYPE_VERIFICATION_ADD_ETH_ADDRESS" => {
-                Some(Self::VerificationAddEthAddress)
-            }
+            "MESSAGE_TYPE_VERIFICATION_ADD_ETH_ADDRESS" => Some(Self::VerificationAddEthAddress),
             "MESSAGE_TYPE_VERIFICATION_REMOVE" => Some(Self::VerificationRemove),
             "MESSAGE_TYPE_USER_DATA_ADD" => Some(Self::UserDataAdd),
             "MESSAGE_TYPE_USERNAME_PROOF" => Some(Self::UsernameProof),
@@ -568,12 +564,8 @@ impl UserDataType {
             UserDataType::Twitter => "USER_DATA_TYPE_TWITTER",
             UserDataType::Github => "USER_DATA_TYPE_GITHUB",
             UserDataType::Banner => "USER_DATA_TYPE_BANNER",
-            UserDataType::UserDataPrimaryAddressEthereum => {
-                "USER_DATA_PRIMARY_ADDRESS_ETHEREUM"
-            }
-            UserDataType::UserDataPrimaryAddressSolana => {
-                "USER_DATA_PRIMARY_ADDRESS_SOLANA"
-            }
+            UserDataType::UserDataPrimaryAddressEthereum => "USER_DATA_PRIMARY_ADDRESS_ETHEREUM",
+            UserDataType::UserDataPrimaryAddressSolana => "USER_DATA_PRIMARY_ADDRESS_SOLANA",
             UserDataType::ProfileToken => "USER_DATA_TYPE_PROFILE_TOKEN",
         }
     }
@@ -590,12 +582,8 @@ impl UserDataType {
             "USER_DATA_TYPE_TWITTER" => Some(Self::Twitter),
             "USER_DATA_TYPE_GITHUB" => Some(Self::Github),
             "USER_DATA_TYPE_BANNER" => Some(Self::Banner),
-            "USER_DATA_PRIMARY_ADDRESS_ETHEREUM" => {
-                Some(Self::UserDataPrimaryAddressEthereum)
-            }
-            "USER_DATA_PRIMARY_ADDRESS_SOLANA" => {
-                Some(Self::UserDataPrimaryAddressSolana)
-            }
+            "USER_DATA_PRIMARY_ADDRESS_ETHEREUM" => Some(Self::UserDataPrimaryAddressEthereum),
+            "USER_DATA_PRIMARY_ADDRESS_SOLANA" => Some(Self::UserDataPrimaryAddressSolana),
             "USER_DATA_TYPE_PROFILE_TOKEN" => Some(Self::ProfileToken),
             _ => None,
         }
@@ -928,9 +916,7 @@ impl IdRegisterEventType {
             IdRegisterEventType::None => "ID_REGISTER_EVENT_TYPE_NONE",
             IdRegisterEventType::Register => "ID_REGISTER_EVENT_TYPE_REGISTER",
             IdRegisterEventType::Transfer => "ID_REGISTER_EVENT_TYPE_TRANSFER",
-            IdRegisterEventType::ChangeRecovery => {
-                "ID_REGISTER_EVENT_TYPE_CHANGE_RECOVERY"
-            }
+            IdRegisterEventType::ChangeRecovery => "ID_REGISTER_EVENT_TYPE_CHANGE_RECOVERY",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2179,8 +2165,8 @@ impl StoreType {
 /// Generated client implementations.
 pub mod hub_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct HubServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -2224,9 +2210,8 @@ pub mod hub_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + Send + Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + Send + Sync,
         {
             HubServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -2266,41 +2251,32 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::Message>,
         ) -> std::result::Result<tonic::Response<super::Message>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/SubmitMessage");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "SubmitMessage"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "SubmitMessage"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn submit_bulk_messages(
             &mut self,
             request: impl tonic::IntoRequest<super::SubmitBulkMessagesRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::SubmitBulkMessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::SubmitBulkMessagesResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/SubmitBulkMessages",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/SubmitBulkMessages");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "SubmitBulkMessages"));
@@ -2310,23 +2286,16 @@ pub mod hub_service_client {
         pub async fn validate_message(
             &mut self,
             request: impl tonic::IntoRequest<super::Message>,
-        ) -> std::result::Result<
-            tonic::Response<super::ValidationResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ValidationResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/ValidateMessage",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/ValidateMessage");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "ValidateMessage"));
@@ -2340,106 +2309,84 @@ pub mod hub_service_client {
             tonic::Response<tonic::codec::Streaming<super::Block>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetBlocks");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetBlocks"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetBlocks"));
             self.inner.server_streaming(req, path, codec).await
         }
         pub async fn get_shard_chunks(
             &mut self,
             request: impl tonic::IntoRequest<super::ShardChunksRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::ShardChunksResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::ShardChunksResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetShardChunks",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetShardChunks");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetShardChunks"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetShardChunks"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_info(
             &mut self,
             request: impl tonic::IntoRequest<super::GetInfoRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetInfoResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::GetInfoResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetInfo");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetInfo"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetInfo"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_fids(
             &mut self,
             request: impl tonic::IntoRequest<super::FidsRequest>,
         ) -> std::result::Result<tonic::Response<super::FidsResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetFids");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetFids"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetFids"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_connected_peers(
             &mut self,
             request: impl tonic::IntoRequest<super::GetConnectedPeersRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetConnectedPeersResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::GetConnectedPeersResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetConnectedPeers",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetConnectedPeers");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetConnectedPeers"));
@@ -2453,57 +2400,51 @@ pub mod hub_service_client {
             tonic::Response<tonic::codec::Streaming<super::HubEvent>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/Subscribe");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "Subscribe"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "Subscribe"));
             self.inner.server_streaming(req, path, codec).await
         }
         pub async fn get_event(
             &mut self,
             request: impl tonic::IntoRequest<super::EventRequest>,
         ) -> std::result::Result<tonic::Response<super::HubEvent>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetEvent");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetEvent"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetEvent"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_events(
             &mut self,
             request: impl tonic::IntoRequest<super::EventsRequest>,
         ) -> std::result::Result<tonic::Response<super::EventsResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetEvents");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetEvents"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetEvents"));
             self.inner.unary(req, path, codec).await
         }
         /// Casts
@@ -2511,63 +2452,48 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::CastId>,
         ) -> std::result::Result<tonic::Response<super::Message>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetCast");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetCast"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetCast"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_casts_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetCastsByFid");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetCastsByFid"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetCastsByFid"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_casts_by_parent(
             &mut self,
             request: impl tonic::IntoRequest<super::CastsByParentRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetCastsByParent",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetCastsByParent");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetCastsByParent"));
@@ -2576,23 +2502,15 @@ pub mod hub_service_client {
         pub async fn get_casts_by_mention(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetCastsByMention",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetCastsByMention");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetCastsByMention"));
@@ -2603,41 +2521,31 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::ReactionRequest>,
         ) -> std::result::Result<tonic::Response<super::Message>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetReaction");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetReaction"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetReaction"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_reactions_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::ReactionsByFidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetReactionsByFid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetReactionsByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetReactionsByFid"));
@@ -2646,23 +2554,15 @@ pub mod hub_service_client {
         pub async fn get_reactions_by_cast(
             &mut self,
             request: impl tonic::IntoRequest<super::ReactionsByTargetRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetReactionsByCast",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetReactionsByCast");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetReactionsByCast"));
@@ -2671,23 +2571,15 @@ pub mod hub_service_client {
         pub async fn get_reactions_by_target(
             &mut self,
             request: impl tonic::IntoRequest<super::ReactionsByTargetRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetReactionsByTarget",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetReactionsByTarget");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetReactionsByTarget"));
@@ -2698,41 +2590,31 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::UserDataRequest>,
         ) -> std::result::Result<tonic::Response<super::Message>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetUserData");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetUserData"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetUserData"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_user_data_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetUserDataByFid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetUserDataByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetUserDataByFid"));
@@ -2743,19 +2625,14 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::UsernameProofRequest>,
         ) -> std::result::Result<tonic::Response<super::UserNameProof>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetUsernameProof",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetUsernameProof");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetUsernameProof"));
@@ -2764,23 +2641,16 @@ pub mod hub_service_client {
         pub async fn get_user_name_proofs_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::UsernameProofsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::UsernameProofsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetUserNameProofsByFid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetUserNameProofsByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetUserNameProofsByFid"));
@@ -2791,19 +2661,14 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::VerificationRequest>,
         ) -> std::result::Result<tonic::Response<super::Message>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetVerification",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetVerification");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetVerification"));
@@ -2812,23 +2677,15 @@ pub mod hub_service_client {
         pub async fn get_verifications_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetVerificationsByFid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetVerificationsByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetVerificationsByFid"));
@@ -2839,19 +2696,14 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::SignerRequest>,
         ) -> std::result::Result<tonic::Response<super::OnChainEvent>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetOnChainSigner",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetOnChainSigner");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetOnChainSigner"));
@@ -2860,23 +2712,16 @@ pub mod hub_service_client {
         pub async fn get_on_chain_signers_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::OnChainEventResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::OnChainEventResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetOnChainSignersByFid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetOnChainSignersByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetOnChainSignersByFid"));
@@ -2885,23 +2730,16 @@ pub mod hub_service_client {
         pub async fn get_on_chain_events(
             &mut self,
             request: impl tonic::IntoRequest<super::OnChainEventRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::OnChainEventResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::OnChainEventResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetOnChainEvents",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetOnChainEvents");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetOnChainEvents"));
@@ -2911,19 +2749,15 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
         ) -> std::result::Result<tonic::Response<super::OnChainEvent>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetIdRegistryOnChainEvent",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/HubService/GetIdRegistryOnChainEvent");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetIdRegistryOnChainEvent"));
@@ -2933,71 +2767,57 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::IdRegistryEventByAddressRequest>,
         ) -> std::result::Result<tonic::Response<super::OnChainEvent>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/HubService/GetIdRegistryOnChainEventByAddress",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("HubService", "GetIdRegistryOnChainEventByAddress"),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "HubService",
+                "GetIdRegistryOnChainEventByAddress",
+            ));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_current_storage_limits_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::StorageLimitsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::StorageLimitsResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetCurrentStorageLimitsByFid",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/HubService/GetCurrentStorageLimitsByFid");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("HubService", "GetCurrentStorageLimitsByFid"));
+            req.extensions_mut().insert(GrpcMethod::new(
+                "HubService",
+                "GetCurrentStorageLimitsByFid",
+            ));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_fid_address_type(
             &mut self,
             request: impl tonic::IntoRequest<super::FidAddressTypeRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::FidAddressTypeResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::FidAddressTypeResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetFidAddressType",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetFidAddressType");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetFidAddressType"));
@@ -3008,63 +2828,48 @@ pub mod hub_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::LinkRequest>,
         ) -> std::result::Result<tonic::Response<super::Message>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetLink");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetLink"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetLink"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_links_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::LinksByFidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static("/HubService/GetLinksByFid");
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new("HubService", "GetLinksByFid"));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("HubService", "GetLinksByFid"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_links_by_target(
             &mut self,
             request: impl tonic::IntoRequest<super::LinksByTargetRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetLinksByTarget",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetLinksByTarget");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetLinksByTarget"));
@@ -3073,51 +2878,36 @@ pub mod hub_service_client {
         pub async fn get_link_compact_state_message_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetLinkCompactStateMessageByFid",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/HubService/GetLinkCompactStateMessageByFid");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("HubService", "GetLinkCompactStateMessageByFid"),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "HubService",
+                "GetLinkCompactStateMessageByFid",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Bulk Methods
         pub async fn get_all_cast_messages_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetAllCastMessagesByFid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetAllCastMessagesByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetAllCastMessagesByFid"));
@@ -3126,23 +2916,16 @@ pub mod hub_service_client {
         pub async fn get_all_reaction_messages_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetAllReactionMessagesByFid",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/HubService/GetAllReactionMessagesByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetAllReactionMessagesByFid"));
@@ -3151,50 +2934,36 @@ pub mod hub_service_client {
         pub async fn get_all_verification_messages_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetAllVerificationMessagesByFid",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/HubService/GetAllVerificationMessagesByFid");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("HubService", "GetAllVerificationMessagesByFid"),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "HubService",
+                "GetAllVerificationMessagesByFid",
+            ));
             self.inner.unary(req, path, codec).await
         }
         pub async fn get_all_user_data_messages_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetAllUserDataMessagesByFid",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/HubService/GetAllUserDataMessagesByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetAllUserDataMessagesByFid"));
@@ -3203,23 +2972,15 @@ pub mod hub_service_client {
         pub async fn get_all_link_messages_by_fid(
             &mut self,
             request: impl tonic::IntoRequest<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetAllLinkMessagesByFid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetAllLinkMessagesByFid");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetAllLinkMessagesByFid"));
@@ -3228,23 +2989,16 @@ pub mod hub_service_client {
         pub async fn get_trie_metadata_by_prefix(
             &mut self,
             request: impl tonic::IntoRequest<super::TrieNodeMetadataRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::TrieNodeMetadataResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::TrieNodeMetadataResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/HubService/GetTrieMetadataByPrefix",
-            );
+            let path = http::uri::PathAndQuery::from_static("/HubService/GetTrieMetadataByPrefix");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("HubService", "GetTrieMetadataByPrefix"));
@@ -3267,23 +3021,16 @@ pub mod hub_service_server {
         async fn submit_bulk_messages(
             &self,
             request: tonic::Request<super::SubmitBulkMessagesRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::SubmitBulkMessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::SubmitBulkMessagesResponse>, tonic::Status>;
         /// Validation Methods
         async fn validate_message(
             &self,
             request: tonic::Request<super::Message>,
-        ) -> std::result::Result<
-            tonic::Response<super::ValidationResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ValidationResponse>, tonic::Status>;
         /// Server streaming response type for the GetBlocks method.
         type GetBlocksStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::Block, tonic::Status>,
-            >
-            + Send
+            > + Send
             + 'static;
         /// Block API
         async fn get_blocks(
@@ -3293,10 +3040,7 @@ pub mod hub_service_server {
         async fn get_shard_chunks(
             &self,
             request: tonic::Request<super::ShardChunksRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::ShardChunksResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::ShardChunksResponse>, tonic::Status>;
         async fn get_info(
             &self,
             request: tonic::Request<super::GetInfoRequest>,
@@ -3308,15 +3052,11 @@ pub mod hub_service_server {
         async fn get_connected_peers(
             &self,
             request: tonic::Request<super::GetConnectedPeersRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetConnectedPeersResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::GetConnectedPeersResponse>, tonic::Status>;
         /// Server streaming response type for the Subscribe method.
         type SubscribeStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::HubEvent, tonic::Status>,
-            >
-            + Send
+            > + Send
             + 'static;
         /// Events
         async fn subscribe(
@@ -3339,24 +3079,15 @@ pub mod hub_service_server {
         async fn get_casts_by_fid(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_casts_by_parent(
             &self,
             request: tonic::Request<super::CastsByParentRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_casts_by_mention(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         /// Reactions
         async fn get_reaction(
             &self,
@@ -3365,24 +3096,15 @@ pub mod hub_service_server {
         async fn get_reactions_by_fid(
             &self,
             request: tonic::Request<super::ReactionsByFidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_reactions_by_cast(
             &self,
             request: tonic::Request<super::ReactionsByTargetRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_reactions_by_target(
             &self,
             request: tonic::Request<super::ReactionsByTargetRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         /// User Data
         async fn get_user_data(
             &self,
@@ -3391,10 +3113,7 @@ pub mod hub_service_server {
         async fn get_user_data_by_fid(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         /// Username Proof
         async fn get_username_proof(
             &self,
@@ -3403,10 +3122,7 @@ pub mod hub_service_server {
         async fn get_user_name_proofs_by_fid(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::UsernameProofsResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::UsernameProofsResponse>, tonic::Status>;
         /// Verifications
         async fn get_verification(
             &self,
@@ -3415,10 +3131,7 @@ pub mod hub_service_server {
         async fn get_verifications_by_fid(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         /// OnChain Events
         async fn get_on_chain_signer(
             &self,
@@ -3427,17 +3140,11 @@ pub mod hub_service_server {
         async fn get_on_chain_signers_by_fid(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::OnChainEventResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::OnChainEventResponse>, tonic::Status>;
         async fn get_on_chain_events(
             &self,
             request: tonic::Request<super::OnChainEventRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::OnChainEventResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::OnChainEventResponse>, tonic::Status>;
         async fn get_id_registry_on_chain_event(
             &self,
             request: tonic::Request<super::FidRequest>,
@@ -3449,17 +3156,11 @@ pub mod hub_service_server {
         async fn get_current_storage_limits_by_fid(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::StorageLimitsResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::StorageLimitsResponse>, tonic::Status>;
         async fn get_fid_address_type(
             &self,
             request: tonic::Request<super::FidAddressTypeRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::FidAddressTypeResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::FidAddressTypeResponse>, tonic::Status>;
         /// Links
         async fn get_link(
             &self,
@@ -3468,67 +3169,40 @@ pub mod hub_service_server {
         async fn get_links_by_fid(
             &self,
             request: tonic::Request<super::LinksByFidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_links_by_target(
             &self,
             request: tonic::Request<super::LinksByTargetRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_link_compact_state_message_by_fid(
             &self,
             request: tonic::Request<super::FidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         /// Bulk Methods
         async fn get_all_cast_messages_by_fid(
             &self,
             request: tonic::Request<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_all_reaction_messages_by_fid(
             &self,
             request: tonic::Request<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_all_verification_messages_by_fid(
             &self,
             request: tonic::Request<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_all_user_data_messages_by_fid(
             &self,
             request: tonic::Request<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_all_link_messages_by_fid(
             &self,
             request: tonic::Request<super::FidTimestampRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MessagesResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MessagesResponse>, tonic::Status>;
         async fn get_trie_metadata_by_prefix(
             &self,
             request: tonic::Request<super::TrieNodeMetadataRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::TrieNodeMetadataResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::TrieNodeMetadataResponse>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct HubServiceServer<T: HubService> {
@@ -3553,10 +3227,7 @@ pub mod hub_service_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -3612,13 +3283,9 @@ pub mod hub_service_server {
                 "/HubService/SubmitMessage" => {
                     #[allow(non_camel_case_types)]
                     struct SubmitMessageSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::Message>
-                    for SubmitMessageSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::Message> for SubmitMessageSvc<T> {
                         type Response = super::Message;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::Message>,
@@ -3656,23 +3323,19 @@ pub mod hub_service_server {
                 "/HubService/SubmitBulkMessages" => {
                     #[allow(non_camel_case_types)]
                     struct SubmitBulkMessagesSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::SubmitBulkMessagesRequest>
-                    for SubmitBulkMessagesSvc<T> {
+                    impl<T: HubService>
+                        tonic::server::UnaryService<super::SubmitBulkMessagesRequest>
+                        for SubmitBulkMessagesSvc<T>
+                    {
                         type Response = super::SubmitBulkMessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::SubmitBulkMessagesRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::submit_bulk_messages(&inner, request)
-                                    .await
+                                <T as HubService>::submit_bulk_messages(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3703,13 +3366,9 @@ pub mod hub_service_server {
                 "/HubService/ValidateMessage" => {
                     #[allow(non_camel_case_types)]
                     struct ValidateMessageSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::Message>
-                    for ValidateMessageSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::Message> for ValidateMessageSvc<T> {
                         type Response = super::ValidationResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::Message>,
@@ -3747,24 +3406,20 @@ pub mod hub_service_server {
                 "/HubService/GetBlocks" => {
                     #[allow(non_camel_case_types)]
                     struct GetBlocksSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::ServerStreamingService<super::BlocksRequest>
-                    for GetBlocksSvc<T> {
+                    impl<T: HubService> tonic::server::ServerStreamingService<super::BlocksRequest>
+                        for GetBlocksSvc<T>
+                    {
                         type Response = super::Block;
                         type ResponseStream = T::GetBlocksStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::BlocksRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::get_blocks(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::get_blocks(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -3794,15 +3449,11 @@ pub mod hub_service_server {
                 "/HubService/GetShardChunks" => {
                     #[allow(non_camel_case_types)]
                     struct GetShardChunksSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::ShardChunksRequest>
-                    for GetShardChunksSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::ShardChunksRequest>
+                        for GetShardChunksSvc<T>
+                    {
                         type Response = super::ShardChunksResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ShardChunksRequest>,
@@ -3840,23 +3491,16 @@ pub mod hub_service_server {
                 "/HubService/GetInfo" => {
                     #[allow(non_camel_case_types)]
                     struct GetInfoSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::GetInfoRequest>
-                    for GetInfoSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::GetInfoRequest> for GetInfoSvc<T> {
                         type Response = super::GetInfoResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetInfoRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::get_info(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::get_info(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -3886,21 +3530,16 @@ pub mod hub_service_server {
                 "/HubService/GetFids" => {
                     #[allow(non_camel_case_types)]
                     struct GetFidsSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::FidsRequest>
-                    for GetFidsSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidsRequest> for GetFidsSvc<T> {
                         type Response = super::FidsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::get_fids(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::get_fids(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -3930,23 +3569,18 @@ pub mod hub_service_server {
                 "/HubService/GetConnectedPeers" => {
                     #[allow(non_camel_case_types)]
                     struct GetConnectedPeersSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::GetConnectedPeersRequest>
-                    for GetConnectedPeersSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::GetConnectedPeersRequest>
+                        for GetConnectedPeersSvc<T>
+                    {
                         type Response = super::GetConnectedPeersResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetConnectedPeersRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_connected_peers(&inner, request)
-                                    .await
+                                <T as HubService>::get_connected_peers(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3977,24 +3611,21 @@ pub mod hub_service_server {
                 "/HubService/Subscribe" => {
                     #[allow(non_camel_case_types)]
                     struct SubscribeSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::ServerStreamingService<super::SubscribeRequest>
-                    for SubscribeSvc<T> {
+                    impl<T: HubService>
+                        tonic::server::ServerStreamingService<super::SubscribeRequest>
+                        for SubscribeSvc<T>
+                    {
                         type Response = super::HubEvent;
                         type ResponseStream = T::SubscribeStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::SubscribeRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::subscribe(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::subscribe(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4024,21 +3655,16 @@ pub mod hub_service_server {
                 "/HubService/GetEvent" => {
                     #[allow(non_camel_case_types)]
                     struct GetEventSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::EventRequest>
-                    for GetEventSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::EventRequest> for GetEventSvc<T> {
                         type Response = super::HubEvent;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::EventRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::get_event(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::get_event(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4068,21 +3694,16 @@ pub mod hub_service_server {
                 "/HubService/GetEvents" => {
                     #[allow(non_camel_case_types)]
                     struct GetEventsSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::EventsRequest>
-                    for GetEventsSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::EventsRequest> for GetEventsSvc<T> {
                         type Response = super::EventsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::EventsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::get_events(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::get_events(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4112,21 +3733,13 @@ pub mod hub_service_server {
                 "/HubService/GetCast" => {
                     #[allow(non_camel_case_types)]
                     struct GetCastSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::CastId>
-                    for GetCastSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::CastId> for GetCastSvc<T> {
                         type Response = super::Message;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::CastId>,
-                        ) -> Self::Future {
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(&mut self, request: tonic::Request<super::CastId>) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::get_cast(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::get_cast(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4156,13 +3769,9 @@ pub mod hub_service_server {
                 "/HubService/GetCastsByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetCastsByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetCastsByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest> for GetCastsByFidSvc<T> {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
@@ -4200,23 +3809,18 @@ pub mod hub_service_server {
                 "/HubService/GetCastsByParent" => {
                     #[allow(non_camel_case_types)]
                     struct GetCastsByParentSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::CastsByParentRequest>
-                    for GetCastsByParentSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::CastsByParentRequest>
+                        for GetCastsByParentSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::CastsByParentRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_casts_by_parent(&inner, request)
-                                    .await
+                                <T as HubService>::get_casts_by_parent(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4247,21 +3851,16 @@ pub mod hub_service_server {
                 "/HubService/GetCastsByMention" => {
                     #[allow(non_camel_case_types)]
                     struct GetCastsByMentionSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetCastsByMentionSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest> for GetCastsByMentionSvc<T> {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_casts_by_mention(&inner, request)
-                                    .await
+                                <T as HubService>::get_casts_by_mention(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4292,15 +3891,9 @@ pub mod hub_service_server {
                 "/HubService/GetReaction" => {
                     #[allow(non_camel_case_types)]
                     struct GetReactionSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::ReactionRequest>
-                    for GetReactionSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::ReactionRequest> for GetReactionSvc<T> {
                         type Response = super::Message;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReactionRequest>,
@@ -4338,23 +3931,18 @@ pub mod hub_service_server {
                 "/HubService/GetReactionsByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetReactionsByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::ReactionsByFidRequest>
-                    for GetReactionsByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::ReactionsByFidRequest>
+                        for GetReactionsByFidSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReactionsByFidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_reactions_by_fid(&inner, request)
-                                    .await
+                                <T as HubService>::get_reactions_by_fid(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4385,23 +3973,18 @@ pub mod hub_service_server {
                 "/HubService/GetReactionsByCast" => {
                     #[allow(non_camel_case_types)]
                     struct GetReactionsByCastSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::ReactionsByTargetRequest>
-                    for GetReactionsByCastSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::ReactionsByTargetRequest>
+                        for GetReactionsByCastSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReactionsByTargetRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_reactions_by_cast(&inner, request)
-                                    .await
+                                <T as HubService>::get_reactions_by_cast(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4432,23 +4015,18 @@ pub mod hub_service_server {
                 "/HubService/GetReactionsByTarget" => {
                     #[allow(non_camel_case_types)]
                     struct GetReactionsByTargetSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::ReactionsByTargetRequest>
-                    for GetReactionsByTargetSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::ReactionsByTargetRequest>
+                        for GetReactionsByTargetSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ReactionsByTargetRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_reactions_by_target(&inner, request)
-                                    .await
+                                <T as HubService>::get_reactions_by_target(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4479,15 +4057,9 @@ pub mod hub_service_server {
                 "/HubService/GetUserData" => {
                     #[allow(non_camel_case_types)]
                     struct GetUserDataSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::UserDataRequest>
-                    for GetUserDataSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::UserDataRequest> for GetUserDataSvc<T> {
                         type Response = super::Message;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::UserDataRequest>,
@@ -4525,21 +4097,16 @@ pub mod hub_service_server {
                 "/HubService/GetUserDataByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetUserDataByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetUserDataByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest> for GetUserDataByFidSvc<T> {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_user_data_by_fid(&inner, request)
-                                    .await
+                                <T as HubService>::get_user_data_by_fid(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4570,15 +4137,11 @@ pub mod hub_service_server {
                 "/HubService/GetUsernameProof" => {
                     #[allow(non_camel_case_types)]
                     struct GetUsernameProofSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::UsernameProofRequest>
-                    for GetUsernameProofSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::UsernameProofRequest>
+                        for GetUsernameProofSvc<T>
+                    {
                         type Response = super::UserNameProof;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::UsernameProofRequest>,
@@ -4617,22 +4180,17 @@ pub mod hub_service_server {
                     #[allow(non_camel_case_types)]
                     struct GetUserNameProofsByFidSvc<T: HubService>(pub Arc<T>);
                     impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetUserNameProofsByFidSvc<T> {
+                        for GetUserNameProofsByFidSvc<T>
+                    {
                         type Response = super::UsernameProofsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_user_name_proofs_by_fid(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as HubService>::get_user_name_proofs_by_fid(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4664,15 +4222,11 @@ pub mod hub_service_server {
                 "/HubService/GetVerification" => {
                     #[allow(non_camel_case_types)]
                     struct GetVerificationSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::VerificationRequest>
-                    for GetVerificationSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::VerificationRequest>
+                        for GetVerificationSvc<T>
+                    {
                         type Response = super::Message;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::VerificationRequest>,
@@ -4710,21 +4264,16 @@ pub mod hub_service_server {
                 "/HubService/GetVerificationsByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetVerificationsByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetVerificationsByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidRequest> for GetVerificationsByFidSvc<T> {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_verifications_by_fid(&inner, request)
-                                    .await
+                                <T as HubService>::get_verifications_by_fid(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4755,21 +4304,16 @@ pub mod hub_service_server {
                 "/HubService/GetOnChainSigner" => {
                     #[allow(non_camel_case_types)]
                     struct GetOnChainSignerSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::SignerRequest>
-                    for GetOnChainSignerSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::SignerRequest> for GetOnChainSignerSvc<T> {
                         type Response = super::OnChainEvent;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::SignerRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_on_chain_signer(&inner, request)
-                                    .await
+                                <T as HubService>::get_on_chain_signer(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4801,22 +4345,17 @@ pub mod hub_service_server {
                     #[allow(non_camel_case_types)]
                     struct GetOnChainSignersByFidSvc<T: HubService>(pub Arc<T>);
                     impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetOnChainSignersByFidSvc<T> {
+                        for GetOnChainSignersByFidSvc<T>
+                    {
                         type Response = super::OnChainEventResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_on_chain_signers_by_fid(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as HubService>::get_on_chain_signers_by_fid(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4848,23 +4387,18 @@ pub mod hub_service_server {
                 "/HubService/GetOnChainEvents" => {
                     #[allow(non_camel_case_types)]
                     struct GetOnChainEventsSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::OnChainEventRequest>
-                    for GetOnChainEventsSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::OnChainEventRequest>
+                        for GetOnChainEventsSvc<T>
+                    {
                         type Response = super::OnChainEventResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::OnChainEventRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_on_chain_events(&inner, request)
-                                    .await
+                                <T as HubService>::get_on_chain_events(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4896,22 +4430,17 @@ pub mod hub_service_server {
                     #[allow(non_camel_case_types)]
                     struct GetIdRegistryOnChainEventSvc<T: HubService>(pub Arc<T>);
                     impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetIdRegistryOnChainEventSvc<T> {
+                        for GetIdRegistryOnChainEventSvc<T>
+                    {
                         type Response = super::OnChainEvent;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_id_registry_on_chain_event(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as HubService>::get_id_registry_on_chain_event(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4942,31 +4471,23 @@ pub mod hub_service_server {
                 }
                 "/HubService/GetIdRegistryOnChainEventByAddress" => {
                     #[allow(non_camel_case_types)]
-                    struct GetIdRegistryOnChainEventByAddressSvc<T: HubService>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::IdRegistryEventByAddressRequest>
-                    for GetIdRegistryOnChainEventByAddressSvc<T> {
+                    struct GetIdRegistryOnChainEventByAddressSvc<T: HubService>(pub Arc<T>);
+                    impl<T: HubService>
+                        tonic::server::UnaryService<super::IdRegistryEventByAddressRequest>
+                        for GetIdRegistryOnChainEventByAddressSvc<T>
+                    {
                         type Response = super::OnChainEvent;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::IdRegistryEventByAddressRequest,
-                            >,
+                            request: tonic::Request<super::IdRegistryEventByAddressRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as HubService>::get_id_registry_on_chain_event_by_address(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4998,12 +4519,10 @@ pub mod hub_service_server {
                     #[allow(non_camel_case_types)]
                     struct GetCurrentStorageLimitsByFidSvc<T: HubService>(pub Arc<T>);
                     impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetCurrentStorageLimitsByFidSvc<T> {
+                        for GetCurrentStorageLimitsByFidSvc<T>
+                    {
                         type Response = super::StorageLimitsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
@@ -5011,10 +4530,9 @@ pub mod hub_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as HubService>::get_current_storage_limits_by_fid(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -5045,23 +4563,18 @@ pub mod hub_service_server {
                 "/HubService/GetFidAddressType" => {
                     #[allow(non_camel_case_types)]
                     struct GetFidAddressTypeSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::FidAddressTypeRequest>
-                    for GetFidAddressTypeSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidAddressTypeRequest>
+                        for GetFidAddressTypeSvc<T>
+                    {
                         type Response = super::FidAddressTypeResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidAddressTypeRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_fid_address_type(&inner, request)
-                                    .await
+                                <T as HubService>::get_fid_address_type(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5092,21 +4605,16 @@ pub mod hub_service_server {
                 "/HubService/GetLink" => {
                     #[allow(non_camel_case_types)]
                     struct GetLinkSvc<T: HubService>(pub Arc<T>);
-                    impl<T: HubService> tonic::server::UnaryService<super::LinkRequest>
-                    for GetLinkSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::LinkRequest> for GetLinkSvc<T> {
                         type Response = super::Message;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::LinkRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as HubService>::get_link(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as HubService>::get_link(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -5136,15 +4644,9 @@ pub mod hub_service_server {
                 "/HubService/GetLinksByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetLinksByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::LinksByFidRequest>
-                    for GetLinksByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::LinksByFidRequest> for GetLinksByFidSvc<T> {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::LinksByFidRequest>,
@@ -5182,23 +4684,18 @@ pub mod hub_service_server {
                 "/HubService/GetLinksByTarget" => {
                     #[allow(non_camel_case_types)]
                     struct GetLinksByTargetSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::LinksByTargetRequest>
-                    for GetLinksByTargetSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::LinksByTargetRequest>
+                        for GetLinksByTargetSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::LinksByTargetRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_links_by_target(&inner, request)
-                                    .await
+                                <T as HubService>::get_links_by_target(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5230,12 +4727,10 @@ pub mod hub_service_server {
                     #[allow(non_camel_case_types)]
                     struct GetLinkCompactStateMessageByFidSvc<T: HubService>(pub Arc<T>);
                     impl<T: HubService> tonic::server::UnaryService<super::FidRequest>
-                    for GetLinkCompactStateMessageByFidSvc<T> {
+                        for GetLinkCompactStateMessageByFidSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidRequest>,
@@ -5243,10 +4738,9 @@ pub mod hub_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as HubService>::get_link_compact_state_message_by_fid(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -5277,25 +4771,18 @@ pub mod hub_service_server {
                 "/HubService/GetAllCastMessagesByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetAllCastMessagesByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::FidTimestampRequest>
-                    for GetAllCastMessagesByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidTimestampRequest>
+                        for GetAllCastMessagesByFidSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidTimestampRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_all_cast_messages_by_fid(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as HubService>::get_all_cast_messages_by_fid(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -5327,25 +4814,18 @@ pub mod hub_service_server {
                 "/HubService/GetAllReactionMessagesByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetAllReactionMessagesByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::FidTimestampRequest>
-                    for GetAllReactionMessagesByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidTimestampRequest>
+                        for GetAllReactionMessagesByFidSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidTimestampRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_all_reaction_messages_by_fid(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as HubService>::get_all_reaction_messages_by_fid(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -5377,15 +4857,11 @@ pub mod hub_service_server {
                 "/HubService/GetAllVerificationMessagesByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetAllVerificationMessagesByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::FidTimestampRequest>
-                    for GetAllVerificationMessagesByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidTimestampRequest>
+                        for GetAllVerificationMessagesByFidSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidTimestampRequest>,
@@ -5393,10 +4869,9 @@ pub mod hub_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as HubService>::get_all_verification_messages_by_fid(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -5427,15 +4902,11 @@ pub mod hub_service_server {
                 "/HubService/GetAllUserDataMessagesByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetAllUserDataMessagesByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::FidTimestampRequest>
-                    for GetAllUserDataMessagesByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidTimestampRequest>
+                        for GetAllUserDataMessagesByFidSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidTimestampRequest>,
@@ -5443,10 +4914,9 @@ pub mod hub_service_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as HubService>::get_all_user_data_messages_by_fid(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -5477,25 +4947,18 @@ pub mod hub_service_server {
                 "/HubService/GetAllLinkMessagesByFid" => {
                     #[allow(non_camel_case_types)]
                     struct GetAllLinkMessagesByFidSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::FidTimestampRequest>
-                    for GetAllLinkMessagesByFidSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::FidTimestampRequest>
+                        for GetAllLinkMessagesByFidSvc<T>
+                    {
                         type Response = super::MessagesResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::FidTimestampRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_all_link_messages_by_fid(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as HubService>::get_all_link_messages_by_fid(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -5527,25 +4990,18 @@ pub mod hub_service_server {
                 "/HubService/GetTrieMetadataByPrefix" => {
                     #[allow(non_camel_case_types)]
                     struct GetTrieMetadataByPrefixSvc<T: HubService>(pub Arc<T>);
-                    impl<
-                        T: HubService,
-                    > tonic::server::UnaryService<super::TrieNodeMetadataRequest>
-                    for GetTrieMetadataByPrefixSvc<T> {
+                    impl<T: HubService> tonic::server::UnaryService<super::TrieNodeMetadataRequest>
+                        for GetTrieMetadataByPrefixSvc<T>
+                    {
                         type Response = super::TrieNodeMetadataResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::TrieNodeMetadataRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as HubService>::get_trie_metadata_by_prefix(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as HubService>::get_trie_metadata_by_prefix(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -5574,18 +5030,14 @@ pub mod hub_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        Ok(
-                            http::Response::builder()
-                                .status(200)
-                                .header("grpc-status", "12")
-                                .header("content-type", "application/grpc")
-                                .body(empty_body())
-                                .unwrap(),
-                        )
-                    })
-                }
+                _ => Box::pin(async move {
+                    Ok(http::Response::builder()
+                        .status(200)
+                        .header("grpc-status", "12")
+                        .header("content-type", "application/grpc")
+                        .body(empty_body())
+                        .unwrap())
+                }),
             }
         }
     }
