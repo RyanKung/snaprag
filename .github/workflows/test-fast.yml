@@ -43,7 +43,9 @@ jobs:
       
       - name: Run fast unit tests
         run: |
-          cargo test --lib \
+          timeout 300 cargo test --lib \
+            --features payment \
+            -- \
             unit_tests::unit_tests \
             text_preprocessing::tests \
             service_factory::tests \
@@ -51,8 +53,10 @@ jobs:
             session::tests \
             lock_file::tests \
             process_monitor::tests \
-            lazy_loader::tests \
-            --features payment
+            lazy_loader::tests || {
+            echo "Test execution failed or timed out"
+            exit 1
+          }
       
       - name: Test documentation examples
         run: cargo test --doc --features payment
