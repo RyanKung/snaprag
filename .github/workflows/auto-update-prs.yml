@@ -1,0 +1,162 @@
+name: Auto Update Pull Requests
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  schedule:
+    # Run daily at 2 AM UTC to catch any missed updates
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-prs:
+    name: Update Outdated Pull Requests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get base branch name
+        id: base-branch
+        run: |
+          if git show-ref --verify --quiet refs/heads/master; then
+            echo "branch=master" >> $GITHUB_OUTPUT
+          elif git show-ref --verify --quiet refs/heads/main; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: Neither master nor main branch found"
+            exit 1
+          fi
+
+      - name: Fetch all branches
+        run: |
+          git fetch origin
+
+      - name: Get list of open pull requests
+        id: pr-list
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const baseBranch = '${{ steps.base-branch.outputs.branch }}';
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              base: baseBranch,
+              sort: 'updated',
+              direction: 'desc'
+            });
+            
+            const prData = prs.map(pr => ({
+              number: pr.number,
+              head: pr.head.ref,
+              sha: pr.head.sha,
+              user: pr.user.login,
+              repo: pr.head.repo.full_name
+            }));
+            
+            core.setOutput('prs', JSON.stringify(prData));
+            return prData;
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Update each pull request
+        env:
+          BASE_BRANCH: ${{ steps.base-branch.outputs.branch }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          PR_LIST='${{ steps.pr-list.outputs.prs }}'
+          
+          # Parse PR list (it's a JSON array)
+          echo "$PR_LIST" | jq -r '.[] | "\(.number)|\(.head)|\(.sha)|\(.user)|\(.repo)"' | while IFS='|' read -r pr_number pr_head pr_sha pr_user pr_repo; do
+            echo "Processing PR #$pr_number ($pr_head by @$pr_user)"
+            
+            # Skip if PR is from a fork (we can't push to forks)
+            if [ "$pr_repo" = "$REPO_NAME" ]; then
+              echo "  ✓ PR is from same repository, can update"
+            else
+              echo "  ⚠ PR is from fork ($pr_repo), skipping (cannot push to forks)"
+              continue
+            fi
+            
+            # Checkout the PR branch
+            git fetch origin "$pr_head:$pr_head" || {
+              echo "  ✗ Failed to fetch branch $pr_head"
+              continue
+            }
+            
+            git checkout "$pr_head" || {
+              echo "  ✗ Failed to checkout branch $pr_head"
+              continue
+            }
+            
+            # Check if branch is behind base branch
+            BASE_SHA=$(git rev-parse "origin/$BASE_BRANCH")
+            HEAD_SHA=$(git rev-parse HEAD)
+            MERGE_BASE=$(git merge-base "origin/$BASE_BRANCH" HEAD)
+            
+            if [ "$MERGE_BASE" = "$BASE_SHA" ]; then
+              echo "  ✓ Branch is up to date with $BASE_BRANCH"
+              git checkout "$BASE_BRANCH"
+              continue
+            fi
+            
+            echo "  ↻ Branch is behind $BASE_BRANCH, updating..."
+            
+            # Merge the latest changes from base branch
+            git merge "origin/$BASE_BRANCH" --no-edit || {
+              echo "  ✗ Merge conflict detected, skipping PR #$pr_number"
+              git merge --abort || true
+              git checkout "$BASE_BRANCH"
+              continue
+            }
+            
+            # Push the updated branch
+            if git diff --quiet HEAD "origin/$pr_head"; then
+              echo "  ✓ No changes to push"
+            else
+              echo "  ↑ Pushing updated branch..."
+              git push origin "$pr_head" || {
+                echo "  ✗ Failed to push to $pr_head"
+                git checkout "$BASE_BRANCH"
+                continue
+              }
+              echo "  ✅ Successfully updated PR #$pr_number"
+            fi
+            
+            # Return to base branch for next iteration
+            git checkout "$BASE_BRANCH"
+          done
+
+      - name: Summary
+        run: |
+          echo "## Auto Update PRs Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Completed updating outdated pull requests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This workflow:" >> $GITHUB_STEP_SUMMARY
+          echo "- Checks all open PRs targeting \`${{ steps.base-branch.outputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Merges latest changes from base branch" >> $GITHUB_STEP_SUMMARY
+          echo "- Skips PRs from forks (cannot push to forks)" >> $GITHUB_STEP_SUMMARY
+          echo "- Skips PRs with merge conflicts (requires manual resolution)" >> $GITHUB_STEP_SUMMARY
+
