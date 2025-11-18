@@ -196,23 +196,34 @@ pub fn cleanup_all_snaprag_processes() -> Result<()> {
     use std::process::Command;
 
     // Find all snaprag processes
-    let output = Command::new("pgrep")
-        .args(["-f", "snaprag"])
-        .output()
-        .map_err(|e| {
-            crate::SnapRagError::Custom(format!("Failed to find snaprag processes: {e}"))
-        })?;
+    // In CI environments, pgrep might not be available or might fail
+    // So we handle errors gracefully
+    let output = match Command::new("pgrep").args(["-f", "snaprag"]).output() {
+        Ok(o) => o,
+        Err(_) => {
+            // pgrep not available or failed - this is OK in CI environments
+            return Ok(());
+        }
+    };
 
     if !output.stdout.is_empty() {
         let output_str = String::from_utf8_lossy(&output.stdout);
         let pids: Vec<&str> = output_str.lines().filter(|line| !line.is_empty()).collect();
 
         for pid in pids {
+            // Skip killing the current process
+            if let Ok(current_pid) = std::process::id().to_string().parse::<u32>() {
+                if let Ok(target_pid) = pid.parse::<u32>() {
+                    if target_pid == current_pid {
+                        continue;
+                    }
+                }
+            }
             let _ = Command::new("kill").args(["-9", pid]).output();
         }
 
-        // Wait for processes to terminate
-        std::thread::sleep(Duration::from_millis(500));
+        // Wait for processes to terminate (but don't block too long)
+        std::thread::sleep(Duration::from_millis(100));
     }
 
     Ok(())
