@@ -106,7 +106,8 @@ jobs:
             --skip database_tests \
             --skip real_data \
             --skip deterministic_blocks \
-            --skip grpc_shard || {
+            --skip grpc_shard \
+            --test-threads=1 || {
             echo "Test execution failed or timed out"
             exit 1
           }
