@@ -61,17 +61,22 @@ jobs:
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} --features payment
       
-      - name: Run tests in release mode
+      - name: Run tests in release mode (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            # macOS doesn't have timeout by default, but release tests are fast
-            cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data --test-threads=1
-          else
-            timeout 300 cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data --test-threads=1 || {
-              echo "Test execution failed or timed out"
-              exit 1
-            }
-          fi
+          timeout 300 cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data --test-threads=1 || {
+            echo "Test execution failed or timed out"
+            exit 1
+          }
+      
+      - name: Run tests in release mode (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Release tests are fast, no timeout needed on macOS
+          cargo test --release --lib --features payment -- --skip integration --skip database --skip real_data --test-threads=1 || {
+            echo "Test execution failed"
+            exit 1
+          }
       
       - name: Strip binary (Linux)
         if: matrix.os == 'ubuntu-latest'
