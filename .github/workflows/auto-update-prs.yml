@@ -30,10 +30,20 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Fetch all branches
+        run: |
+          git fetch origin
+
       - name: Get base branch name
         id: base-branch
         run: |
-          if git show-ref --verify --quiet refs/heads/master; then
+          # Check remote branches first (more reliable)
+          if git show-ref --verify --quiet refs/remotes/origin/master; then
+            echo "branch=master" >> $GITHUB_OUTPUT
+          elif git show-ref --verify --quiet refs/remotes/origin/main; then
+            echo "branch=main" >> $GITHUB_OUTPUT
+          # Fallback to local branches
+          elif git show-ref --verify --quiet refs/heads/master; then
             echo "branch=master" >> $GITHUB_OUTPUT
           elif git show-ref --verify --quiet refs/heads/main; then
             echo "branch=main" >> $GITHUB_OUTPUT
@@ -41,10 +51,6 @@ jobs:
             echo "ERROR: Neither master nor main branch found"
             exit 1
           fi
-
-      - name: Fetch all branches
-        run: |
-          git fetch origin
 
       - name: Get list of open pull requests
         id: pr-list
@@ -115,9 +121,12 @@ jobs:
             HEAD_SHA=$(git rev-parse HEAD)
             MERGE_BASE=$(git merge-base "origin/$BASE_BRANCH" HEAD)
             
-            if [ "$MERGE_BASE" = "$BASE_SHA" ]; then
+            # If merge-base equals HEAD, branch is up to date
+            # If merge-base equals BASE, branch is completely behind
+            # If merge-base is different from both, branch has diverged
+            if [ "$MERGE_BASE" = "$HEAD_SHA" ]; then
               echo "  ✓ Branch is up to date with $BASE_BRANCH"
-              git checkout "$BASE_BRANCH"
+              git checkout "$BASE_BRANCH" || true
               continue
             fi
             
@@ -127,7 +136,7 @@ jobs:
             git merge "origin/$BASE_BRANCH" --no-edit || {
               echo "  ✗ Merge conflict detected, skipping PR #$pr_number"
               git merge --abort || true
-              git checkout "$BASE_BRANCH"
+              git checkout "$BASE_BRANCH" 2>/dev/null || git checkout "origin/$BASE_BRANCH" || true
               continue
             }
             
@@ -138,15 +147,18 @@ jobs:
               echo "  ↑ Pushing updated branch..."
               git push origin "$pr_head" || {
                 echo "  ✗ Failed to push to $pr_head"
-                git checkout "$BASE_BRANCH"
+                git checkout "$BASE_BRANCH" 2>/dev/null || git checkout "origin/$BASE_BRANCH" || true
                 continue
               }
               echo "  ✅ Successfully updated PR #$pr_number"
             fi
             
-            # Return to base branch for next iteration
-            git checkout "$BASE_BRANCH"
+            # Return to base branch for next iteration (or detach HEAD if branch doesn't exist locally)
+            git checkout "$BASE_BRANCH" 2>/dev/null || git checkout "origin/$BASE_BRANCH" || true
           done
+          
+          # Clean up: return to a safe state
+          git checkout "origin/$BASE_BRANCH" 2>/dev/null || true
 
       - name: Summary
         run: |
