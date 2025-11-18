@@ -30,7 +30,8 @@ jobs:
         run: cargo fmt --all -- --check
       
       - name: Clippy check (fail on warnings)
-        run: cargo clippy --all-targets --features payment -- -D warnings
+        # Exclude examples as they may require optional dependencies (e.g., ethers for payment_monitor)
+        run: cargo clippy --lib --bins --features payment -- -D warnings
         continue-on-error: true
 
   # Compile check
