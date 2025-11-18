@@ -1140,6 +1140,27 @@ SnapRAG includes comprehensive Cursor IDE rules for enhanced development experie
 - Include tests for new functionality
 - Update README if adding new features or changing behavior
 
+### Avoiding Formatting Issues
+
+**Why formatting issues occur:**
+1. **Generated code** (`src/generated/_.rs`) is auto-generated during build and may need formatting
+2. **Manual edits** without formatting before commit
+3. **Different Rust versions** may format code differently
+
+**How to prevent:**
+- ✅ **Pre-commit hook** automatically formats code before commit (already installed)
+- ✅ Run `cargo fmt --all` after building (generated code changes)
+- ✅ Run `make fix` before committing
+- ✅ Use `cargo fmt --all -- --check` to verify formatting
+
+**If CI fails on formatting:**
+```bash
+cargo fmt --all
+git add .
+git commit -m "chore: fix formatting"
+git push
+```
+
 ## 📞 Support
 
 For questions, issues, or contributions, please open an issue on the GitHub repository.
