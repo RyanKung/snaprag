@@ -23,8 +23,37 @@ jobs:
         with:
           components: rustfmt
       
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config protobuf-compiler
+      
+      - name: Build to generate code
+        run: cargo build --features payment
+        # This generates src/generated/_.rs from protobuf files
+      
+      - name: Format all code (including generated)
+        run: cargo fmt --all
+        # Format the generated code to ensure it matches rustfmt expectations
+      
+      - name: Check for formatting changes
+        run: |
+          # Configure git to detect changes
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+          
+          # Check if formatting changed any files
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "❌ Code formatting check failed!"
+            echo "The following files need formatting:"
+            git diff --name-only
+            echo ""
+            echo "💡 Run 'cargo fmt --all' locally and commit the changes"
+            echo "💡 Note: Generated files in src/generated/ may need formatting after build"
+            exit 1
+          else
+            echo "✅ All code is properly formatted"
+          fi
 
   # Run clippy lints
   clippy:
