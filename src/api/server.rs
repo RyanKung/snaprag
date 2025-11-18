@@ -16,6 +16,7 @@ use crate::api::cache_proxy::cache_proxy_middleware;
 use crate::api::cache_proxy::CacheProxyState;
 use crate::api::handlers::AppState;
 use crate::api::mcp;
+use crate::api::metrics;
 #[cfg(feature = "payment")]
 use crate::api::payment_middleware::smart_payment_middleware;
 #[cfg(feature = "payment")]
@@ -38,6 +39,17 @@ pub async fn serve_api(
     #[cfg(feature = "payment")] testnet: bool,
 ) -> Result<()> {
     info!("🚀 Starting SnapRAG API server...");
+
+    // Initialize Prometheus metrics
+    match metrics::init_metrics() {
+        Ok(_) => {
+            info!("✅ Prometheus metrics initialized");
+            info!("📊 Metrics endpoint available at: http://{host}:{port}/api/metrics");
+        }
+        Err(e) => {
+            tracing::warn!("⚠️  Failed to initialize metrics: {}", e);
+        }
+    }
 
     // Initialize services
     let database = Arc::new(Database::from_config(config).await?);

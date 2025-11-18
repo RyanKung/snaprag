@@ -87,6 +87,7 @@ SnapRAG is a PostgreSQL-based RAG foundation framework designed specifically for
 ## 📋 Table of Contents
 
 - [Quick Start](#-quick-start)
+- [**Docker Deployment**](#-docker-deployment) 🐳 NEW
 - [Features](#-features)
 - [**Library Usage**](#-using-as-a-library) ⭐ NEW
 - [CLI Commands](#️-available-cli-commands)
@@ -165,6 +166,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 **See examples in [examples/](./examples/) directory!**
+
+## 🐳 Docker Deployment
+
+### Option 1: Use Pre-built Image from DockerHub (Fastest)
+
+```bash
+# 1. Create config.toml
+cp config.example.toml config.toml
+vim config.toml  # Update database URL
+
+# 2. Run container
+docker run -d \
+  --name snaprag \
+  -p 3000:3000 \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  -v $(pwd)/logs:/app/logs \
+  --add-host=host.docker.internal:host-gateway \
+  ryankung/snaprag:latest api
+
+# Access at http://localhost:3000
+```
+
+### Option 2: Build from Source
+
+```bash
+# Quick start (all in one)
+make -f Makefile.docker docker-quick-start
+
+# Or step by step
+make -f Makefile.docker setup-config   # Create config.toml
+make -f Makefile.docker docker-build   # Build image
+make -f Makefile.docker docker-run     # Run container
+```
+
+📚 **[Complete Docker Documentation →](./DOCKER_DEPLOYMENT.md)**
+
+**Design Philosophy:**
+- ✅ **Single-container deployment** - Simple and fast
+- ✅ **Config always external** - Security best practice (no secrets in image)
+- ✅ **Connects to external services** - Use your existing PostgreSQL/Redis
+- ✅ **Production-ready** - Non-root user, health checks, logging
+
+**Key Commands:**
+```bash
+make -f Makefile.docker help          # Show all commands
+make -f Makefile.docker docker-build  # Build image
+make -f Makefile.docker docker-run    # Run API server
+make -f Makefile.docker docker-logs   # View logs
+make -f Makefile.docker docker-stop   # Stop container
+```
+
+**Requirements:**
+- PostgreSQL 15+ with pgvector (running separately)
+- Redis 7+ (optional, for caching)
+- config.toml configured with your database URL
 
 ## ✨ Features
 
@@ -1083,6 +1139,27 @@ SnapRAG includes comprehensive Cursor IDE rules for enhanced development experie
 - Add documentation for new public APIs
 - Include tests for new functionality
 - Update README if adding new features or changing behavior
+
+### Avoiding Formatting Issues
+
+**Why formatting issues occur:**
+1. **Generated code** (`src/generated/_.rs`) is auto-generated during build and may need formatting
+2. **Manual edits** without formatting before commit
+3. **Different Rust versions** may format code differently
+
+**How to prevent:**
+- ✅ **Pre-commit hook** automatically formats code before commit (already installed)
+- ✅ Run `cargo fmt --all` after building (generated code changes)
+- ✅ Run `make fix` before committing
+- ✅ Use `cargo fmt --all -- --check` to verify formatting
+
+**If CI fails on formatting:**
+```bash
+cargo fmt --all
+git add .
+git commit -m "chore: fix formatting"
+git push
+```
 
 ## 📞 Support
 

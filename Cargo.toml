@@ -44,8 +44,9 @@ hex = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
 tempfile = "3.0"
 clap = { version = "4.0", features = ["derive"] }
-tonic = "0.10"
+tonic = { version = "0.10", features = ["transport", "codegen", "prost"] }
 prost = "0.12"
+prost-types = "0.12"
 libc = "0.2"
 futures = "0.3"
 rust_decimal = { version = "1.0", features = ["serde"] }
@@ -63,6 +64,7 @@ textwrap = "0.16"  # Text wrapping for CLI output
 stop-words = "0.8"  # Stop words for multiple languages
 lazy_static = "1.4"  # For static AFINN lexicon
 jsonwebtoken = { version = "10.1", features = ["aws_lc_rs"] }  # Force newer version to fix ring 0.16.20 security issue
+prometheus = { version = "0.13", features = ["process"] }  # Prometheus metrics for monitoring
 
 # Local GPU embedding dependencies (optional)
 # Note: Platform-specific features are defined in target-specific sections below
@@ -104,7 +106,7 @@ candle-transformers = { version = "0.9", features = ["cuda"], optional = true }
 
 [build-dependencies]
 protobuf-codegen = "3.7"
-tonic-build = "0.10"
+tonic-build = { version = "0.10", features = ["prost"] }
 
 [lints.rust]
 # Ignore warnings from generated protobuf code

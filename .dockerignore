@@ -1,0 +1,68 @@
+# Build artifacts
+target/
+*.so
+*.dylib
+*.dll
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Config files (will be mounted at runtime, not baked into image)
+config.toml
+payment.toml
+sync_state.json
+config.docker.toml
+
+# Data directories (will be mounted at runtime)
+data/postgres/
+data/redis/
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Documentation (not needed in runtime)
+*.md
+!README.md
+docs/
+demo/
+labels/
+
+# Test files
+tests/
+test_*.sh
+
+# CI/CD
+.github/
+.cursor/
+
+# Database files
+*.db
+*.sql
+!migrations/*.sql
+
+# Temporary files
+tmp/
+temp/
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Large binary files
+web-client/
+snapchain/
+
