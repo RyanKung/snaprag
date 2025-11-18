@@ -1,0 +1,65 @@
+# Prometheus configuration for SnapRAG monitoring
+# 
+# Usage:
+#   prometheus --config.file=prometheus.yml
+#
+# Or with Docker:
+#   docker run -p 9090:9090 -v $(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml prom/prometheus
+
+global:
+  scrape_interval: 15s      # How frequently to scrape targets
+  evaluation_interval: 15s  # How frequently to evaluate rules
+  external_labels:
+    cluster: 'snaprag'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # SnapRAG API server metrics
+  - job_name: 'snaprag-api'
+    scrape_interval: 10s
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['localhost:8080']
+        labels:
+          service: 'snaprag-api'
+          instance: 'snaprag-1'
+    
+  # PostgreSQL exporter (if installed)
+  # Install: https://github.com/prometheus-community/postgres_exporter
+  - job_name: 'postgresql'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9187']
+        labels:
+          service: 'postgresql'
+          database: 'snaprag'
+    
+  # Node exporter for system metrics (if installed)
+  # Install: https://github.com/prometheus/node_exporter
+  - job_name: 'node'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9100']
+        labels:
+          service: 'system'
+          instance: 'snaprag-ec2'
+
+# Optional: Remote write configuration for long-term storage
+# remote_write:
+#   - url: "https://prometheus-remote-write-endpoint.com/api/v1/write"
+#     basic_auth:
+#       username: "your-username"
+#       password: "your-password"
+

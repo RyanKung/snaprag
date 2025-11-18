@@ -210,9 +210,6 @@ pub enum FetchCommands {
         /// Generate embeddings for fetched casts
         #[arg(long)]
         generate_embeddings: bool,
-        /// Embedding endpoint to use (from config)
-        #[arg(long)]
-        embedding_endpoint: Option<String>,
     },
     /// Batch fetch multiple users
     Users {
@@ -224,9 +221,6 @@ pub enum FetchCommands {
         /// Generate embeddings for fetched casts
         #[arg(long)]
         generate_embeddings: bool,
-        /// Embedding endpoint to use
-        #[arg(long)]
-        embedding_endpoint: Option<String>,
     },
     /// Preload popular users (top N by activity)
     Popular {
@@ -239,9 +233,6 @@ pub enum FetchCommands {
         /// Generate embeddings for fetched casts
         #[arg(long)]
         generate_embeddings: bool,
-        /// Embedding endpoint to use
-        #[arg(long)]
-        embedding_endpoint: Option<String>,
     },
 }
 
@@ -433,9 +424,6 @@ pub enum EmbeddingsCommands {
         /// Maximum number of items to process (casts only)
         #[arg(long)]
         limit: Option<usize>,
-        /// Embedding endpoint to use (from config.toml endpoints list)
-        #[arg(short, long)]
-        endpoint: Option<String>,
         /// Use local GPU for embedding generation
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
@@ -467,9 +455,6 @@ pub enum EmbeddingsCommands {
     TestCast {
         /// Message hash of the cast to test
         message_hash: String,
-        /// Embedding endpoint to use (from config.toml endpoints list)
-        #[arg(short, long)]
-        endpoint: Option<String>,
         /// Use local GPU for embedding generation
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
@@ -504,9 +489,6 @@ pub enum EmbeddingsCommands {
         /// Maximum number of casts to process
         #[arg(long)]
         limit: Option<usize>,
-        /// Embedding endpoint to use (from config.toml endpoints list)
-        #[arg(short, long)]
-        endpoint: Option<String>,
         /// Use local GPU for embedding generation
         #[cfg(feature = "local-gpu")]
         #[arg(long)]
@@ -535,9 +517,6 @@ pub enum CastEmbeddingAction {
         /// Maximum number of casts to process
         #[arg(long)]
         limit: Option<usize>,
-        /// Embedding endpoint to use (from config.toml endpoints list)
-        #[arg(short, long)]
-        endpoint: Option<String>,
         /// Use local GPU for embedding generation
         #[cfg(feature = "local-gpu")]
         #[arg(long)]

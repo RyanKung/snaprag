@@ -47,37 +47,47 @@ impl PricingConfig {
     #[cfg(feature = "payment")]
     #[must_use]
     pub fn get_price(&self, path: &str) -> Option<Decimal> {
+        // Normalize path - remove /api prefix if present
+        let normalized_path = path.strip_prefix("/api").unwrap_or(path);
+
         // Exact match first for better performance
         // Check if it's a free endpoint
-        if self.free_endpoints.contains(&path.to_string()) {
+        if self.free_endpoints.contains(&normalized_path.to_string()) {
             return None;
         }
 
         // Check enterprise tier (exact match or pattern)
-        if self.enterprise_endpoints.contains(&path.to_string())
+        if self
+            .enterprise_endpoints
+            .contains(&normalized_path.to_string())
             || self
                 .enterprise_endpoints
                 .iter()
-                .any(|p| path.starts_with(p))
+                .any(|p| normalized_path.starts_with(p))
         {
-            return Some(Decimal::from_str("0.010000").unwrap()); // $0.01 (10000 atomic units)
+            return Some(Decimal::from_str("0.1").unwrap()); // $0.1
         }
 
         // Check premium tier
-        if self.premium_endpoints.contains(&path.to_string())
-            || self.premium_endpoints.iter().any(|p| path.starts_with(p))
+        if self
+            .premium_endpoints
+            .contains(&normalized_path.to_string())
+            || self
+                .premium_endpoints
+                .iter()
+                .any(|p| normalized_path.starts_with(p))
         {
-            return Some(Decimal::from_str("0.001000").unwrap()); // $0.001 (1000 atomic units)
+            return Some(Decimal::from_str("0.01").unwrap()); // $0.01
         }
 
         // Check basic tier
-        if self.basic_endpoints.contains(&path.to_string())
+        if self.basic_endpoints.contains(&normalized_path.to_string())
             || self
                 .basic_endpoints
                 .iter()
-                .any(|p| self.matches_pattern(p, path))
+                .any(|p| self.matches_pattern(p, normalized_path))
         {
-            return Some(Decimal::from_str("0.000100").unwrap()); // $0.0001 (100 atomic units)
+            return Some(Decimal::from_str("0.001").unwrap()); // $0.001
         }
 
         // Default: no payment required (be conservative)
@@ -86,9 +96,9 @@ impl PricingConfig {
 
     /// Check if a path matches a pattern (supports :param placeholders)
     fn matches_pattern(&self, pattern: &str, path: &str) -> bool {
-        // Normalize paths - remove /api prefix if present in pattern
+        // Normalize paths - remove /api prefix if present
         let normalized_pattern = pattern.strip_prefix("/api").unwrap_or(pattern);
-        let normalized_path = path;
+        let normalized_path = path.strip_prefix("/api").unwrap_or(path);
 
         let pattern_parts: Vec<&str> = normalized_pattern
             .split('/')
@@ -138,25 +148,38 @@ mod tests {
     fn test_pricing_config() {
         let pricing = PricingConfig::default();
 
-        // Free endpoints
-        assert_eq!(pricing.get_price("/api/health"), None);
-        assert_eq!(pricing.get_price("/api/stats"), None);
+        // Free endpoints (paths without /api prefix)
+        assert_eq!(pricing.get_price("/health"), None);
+        assert_eq!(pricing.get_price("/stats"), None);
+        assert_eq!(pricing.get_price("/"), None);
 
-        // Basic tier
+        // Basic tier - $0.001
         assert_eq!(
-            pricing.get_price("/api/profiles"),
+            pricing.get_price("/profiles"),
+            Some(Decimal::from_str("0.001").unwrap())
+        );
+        assert_eq!(
+            pricing.get_price("/profiles/123"),
             Some(Decimal::from_str("0.001").unwrap())
         );
 
-        // Premium tier
+        // Premium tier - $0.01
         assert_eq!(
-            pricing.get_price("/api/search/profiles"),
+            pricing.get_price("/search/profiles"),
+            Some(Decimal::from_str("0.01").unwrap())
+        );
+        assert_eq!(
+            pricing.get_price("/search/casts"),
+            Some(Decimal::from_str("0.01").unwrap())
+        );
+        assert_eq!(
+            pricing.get_price("/tools/call"),
             Some(Decimal::from_str("0.01").unwrap())
         );
 
-        // Enterprise tier
+        // Enterprise tier - $0.1
         assert_eq!(
-            pricing.get_price("/api/rag/query"),
+            pricing.get_price("/rag/query"),
             Some(Decimal::from_str("0.1").unwrap())
         );
     }
@@ -165,8 +188,16 @@ mod tests {
     fn test_path_matching() {
         let pricing = PricingConfig::default();
 
-        assert!(pricing.matches_pattern("/api/profiles/:fid", "/api/profiles/123"));
-        assert!(pricing.matches_pattern("/api/health", "/api/health"));
-        assert!(!pricing.matches_pattern("/api/profiles", "/api/search"));
+        // Test pattern matching with :param placeholders
+        assert!(pricing.matches_pattern("/profiles/:fid", "/profiles/123"));
+
+        // Test exact matches
+        assert!(pricing.matches_pattern("/health", "/health"));
+
+        // Test non-matches
+        assert!(!pricing.matches_pattern("/profiles", "/search"));
+
+        // Test prefix matching
+        assert!(pricing.matches_pattern("/search/profiles", "/search/profiles/query"));
     }
 }

@@ -5,6 +5,7 @@ pub mod cache;
 pub mod cache_proxy;
 pub mod handlers;
 pub mod mcp;
+pub mod metrics;
 #[cfg(feature = "payment")]
 pub mod payment_middleware;
 pub mod pricing;

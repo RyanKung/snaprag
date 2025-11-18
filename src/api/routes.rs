@@ -40,6 +40,8 @@ pub fn api_routes(state: AppState) -> Router {
         )
         // Statistics
         .route("/stats", get(handlers::get_stats))
+        // Prometheus metrics
+        .route("/metrics", get(handlers::get_metrics))
         // Social graph endpoints
         .route("/social/:fid", get(handlers::get_social_analysis))
         .route(
