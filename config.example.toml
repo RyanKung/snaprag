@@ -19,47 +19,15 @@ backtrace = true
 [embeddings]
 dimension = 384
 model = "bge-small-en-v1.5"
+endpoint = "http://localhost:11434"  # Default Ollama port
+provider = "ollama"  # Options: "ollama", "openai"
+# api_key = "sk-your-api-key"  # Only needed for OpenAI provider
 
 # Batch processing configuration (adjust based on GPU/CPU capacity)
 # For CPU-only: batch_size=100-200, parallel_tasks=5-10
 # For GPU (Tesla V100): batch_size=500-1000, parallel_tasks=100-200
 batch_size = 500          # Number of items to fetch from DB per batch
 parallel_tasks = 100      # Number of concurrent embedding requests
-
-# Multiple embedding endpoints (OpenAI-compatible APIs)
-# Use --endpoint flag to select: snaprag embeddings backfill-casts --endpoint openai
-[[embeddings.endpoints]]
-name = "ollama"
-endpoint = "http://localhost:11434"  # Default Ollama port
-model = "bge-small-en-v1.5"
-provider = "ollama"
-# api_key not needed for Ollama
-
-[[embeddings.endpoints]]
-name = "openai"
-endpoint = "https://api.openai.com/v1"
-api_key = "sk-your-openai-api-key-here"  # Replace with your actual key
-model = "text-embedding-3-small"
-provider = "openai"
-
-[[embeddings.endpoints]]
-name = "azure"
-endpoint = "https://your-resource.openai.azure.com"  # Replace with your Azure endpoint
-api_key = "your-azure-api-key-here"
-model = "text-embedding-ada-002"
-provider = "openai"
-
-[[embeddings.endpoints]]
-name = "vllm"
-endpoint = "http://localhost:8000/v1"
-model = "BAAI/bge-large-en-v1.5"
-provider = "openai"  # vLLM uses OpenAI-compatible API
-
-[[embeddings.endpoints]]
-name = "local_gpu"
-endpoint = "local"  # Not used for local GPU, but required by config
-model = "BAAI/bge-small-en-v1.5"
-provider = "local_gpu"  # Local GPU inference
 
 [performance]
 enable_vector_indexes = true
